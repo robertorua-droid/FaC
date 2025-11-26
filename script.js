@@ -1,4 +1,4 @@
-// CONFIGURAZIONE FIREBASE
+c:\Users\rober\Desktop\Esperimento\Etremo Fatt\Stabile\V 7.6 DA TESTARE_WEB\---script.js// CONFIGURAZIONE FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyCuGd5MSKdixcMYOYullnyam6Pj1D9tNbM",
   authDomain: "fprf-6c080.firebaseapp.com",
@@ -28,7 +28,7 @@ let dateTimeInterval = null;
 $(document).ready(function() {
 
     // =========================================================
-    // 1. FUNZIONI DI UTILITÀ E ACCESSO DATI
+    // 1. FUNZIONI DI UTILITÀ
     // =========================================================
 
     function formatDateForDisplay(dateString) {
@@ -45,6 +45,7 @@ $(document).ready(function() {
 
     function getNextId(items) { 
         if (!items || items.length === 0) return 1;
+        // Filtra solo ID che sembrano numeri per calcolare il prossimo
         const numericIds = items.map(i => parseInt(i.id)).filter(id => !isNaN(id));
         return numericIds.length > 0 ? Math.max(...numericIds) + 1 : 1; 
     }
@@ -53,7 +54,10 @@ $(document).ready(function() {
         return globalData[key] || [];
     }
 
-    // Caricamento massivo dal Cloud (Cache)
+    // =========================================================
+    // 2. GESTIONE DATI CLOUD
+    // =========================================================
+
     async function loadAllDataFromCloud() {
         const companyDoc = await db.collection('settings').doc('companyInfo').get();
         if (companyDoc.exists) globalData.companyInfo = companyDoc.data();
@@ -61,12 +65,12 @@ $(document).ready(function() {
         const collections = ['products', 'customers', 'invoices', 'notes'];
         for (const col of collections) {
             const snapshot = await db.collection(col).get();
-            globalData[col] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            // Forziamo l'ID ad essere una stringa per evitare conflitti
+            globalData[col] = snapshot.docs.map(doc => ({ id: String(doc.id), ...doc.data() }));
         }
         console.log("Dati sincronizzati:", globalData);
     }
 
-    // Salvataggio su Cloud
     async function saveDataToCloud(collection, dataObj, id = null) {
         try {
             if (collection === 'companyInfo') {
@@ -74,10 +78,11 @@ $(document).ready(function() {
                 globalData.companyInfo = dataObj;
             } else {
                 if (id) {
-                    await db.collection(collection).doc(String(id)).set(dataObj, { merge: true });
-                    const index = globalData[collection].findIndex(item => item.id == id);
+                    const strId = String(id);
+                    await db.collection(collection).doc(strId).set(dataObj, { merge: true });
+                    const index = globalData[collection].findIndex(item => String(item.id) === strId);
                     if (index > -1) globalData[collection][index] = { ...globalData[collection][index], ...dataObj };
-                    else globalData[collection].push({ id: id, ...dataObj });
+                    else globalData[collection].push({ id: strId, ...dataObj });
                 } else {
                     console.error("ID mancante per il salvataggio");
                 }
@@ -91,62 +96,90 @@ $(document).ready(function() {
     async function deleteDataFromCloud(collection, id) {
         if (confirm("Sei sicuro di voler eliminare questo elemento?")) {
             try {
-                await db.collection(collection).doc(String(id)).delete();
-                globalData[collection] = globalData[collection].filter(item => item.id != id);
-                renderAll();
+                const strId = String(id);
+                await db.collection(collection).doc(strId).delete();
+                globalData[collection] = globalData[collection].filter(item => String(item.id) !== strId);
+                renderAll(); // Ricarica le tabelle
             } catch (e) {
                 alert("Errore eliminazione: " + e.message);
             }
         }
     }
 
-    function toggleEsenzioneIvaField(container, ivaValue) { 
-        const esenzioneContainer = (container === 'product') ? $('#esenzione-iva-container') : $('#invoice-esenzione-iva-container'); 
-        if (ivaValue == '0') esenzioneContainer.removeClass('d-none'); 
-        else esenzioneContainer.addClass('d-none'); 
+    // =========================================================
+    // 3. FUNZIONI DI RENDER
+    // =========================================================
+
+    function updateCompanyUI() { 
+        const company = getData('companyInfo'); 
+        if(company.name) $('#company-name-sidebar').text(company.name);
+        if(currentUser) $('#user-name-sidebar').text(currentUser.email);
+        $('#version-sidebar').text('v8.1 (Cloud Fix)');
     }
 
-    // =========================================================
-    // 2. FUNZIONI DI RENDER (DEFINITE PRIMA DI RENDERALL)
-    // =========================================================
-
-    function renderTaxSimulation() {
-        const container = $('#tax-simulation-container').empty(); 
+    function renderCompanyInfoForm() { 
+        const company = getData('companyInfo'); 
+        for (const key in company) { $(`#company-${key}`).val(company[key]); } 
+    }
+    
+    function renderProductsTable() { 
+        const products = getData('products'); 
+        const tableBody = $('#products-table-body').empty(); 
+        products.forEach(p => { 
+            const salePrice = p.salePrice ? `€ ${parseFloat(p.salePrice).toFixed(2)}` : '-'; 
+            const ivaText = (p.iva == 0 && p.esenzioneIva) ? `0% (${p.esenzioneIva})` : `${p.iva}%`; 
+            // Nota: uso attr('data-id') invece di .data() per sicurezza con le stringhe
+            tableBody.append(`<tr><td>${p.code}</td><td>${p.description}</td><td class="text-end-numbers pe-5">${salePrice}</td><td class="text-end-numbers">${ivaText}</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-product" data-id="${p.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-product" data-id="${p.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
+        }); 
+    }
+    
+    function renderCustomersTable() { 
+        const customers = getData('customers'); 
+        const tableBody = $('#customers-table-body').empty(); 
+        customers.forEach(c => { 
+            const pivaCf = c.piva || c.codiceFiscale || '-'; 
+            const fullAddress = `${c.address || ''}, ${c.cap || ''} ${c.comune || ''} (${c.provincia || ''})`; 
+            tableBody.append(`<tr><td>${c.name}</td><td>${pivaCf}</td><td>${c.sdi || '-'}</td><td>${fullAddress}</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-customer" data-id="${c.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-customer" data-id="${c.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
+        }); 
+    }
+    
+    function renderInvoicesTable() {
         const invoices = getData('invoices'); 
-        const company = getData('companyInfo');
+        const customers = getData('customers'); 
+        const tableBody = $('#invoices-table-body').empty();
         
-        const coeff = parseFloat(company.coefficienteRedditivita); 
-        const taxRate = parseFloat(company.aliquotaSostitutiva);
-        const socialSecurityRate = parseFloat(company.aliquotaContributi);
-        
-        let warningHtml = `<div class="alert alert-warning small"><i class="fas fa-exclamation-triangle me-2"></i><strong>ATTENZIONE:</strong> Stima didattica.</div>`;
-        
-        if (!coeff || !taxRate || !socialSecurityRate) { 
-            container.html(warningHtml + '<div class="alert alert-danger">Dati fiscali mancanti in Anagrafica Azienda.</div>'); 
-            return; 
-        }
-        
-        const fatturato = invoices.filter(i => i.type === 'Fattura' || i.type === undefined || i.type === '').reduce((sum, inv) => sum + inv.totaleImponibile, 0);
-        const noteCredito = invoices.filter(i => i.type === 'Nota di Credito').reduce((sum, inv) => sum + inv.totaleImponibile, 0);
-        
-        const grossRevenue = fatturato - noteCredito;
-        const taxableGross = grossRevenue > 0 ? grossRevenue * (coeff / 100) : 0;
-        const totalSocialSecurityDue = taxableGross > 0 ? taxableGross * (socialSecurityRate / 100) : 0;
-        
-        let socialFirstAdvance = 0; let socialSecondAdvance = 0;
-        if(totalSocialSecurityDue > 0){ socialFirstAdvance = totalSocialSecurityDue * 0.40; socialSecondAdvance = totalSocialSecurityDue * 0.40; }
-        
-        const netTaxable = taxableGross > 0 ? taxableGross - totalSocialSecurityDue : 0; 
-        const totalTaxDue = netTaxable > 0 ? netTaxable * (taxRate / 100) : 0;
-        
-        let taxFirstAdvance = 0; let taxSecondAdvance = 0;
-        if (totalTaxDue >= 257.52) { taxFirstAdvance = totalTaxDue * 0.50; taxSecondAdvance = totalTaxDue * 0.50; }
-        
-        const totalDue = totalSocialSecurityDue + totalTaxDue;
-        
-        let resultHtml = `<div class="row"><div class="col-lg-6 mb-4"><div class="card h-100"><div class="card-header fw-bold">Simulazione Contributi INPS</div><div class="card-body"><dl class="row mb-0"><dt class="col-sm-6">Reddito Lordo Imponibile</dt><dd class="col-sm-6 text-end">€ ${taxableGross.toFixed(2)}</dd><dt class="col-sm-6">Aliquota Contributi INPS</dt><dd class="col-sm-6 text-end">${socialSecurityRate}%</dd><dt class="col-sm-6 h5 text-primary border-top pt-3">Contributi Totali Previsti</dt><dd class="col-sm-6 text-end h5 text-primary border-top pt-3">€ ${totalSocialSecurityDue.toFixed(2)}</dd><hr class="my-3"><dt class="col-sm-6">Stima Primo Acconto (40%)</dt><dd class="col-sm-6 text-end">€ ${socialFirstAdvance.toFixed(2)}</dd><dt class="col-sm-6">Stima Secondo Acconto (40%)</dt><dd class="col-sm-6 text-end">€ ${socialSecondAdvance.toFixed(2)}</dd></dl></div></div></div><div class="col-lg-6 mb-4"><div class="card h-100"><div class="card-header fw-bold">Simulazione Imposta Sostitutiva (IRPEF)</div><div class="card-body"><dl class="row mb-0"><dt class="col-sm-6">Reddito Lordo Imponibile</dt><dd class="col-sm-6 text-end">€ ${taxableGross.toFixed(2)}</dd><dt class="col-sm-6">Contributi INPS Deducibili</dt><dd class="col-sm-6 text-end">- € ${totalSocialSecurityDue.toFixed(2)}</dd><dt class="col-sm-6 border-top pt-2">Reddito Netto Imponibile</dt><dd class="col-sm-6 text-end border-top pt-2">€ ${netTaxable.toFixed(2)}</dd><dt class="col-sm-6">Aliquota Imposta</dt><dd class="col-sm-6 text-end">${taxRate}%</dd><dt class="col-sm-6 h5 text-primary border-top pt-3">Imposta Totale Prevista</dt><dd class="col-sm-6 text-end h5 text-primary border-top pt-3">€ ${totalTaxDue.toFixed(2)}</dd><hr class="my-3"><dt class="col-sm-6">Stima Primo Acconto (50%)</dt><dd class="col-sm-6 text-end">€ ${taxFirstAdvance.toFixed(2)}</dd><dt class="col-sm-6">Stima Secondo Acconto (50%)</dt><dd class="col-sm-6 text-end">€ ${taxSecondAdvance.toFixed(2)}</dd></dl></div></div></div></div><div class="card bg-light mt-4"><div class="card-body d-flex justify-content-between align-items-center"><h5 class="card-title mb-0">Totale Uscite Stimate (Contributi + Imposte)</h5><h5 class="card-title mb-0">€ ${totalDue.toFixed(2)}</h5></div></div>`;
-        container.html(warningHtml + resultHtml);
+        invoices.sort((a, b) => {
+            const numA = a.number || ''; const numB = b.number || '';
+            return numB.localeCompare(numA);
+        });
+
+        invoices.forEach(inv => {
+            const customer = customers.find(c => String(c.id) === String(inv.customerId)) || { name: 'Sconosciuto' }; 
+            const isPaid = inv.status === 'Pagata' || inv.status === 'Emessa';
+            
+            let statusBadge = `<span class="badge bg-warning text-dark">Da Incassare</span>`;
+            if (inv.type === 'Nota di Credito') {
+                statusBadge = isPaid ? `<span class="badge bg-info text-dark">Emessa</span>` : `<span class="badge bg-secondary">Bozza</span>`;
+            } else {
+                statusBadge = isPaid ? `<span class="badge bg-success">Pagata</span>` : `<span class="badge bg-warning text-dark">Da Incassare</span>`;
+            }
+            const docTypeBadge = inv.type === 'Nota di Credito' ? `<span class="badge bg-warning text-dark">NdC</span>` : `<span class="badge bg-primary">Fatt.</span>`;
+
+            const btnDetails = `<button class="btn btn-sm btn-info btn-view-invoice" data-id="${inv.id}" data-bs-toggle="modal" data-bs-target="#invoiceDetailModal" title="Dettagli"><i class="fas fa-eye"></i></button>`;
+            const btnEdit = `<button class="btn btn-sm btn-secondary btn-edit-invoice" data-id="${inv.id}" title="Modifica" ${isPaid ? 'disabled' : ''}><i class="fas fa-edit"></i></button>`;
+            const btnXml = `<button class="btn btn-sm btn-warning btn-export-xml-row" data-id="${inv.id}" title="Esporta XML"><i class="fas fa-file-code"></i></button>`;
+            const payLabel = inv.type === 'Nota di Credito' ? 'Segna come Emessa' : 'Segna come Pagata';
+            const payClass = isPaid ? 'btn-secondary' : 'btn-success';
+            const payAttr = isPaid ? 'disabled' : '';
+            const btnPay = `<button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="${payLabel}" ${payAttr}><i class="fas fa-check"></i></button>`;
+            let btnDelete = `<button class="btn btn-sm btn-danger btn-delete-invoice" data-id="${inv.id}" title="Elimina"><i class="fas fa-trash"></i></button>`;
+
+            const actions = `<div class="d-flex justify-content-end gap-1">${btnDetails}${btnEdit}${btnXml}${btnPay}${btnDelete}</div>`;
+            tableBody.append(`<tr><td>${docTypeBadge}</td><td>${inv.number}</td><td>${formatDateForDisplay(inv.date)}</td><td>${customer.name}</td><td class="text-end-numbers pe-5">€ ${inv.total.toFixed(2)}</td><td class="text-end-numbers">${formatDateForDisplay(inv.dataScadenza)}</td><td>${statusBadge}</td><td class="text-end">${actions}</td></tr>`);
+        });
     }
+
+    // --- RENDER PAGINE SECONDARIE (STATISTICHE, HOME, ETC) ---
 
     function renderStatisticsPage() {
         const container = $('#stats-table-container').empty(); 
@@ -172,7 +205,7 @@ $(document).ready(function() {
         let tableHtml = `<table class="table table-hover"><thead><tr><th>Cliente</th><th class="text-end-numbers">Fatturato Netto</th><th class="text-end-numbers">% sul Totale</th></tr></thead><tbody>`;
         const sortedCustomerIds = Object.keys(customerTotals).sort((a, b) => customerTotals[b] - customerTotals[a]);
         for (const customerId of sortedCustomerIds) { 
-            const customer = customers.find(c => c.id == customerId) || { name: 'Cliente Eliminato' }; 
+            const customer = customers.find(c => String(c.id) === String(customerId)) || { name: 'Cliente Eliminato' }; 
             const total = customerTotals[customerId]; 
             const percentage = netTotal > 0 ? (total / netTotal) * 100 : 0; 
             tableHtml += `<tr><td>${customer.name}</td><td class="text-end-numbers">€ ${total.toFixed(2)}</td><td class="text-end-numbers">${percentage.toFixed(2)}%</td></tr>`; 
@@ -182,35 +215,61 @@ $(document).ready(function() {
         renderTaxSimulation();
     }
 
+    function renderTaxSimulation() {
+        const container = $('#tax-simulation-container').empty(); 
+        const invoices = getData('invoices'); 
+        const company = getData('companyInfo');
+        
+        const coeff = parseFloat(company.coefficienteRedditivita); 
+        const taxRate = parseFloat(company.aliquotaSostitutiva);
+        const socialSecurityRate = parseFloat(company.aliquotaContributi);
+        
+        let warningHtml = `<div class="alert alert-warning small"><i class="fas fa-exclamation-triangle me-2"></i><strong>ATTENZIONE:</strong> Stima didattica.</div>`;
+        
+        if (!coeff || !taxRate || !socialSecurityRate) { 
+            container.html(warningHtml + '<div class="alert alert-danger">Dati fiscali mancanti in Anagrafica Azienda.</div>'); 
+            return; 
+        }
+        
+        const fatturato = invoices.filter(i => i.type === 'Fattura' || i.type === undefined || i.type === '').reduce((sum, inv) => sum + inv.totaleImponibile, 0);
+        const noteCredito = invoices.filter(i => i.type === 'Nota di Credito').reduce((sum, inv) => sum + inv.totaleImponibile, 0);
+        const grossRevenue = fatturato - noteCredito;
+        const taxableGross = grossRevenue > 0 ? grossRevenue * (coeff / 100) : 0;
+        const totalSocialSecurityDue = taxableGross > 0 ? taxableGross * (socialSecurityRate / 100) : 0;
+        
+        let socialFirstAdvance = totalSocialSecurityDue > 0 ? totalSocialSecurityDue * 0.40 : 0;
+        let socialSecondAdvance = totalSocialSecurityDue > 0 ? totalSocialSecurityDue * 0.40 : 0;
+        const netTaxable = taxableGross > 0 ? taxableGross - totalSocialSecurityDue : 0; 
+        const totalTaxDue = netTaxable > 0 ? netTaxable * (taxRate / 100) : 0;
+        let taxFirstAdvance = totalTaxDue >= 257.52 ? totalTaxDue * 0.50 : 0;
+        let taxSecondAdvance = totalTaxDue >= 257.52 ? totalTaxDue * 0.50 : 0;
+        const totalDue = totalSocialSecurityDue + totalTaxDue;
+        
+        let resultHtml = `<div class="row"><div class="col-lg-6 mb-4"><div class="card h-100"><div class="card-header fw-bold">Simulazione Contributi INPS</div><div class="card-body"><dl class="row mb-0"><dt class="col-sm-6">Reddito Lordo Imponibile</dt><dd class="col-sm-6 text-end">€ ${taxableGross.toFixed(2)}</dd><dt class="col-sm-6">Aliquota Contributi INPS</dt><dd class="col-sm-6 text-end">${socialSecurityRate}%</dd><dt class="col-sm-6 h5 text-primary border-top pt-3">Contributi Totali Previsti</dt><dd class="col-sm-6 text-end h5 text-primary border-top pt-3">€ ${totalSocialSecurityDue.toFixed(2)}</dd><hr class="my-3"><dt class="col-sm-6">Stima Primo Acconto (40%)</dt><dd class="col-sm-6 text-end">€ ${socialFirstAdvance.toFixed(2)}</dd><dt class="col-sm-6">Stima Secondo Acconto (40%)</dt><dd class="col-sm-6 text-end">€ ${socialSecondAdvance.toFixed(2)}</dd></dl></div></div></div><div class="col-lg-6 mb-4"><div class="card h-100"><div class="card-header fw-bold">Simulazione Imposta Sostitutiva (IRPEF)</div><div class="card-body"><dl class="row mb-0"><dt class="col-sm-6">Reddito Lordo Imponibile</dt><dd class="col-sm-6 text-end">€ ${taxableGross.toFixed(2)}</dd><dt class="col-sm-6">Contributi INPS Deducibili</dt><dd class="col-sm-6 text-end">- € ${totalSocialSecurityDue.toFixed(2)}</dd><dt class="col-sm-6 border-top pt-2">Reddito Netto Imponibile</dt><dd class="col-sm-6 text-end border-top pt-2">€ ${netTaxable.toFixed(2)}</dd><dt class="col-sm-6">Aliquota Imposta</dt><dd class="col-sm-6 text-end">${taxRate}%</dd><dt class="col-sm-6 h5 text-primary border-top pt-3">Imposta Totale Prevista</dt><dd class="col-sm-6 text-end h5 text-primary border-top pt-3">€ ${totalTaxDue.toFixed(2)}</dd><hr class="my-3"><dt class="col-sm-6">Stima Primo Acconto (50%)</dt><dd class="col-sm-6 text-end">€ ${taxFirstAdvance.toFixed(2)}</dd><dt class="col-sm-6">Stima Secondo Acconto (50%)</dt><dd class="col-sm-6 text-end">€ ${taxSecondAdvance.toFixed(2)}</dd></dl></div></div></div></div><div class="card bg-light mt-4"><div class="card-body d-flex justify-content-between align-items-center"><h5 class="card-title mb-0">Totale Uscite Stimate (Contributi + Imposte)</h5><h5 class="card-title mb-0">€ ${totalDue.toFixed(2)}</h5></div></div>`;
+        container.html(warningHtml + resultHtml);
+    }
+
     function renderCalendar() {
         const c = $('#calendar-widget');
         const n = new Date();
-        const m = n.getMonth();
-        const y = n.getFullYear();
         const t = n.getDate();
-        const f = new Date(y, m, 1);
-        const l = new Date(y, m + 1, 0);
-        let h = `<h5 class="text-center">${f.toLocaleDateString('it-IT',{month:'long',year:'numeric'})}</h5><table class="table table-bordered"><thead><tr><th>Dom</th><th>Lun</th><th>Mar</th><th>Mer</th><th>Gio</th><th>Ven</th><th>Sab</th></tr></thead><tbody><tr>`;
-        let d=f.getDay();
-        for(let i=0;i<d;i++){h+='<td></td>'}
+        const l = new Date(n.getFullYear(), n.getMonth() + 1, 0);
+        let h = `<h5 class="text-center">${n.toLocaleDateString('it-IT',{month:'long',year:'numeric'})}</h5><table class="table table-bordered"><thead><tr><th>Dom</th><th>Lun</th><th>Mar</th><th>Mer</th><th>Gio</th><th>Ven</th><th>Sab</th></tr></thead><tbody><tr>`;
+        let d = new Date(n.getFullYear(), n.getMonth(), 1).getDay();
+        for(let i=0;i<d;i++) h+='<td></td>';
         for(let day=1;day<=l.getDate();day++){
             if(d===7){d=0;h+='</tr><tr>'}
             h+=`<td${(day===t)?' class="today"':''}>${day}</td>`;
-            d++
+            d++;
         }
-        for(let i=d;i<7;i++){h+='<td></td>'}
         h+='</tr></tbody></table>';
         c.html(h);
     }
 
-    function loadUserNotes() { 
-        const notes = getData('notes').find(n => n.userId === currentUser.uid); 
-        if(notes) $('#notes-textarea').val(notes.text); 
-    }
-
     function renderHomePage() { 
         if(currentUser) $('#welcome-message').text(`Benvenuto, ${currentUser.email}`); 
-        loadUserNotes(); 
+        const notes = getData('notes').find(n => n.userId === currentUser.uid); 
+        if(notes) $('#notes-textarea').val(notes.text); 
         renderCalendar();
         if (dateTimeInterval) clearInterval(dateTimeInterval);
         const updateDateTime = () => $('#current-datetime').text(new Date().toLocaleDateString('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }));
@@ -218,90 +277,11 @@ $(document).ready(function() {
         dateTimeInterval = setInterval(updateDateTime, 1000);
     }
 
-    function updateCompanyUI() { 
-        const company = getData('companyInfo'); 
-        if(company.name) $('#company-name-sidebar').text(company.name);
-        if(currentUser) $('#user-name-sidebar').text(currentUser.email);
-    }
-
-    function renderCompanyInfoForm() { 
-        const company = getData('companyInfo'); 
-        for (const key in company) { $(`#company-${key}`).val(company[key]); } 
-    }
-    
-    function renderProductsTable() { 
-        const products = getData('products'); 
-        const tableBody = $('#products-table-body').empty(); 
-        products.forEach(p => { 
-            const salePrice = p.salePrice ? `€ ${parseFloat(p.salePrice).toFixed(2)}` : '-'; 
-            const ivaText = (p.iva == 0 && p.esenzioneIva) ? `0% (${p.esenzioneIva})` : `${p.iva}%`; 
-            tableBody.append(`<tr><td>${p.code}</td><td>${p.description}</td><td class="text-end-numbers pe-5">${salePrice}</td><td class="text-end-numbers">${ivaText}</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-product" data-id="${p.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-product" data-id="${p.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
-        }); 
-    }
-    
-    function renderCustomersTable() { 
-        const customers = getData('customers'); 
-        const tableBody = $('#customers-table-body').empty(); 
-        customers.forEach(c => { 
-            const pivaCf = c.piva || c.codiceFiscale || '-'; 
-            const fullAddress = `${c.address || ''}, ${c.cap || ''} ${c.comune || ''} (${c.provincia || ''})`; 
-            tableBody.append(`<tr><td>${c.name}</td><td>${pivaCf}</td><td>${c.sdi || '-'}</td><td>${fullAddress}</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-customer" data-id="${c.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-customer" data-id="${c.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
-        }); 
-    }
-    
-    function renderInvoicesTable() {
-        const invoices = getData('invoices'); 
-        const customers = getData('customers'); 
-        const tableBody = $('#invoices-table-body').empty();
-        
-        // Ordina per numero decrescente
-        invoices.sort((a, b) => {
-            const numA = a.number || ''; const numB = b.number || '';
-            return numB.localeCompare(numA);
-        });
-
-        invoices.forEach(inv => {
-            const customer = customers.find(c => c.id == inv.customerId) || { name: 'Sconosciuto' }; 
-            const isPaid = inv.status === 'Pagata' || inv.status === 'Emessa';
-            
-            let statusBadge = `<span class="badge bg-warning text-dark">Da Incassare</span>`;
-            if (inv.type === 'Nota di Credito') {
-                statusBadge = isPaid ? `<span class="badge bg-info text-dark">Emessa</span>` : `<span class="badge bg-secondary">Bozza</span>`;
-            } else {
-                statusBadge = isPaid ? `<span class="badge bg-success">Pagata</span>` : `<span class="badge bg-warning text-dark">Da Incassare</span>`;
-            }
-            
-            const docTypeBadge = inv.type === 'Nota di Credito' 
-                ? `<span class="badge bg-warning text-dark">NdC</span>` 
-                : `<span class="badge bg-primary">Fatt.</span>`;
-
-            // Azioni Incolonnate
-            const btnDetails = `<button class="btn btn-sm btn-info btn-view-invoice" data-id="${inv.id}" data-bs-toggle="modal" data-bs-target="#invoiceDetailModal" title="Dettagli"><i class="fas fa-eye"></i></button>`;
-            const btnEdit = `<button class="btn btn-sm btn-secondary btn-edit-invoice" data-id="${inv.id}" title="Modifica" ${isPaid ? 'disabled' : ''}><i class="fas fa-edit"></i></button>`;
-            const btnXml = `<button class="btn btn-sm btn-warning btn-export-xml-row" data-id="${inv.id}" title="Esporta XML"><i class="fas fa-file-code"></i></button>`;
-            
-            const payLabel = inv.type === 'Nota di Credito' ? 'Segna come Emessa' : 'Segna come Pagata';
-            const payClass = isPaid ? 'btn-secondary' : 'btn-success';
-            const payAttr = isPaid ? 'disabled' : '';
-            const btnPay = `<button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="${payLabel}" ${payAttr}><i class="fas fa-check"></i></button>`;
-            
-            let btnDelete = `<button class="btn btn-sm btn-danger btn-delete-invoice" data-id="${inv.id}" title="Elimina"><i class="fas fa-trash"></i></button>`;
-
-            const actions = `<div class="d-flex justify-content-end gap-1">${btnDetails}${btnEdit}${btnXml}${btnPay}${btnDelete}</div>`;
-            const rowClass = isPaid ? 'class="invoice-paid"' : '';
-            tableBody.append(`<tr ${rowClass}><td>${docTypeBadge}</td><td>${inv.number}</td><td>${formatDateForDisplay(inv.date)}</td><td>${customer.name}</td><td class="text-end-numbers pe-5">€ ${inv.total.toFixed(2)}</td><td class="text-end-numbers">${formatDateForDisplay(inv.dataScadenza)}</td><td>${statusBadge}</td><td class="text-end">${actions}</td></tr>`);
-        });
-    }
-
     function populateDropdowns() {
         $('#invoice-customer-select').empty().append('<option selected disabled value="">Seleziona...</option>').append(getData('customers').map(c => `<option value="${c.id}">${c.name}</option>`));
         $('#invoice-product-select').empty().append('<option selected value="">Seleziona...</option><option value="manual">Manuale</option>').append(getData('products').map(p => `<option value="${p.id}">${p.code}</option>`));
         if(!$('#editing-invoice-id').val()) { $('#invoice-date').val(new Date().toISOString().slice(0, 10)); updateInvoiceNumber(); }
     }
-
-    // =========================================================
-    // 3. LOGICA PRINCIPALE (RENDERALL E EVENTI)
-    // =========================================================
 
     function renderAll() {
         renderCompanyInfoForm(); 
@@ -322,7 +302,11 @@ $(document).ready(function() {
         renderAll(); 
     }
 
-    // --- AUTHENTICATION ---
+    // =========================================================
+    // 4. EVENT LISTENERS (LOGICA AZIONI)
+    // =========================================================
+
+    // AUTH
     auth.onAuthStateChanged(async (user) => {
         if (user) {
             currentUser = user;
@@ -334,7 +318,7 @@ $(document).ready(function() {
                 $('#main-app').removeClass('d-none');
                 initializeApp();
             } catch (error) {
-                console.error("Errore caricamento:", error);
+                console.error("Errore:", error);
                 alert("Errore DB: " + error.message);
                 $('#loading-screen').addClass('d-none');
             }
@@ -349,16 +333,15 @@ $(document).ready(function() {
     $('#login-form').on('submit', function(e) {
         e.preventDefault();
         const email = $('#email').val(); const password = $('#password').val();
-        $('#btn-login-submit').prop('disabled', true); $('#login-spinner').removeClass('d-none'); $('#login-error').addClass('d-none');
+        $('#btn-login-submit').prop('disabled', true); $('#login-spinner').removeClass('d-none');
         auth.signInWithEmailAndPassword(email, password).catch((error) => {
-            $('#login-error').text("Email o password errati.").removeClass('d-none');
+            $('#login-error').text("Errore Login.").removeClass('d-none');
             $('#btn-login-submit').prop('disabled', false); $('#login-spinner').addClass('d-none');
         });
     });
-
     $('#logout-btn').on('click', function(e) { e.preventDefault(); auth.signOut().then(() => location.reload()); });
 
-    // --- EVENT HANDLERS UI ---
+    // NAVIGAZIONE
     $('.sidebar .nav-link').on('click', function(e) { 
         if ($(this).attr('id') === 'logout-btn' || $(this).data('bs-toggle') === 'modal') return; 
         e.preventDefault(); 
@@ -372,33 +355,108 @@ $(document).ready(function() {
         $('.content-section').addClass('d-none'); $('#' + target).removeClass('d-none'); 
     });
 
-    // --- EVENT HANDLERS FORM ---
+    // AZIENDA
     $('#company-info-form').on('submit', async function(e) { 
         e.preventDefault(); const companyInfo = {}; 
         $(this).find('input, select').each(function() { const id = $(this).attr('id'); if (id) companyInfo[id.replace('company-', '')] = $(this).val(); }); 
-        await saveDataToCloud('companyInfo', companyInfo); alert("Salvataggio completato!"); updateCompanyUI(); 
+        await saveDataToCloud('companyInfo', companyInfo); alert("Dati salvati!"); updateCompanyUI(); 
     });
+
+    // --- GESTIONE ANAGRAFICHE (MODIFICATA E RIPARATA) ---
+    
+    // Funzioni di supporto Anagrafiche
+    function prepareNewItemModal(type) { 
+        const form = $(`#${type}Form`); 
+        if (form.length) form[0].reset(); 
+        $(`#${type}-id`).val(''); 
+        const titleText = (type === 'product') ? 'Servizio/Prodotto' : 'Cliente'; 
+        $(`#${type}ModalTitle`).text(`Nuovo ${titleText}`); 
+        if (type === 'product') { $('#product-iva').val('0'); $('#product-esenzioneIva').val('N2.2'); toggleEsenzioneIvaField('product', '0'); } 
+    }
+
+    function editItem(type, id) { 
+        const items = getData(`${type}s`); // 'products' o 'customers'
+        // Confronto stringa per sicurezza
+        const item = items.find(i => String(i.id) === String(id)); 
+        if (!item) { alert("Elemento non trovato: " + id); return; }
+        
+        prepareNewItemModal(type); 
+        $(`#${type}ModalTitle`).text(`Modifica ${type === 'product' ? 'Servizio' : 'Cliente'}`); 
+        
+        // Popola campi
+        for (const key in item) { 
+            const field = $(`#${type}-${key}`); 
+            if (field.is(':checkbox')) { field.prop('checked', item[key]); } 
+            else if (field.length) { field.val(item[key]); } 
+        } 
+        
+        if (type === 'product') { toggleEsenzioneIvaField('product', item.iva); } 
+        $(`#${type}-id`).val(String(item.id)); // Importante: imposta l'ID nel campo nascosto
+        $(`#${type}Modal`).modal('show'); 
+    }
+
+    function toggleEsenzioneIvaField(container, ivaValue) { 
+        const div = (container === 'product') ? $('#esenzione-iva-container') : $('#invoice-esenzione-iva-container'); 
+        if (ivaValue == '0') div.removeClass('d-none'); else div.addClass('d-none'); 
+    }
 
     $('#product-iva').on('change', function() { toggleEsenzioneIvaField('product', $(this).val()); });
     $('#invoice-product-iva').on('change', function() { toggleEsenzioneIvaField('invoice', $(this).val()); });
 
-    // CRUD Handlers
-    ['product', 'customer'].forEach(type => {
-        $(`#new${type.charAt(0).toUpperCase() + type.slice(1)}Btn`).on('click', function() { prepareNewItemModal(type); });
-        $(`#save${type.charAt(0).toUpperCase() + type.slice(1)}Btn`).on('click', async function() { 
-            const typePlural = `${type}s`; 
-            const idInput = $(`#${type}-id`).val(); 
-            let itemData = {}; 
-            $(`#${type}Form`).find('input, select').each(function() { const id = $(this).attr('id'); if (id) itemData[id.replace(`${type}-`, '')] = $(this).is(':checkbox') ? $(this).is(':checked') : $(this).val(); }); 
-            let id = idInput ? idInput : (type === 'product' ? 'PRD' + new Date().getTime() : String(getNextId(getData(typePlural))));
-            await saveDataToCloud(typePlural, itemData, id);
-            $(`#${type}Modal`).modal('hide'); renderAll(); 
+    // GESTORI EVENTI CLIENTI
+    $('#newCustomerBtn').on('click', function() { prepareNewItemModal('customer'); });
+    
+    $('#saveCustomerBtn').on('click', async function() {
+        const idInput = $('#customer-id').val();
+        let itemData = {};
+        $('#customerForm').find('input, select').each(function() {
+            const id = $(this).attr('id');
+            if(id) itemData[id.replace('customer-', '')] = $(this).is(':checkbox') ? $(this).is(':checked') : $(this).val();
         });
-        $(`#${type}s-table-body`).on('click', `.btn-edit-${type}`, function() { editItem(type, $(this).data('id')); });
-        $(`#${type}s-table-body`).on('click', `.btn-delete-${type}`, function() { deleteDataFromCloud(`${type}s`, $(this).data('id')); });
+        let id = idInput ? idInput : String(getNextId(getData('customers')));
+        await saveDataToCloud('customers', itemData, id);
+        $('#customerModal').modal('hide');
+        renderAll();
     });
 
-    // --- EVENT HANDLERS FATTURE ---
+    $('#customers-table-body').on('click', '.btn-edit-customer', function() {
+        const id = $(this).attr('data-id'); // Usa attr per sicurezza
+        editItem('customer', id);
+    });
+
+    $('#customers-table-body').on('click', '.btn-delete-customer', function() {
+        const id = $(this).attr('data-id');
+        deleteDataFromCloud('customers', id);
+    });
+
+    // GESTORI EVENTI PRODOTTI
+    $('#newProductBtn').on('click', function() { prepareNewItemModal('product'); });
+
+    $('#saveProductBtn').on('click', async function() {
+        const idInput = $('#product-id').val();
+        let itemData = {};
+        $('#productForm').find('input, select').each(function() {
+            const id = $(this).attr('id');
+            if(id) itemData[id.replace('product-', '')] = $(this).is(':checkbox') ? $(this).is(':checked') : $(this).val();
+        });
+        // Se è un nuovo prodotto, generiamo un ID basato sul timestamp per unicità
+        let id = idInput ? idInput : 'PRD' + new Date().getTime();
+        await saveDataToCloud('products', itemData, id);
+        $('#productModal').modal('hide');
+        renderAll();
+    });
+
+    $('#products-table-body').on('click', '.btn-edit-product', function() {
+        const id = $(this).attr('data-id');
+        editItem('product', id);
+    });
+
+    $('#products-table-body').on('click', '.btn-delete-product', function() {
+        const id = $(this).attr('data-id');
+        deleteDataFromCloud('products', id);
+    });
+
+    // --- FATTURE ---
     let currentInvoiceLines = [];
     
     function updateInvoiceNumber() { if ($('#editing-invoice-id').val()) return; const dateStr = $('#invoice-date').val(); if (!dateStr) return; const year = dateStr.substring(0, 4); const type = $('#document-type').val(); const prefix = type === 'Fattura' ? 'FATT' : 'NC'; const nextNumber = generateNextDocumentNumber(type, year); const paddedNumber = String(nextNumber).padStart(2, '0'); $('#invoice-number').val(`${prefix}-${year}-${paddedNumber}`); }
@@ -408,7 +466,7 @@ $(document).ready(function() {
     $('#linked-invoice').on('change', function() {
         const linkedNumber = $(this).val().trim();
         const sourceInvoice = getData('invoices').find(inv => inv.number === linkedNumber);
-        if(sourceInvoice && confirm(`Importare dati da ${sourceInvoice.number}?`)) {
+        if(sourceInvoice && confirm(`Trovata fattura ${sourceInvoice.number}. Importare dati?`)) {
             $('#invoice-customer-select').val(sourceInvoice.customerId);
             currentInvoiceLines = JSON.parse(JSON.stringify(sourceInvoice.lines)); renderInvoiceLines();
             $('#invoice-condizioniPagamento').val(sourceInvoice.condizioniPagamento);
@@ -434,7 +492,7 @@ $(document).ready(function() {
         const customerId = $('#invoice-customer-select').val();
         if (!customerId || currentInvoiceLines.length === 0) { alert("Dati incompleti."); return; }
         
-        const customer = getData('customers').find(c => c.id == customerId); 
+        const customer = getData('customers').find(c => String(c.id) === String(customerId)); 
         const company = getData('companyInfo');
         const docType = $('#document-type').val();
         
@@ -476,7 +534,7 @@ $(document).ready(function() {
         if (!id) {
             id = String(getNextId(getData('invoices')));
         } else {
-            const oldInv = getData('invoices').find(i => i.id == id);
+            const oldInv = getData('invoices').find(i => String(i.id) === String(id));
             if(oldInv) invoiceData.status = oldInv.status;
         }
 
@@ -487,7 +545,7 @@ $(document).ready(function() {
     });
 
     $('#invoices-table-body').on('click', '.btn-edit-invoice', function() { 
-        const id = $(this).data('id'); const inv = getData('invoices').find(i => i.id == id); 
+        const id = $(this).attr('data-id'); const inv = getData('invoices').find(i => String(i.id) === String(id)); 
         if(!inv) return; 
         prepareDocumentForm(inv.type || 'Fattura');
         $('#editing-invoice-id').val(inv.id); $('#invoice-customer-select').val(inv.customerId); $('#invoice-date').val(inv.date); $('#invoice-number').val(inv.number);
@@ -496,14 +554,14 @@ $(document).ready(function() {
     });
 
     $('#invoices-table-body').on('click', '.btn-mark-paid', async function() { 
-        const id = $(this).data('id'); const inv = getData('invoices').find(i => i.id == id);
+        const id = $(this).attr('data-id'); const inv = getData('invoices').find(i => String(i.id) === String(id));
         if(confirm("Confermi il cambio stato?")) {
             await saveDataToCloud('invoices', { status: inv.type === 'Nota di Credito' ? 'Emessa' : 'Pagata' }, id);
             renderInvoicesTable();
         }
     });
     
-    $('#invoices-table-body').on('click', '.btn-delete-invoice', function() { deleteDataFromCloud('invoices', $(this).data('id')); });
+    $('#invoices-table-body').on('click', '.btn-delete-invoice', function() { deleteDataFromCloud('invoices', $(this).attr('data-id')); });
 
     $('#save-notes-btn').on('click', async function() { 
         await saveDataToCloud('notes', { userId: currentUser.uid, text: $('#notes-textarea').val() }, currentUser.uid); 
@@ -529,13 +587,13 @@ $(document).ready(function() {
     });
     
      $('#invoices-table-body, #invoiceDetailModal').on('click', '.btn-export-xml, #export-xml-btn, .btn-export-xml-row', function() { 
-         let invoiceId = $(this).attr('id') === 'export-xml-btn' ? $('#export-xml-btn').data('invoiceId') : $(this).data('id');
+         let invoiceId = $(this).attr('id') === 'export-xml-btn' ? $('#export-xml-btn').data('invoiceId') : $(this).attr('data-id');
          if (invoiceId) generateInvoiceXML(invoiceId); 
     });
 
     function generateInvoiceXML(invoiceId) {
-        const invoice = getData('invoices').find(inv => inv.id == invoiceId); if (!invoice) { alert("Errore!"); return; }
-        const company = getData('companyInfo'); const customer = getData('customers').find(c => c.id == invoice.customerId);
+        const invoice = getData('invoices').find(inv => String(inv.id) === String(invoiceId)); if (!invoice) { alert("Errore!"); return; }
+        const company = getData('companyInfo'); const customer = getData('customers').find(c => String(c.id) === String(invoice.customerId));
         
         const generateProgressivo = () => (Math.random().toString(36) + '00000').slice(2, 7);
         let progressivoInvio = generateProgressivo();
@@ -555,11 +613,11 @@ $(document).ready(function() {
         const fileNameProgressive = (Math.random().toString(36) + '00000').slice(2, 7);
         const a = document.createElement('a'); a.download = `IT${company.piva}_${fileNameProgressive}.xml`; const blob = new Blob([xml], { type: 'application/xml' }); a.href = URL.createObjectURL(blob); a.click(); URL.revokeObjectURL(a.href);
     }
-    
+
     // DETTAGLIO FATTURA (MODALE)
     $('#invoices-table-body').on('click', '.btn-view-invoice', function() {
-        const invoiceId = $(this).data('id'); const invoice = getData('invoices').find(inv => inv.id == invoiceId); if (!invoice) return;
-        $('#export-xml-btn').data('invoiceId', invoiceId); const customer = getData('customers').find(c => c.id == invoice.customerId) || {}; const company = getData('companyInfo'); const customerAddress = `${customer.address || ''}<br>${customer.cap || ''} ${customer.comune || ''} (${customer.provincia || ''}) - ${customer.nazione || ''}`; const companyAddress = `${company.address || ''} ${company.numeroCivico || ''}<br>${company.zip || ''} ${company.city || ''} (${company.province || ''})`; $('#invoiceDetailModalTitle').text(`Dettaglio ${invoice.type} N° ${invoice.number}`);
+        const invoiceId = $(this).attr('data-id'); const invoice = getData('invoices').find(inv => String(inv.id) === String(invoiceId)); if (!invoice) return;
+        $('#export-xml-btn').data('invoiceId', invoiceId); const customer = getData('customers').find(c => String(c.id) === String(invoice.customerId)) || {}; const company = getData('companyInfo'); const customerAddress = `${customer.address || ''}<br>${customer.cap || ''} ${customer.comune || ''} (${customer.provincia || ''}) - ${customer.nazione || ''}`; const companyAddress = `${company.address || ''} ${company.numeroCivico || ''}<br>${company.zip || ''} ${company.city || ''} (${company.province || ''})`; $('#invoiceDetailModalTitle').text(`Dettaglio ${invoice.type} N° ${invoice.number}`);
         let modalBodyHtml = `<div class="row mb-3"><div class="col-6"><h5>${company.name || ''}</h5><p class="mb-0 small">${company.cognome || ''} ${company.nome || ''}<br>${companyAddress}<br>P.IVA: ${company.piva || ''} - C.F: ${company.codiceFiscale || ''}<br>${company.regimeFiscale || ''} (${company.codiceRegimeFiscale || ''})</p></div><div class="col-6 text-end"><h5>Spett.le</h5><p class="mb-0 small">${customer.name}<br>${customer.address}<br>P.IVA: ${customer.piva || ''} - C.F: ${customer.codiceFiscale || ''}<br>Codice S.d.I: ${customer.sdi || ''}</p></div></div><hr><div class="row mb-3"><div class="col-6"><h4>${invoice.type} N° ${invoice.number}</h4></div><div class="col-6 text-end"><h4>Data: ${formatDateForDisplay(invoice.date)}</h4></div></div><table class="table table-sm"><thead class="table-light"><tr><th>Descrizione</th><th>Qtà</th><th>Prezzo</th><th>IVA</th><th class="text-end">Imponibile</th></tr></thead><tbody>`;
         invoice.lines.forEach(line => { const ivaCell = (line.iva == 0 && line.esenzioneIva) ? `0% (${line.esenzioneIva})` : `${line.iva}%`; modalBodyHtml += `<tr><td>${line.productName}</td><td>${line.qty}</td><td>€ ${line.price.toFixed(2)}</td><td>${ivaCell}</td><td class="text-end">€ ${line.subtotal.toFixed(2)}</td></tr>`; }); modalBodyHtml += `</tbody></table>`; let summaryHtml = '<div class="row justify-content-end mt-4"><div class="col-md-6"><table class="table table-sm">'; summaryHtml += `<tr><td>Totale Prestazioni</td><td class="text-end">€ ${invoice.totalePrestazioni.toFixed(2)}</td></tr>`; if (invoice.rivalsa && invoice.rivalsa.importo > 0) { summaryHtml += `<tr><td>Rivalsa INPS ${invoice.rivalsa.aliquota}%</td><td class="text-end">€ ${invoice.rivalsa.importo.toFixed(2)}</td></tr>`; } summaryHtml += `<tr><td><strong>Totale Imponibile</strong></td><td class="text-end"><strong>€ ${invoice.totaleImponibile.toFixed(2)}</strong></td></tr>`; if (invoice.totaleIva > 0) { summaryHtml += `<tr><td>Totale IVA</td><td class="text-end">€ ${invoice.totaleIva.toFixed(2)}</td></tr>`; } if (invoice.importoBollo > 0) { summaryHtml += `<tr><td>Marca da Bollo</td><td class="text-end">€ ${invoice.importoBollo.toFixed(2)}</td></tr>`; } summaryHtml += `<tr class="fw-bold fs-5 border-top"><td>Totale Documento</td><td class="text-end">€ ${invoice.total.toFixed(2)}</td></tr></tbody></table></div></div>`; modalBodyHtml += summaryHtml;
         if(company.regimeFiscale === "Regime Forfettario"){ modalBodyHtml += `<hr><p class="small text-muted">Operazione senza applicazione dell’IVA ai sensi dell’art. 1, commi da 54 a 89, Legge n. 190/2014 (Regime Forfettario). Si richiede la non applicazione della ritenuta alla fonte a titolo d’acconto ai sensi dell’art. 1, comma 67, Legge n. 190/2014.</p>`; } modalBodyHtml += `<hr><div class="row mt-2"><div class="col-6"><small><strong>Condizioni:</strong> ${invoice.condizioniPagamento}<br><strong>Modalità:</strong> ${invoice.modalitaPagamento}<br><strong>Scadenza:</strong> ${formatDateForDisplay(invoice.dataScadenza)}</small></div><div class="col-6"><small><strong>Coordinate Bancarie:</strong><br><strong>Banca:</strong> ${company.banca || ''}<br><strong>IBAN:</strong> ${company.iban || ''}</small></div></div>`;
@@ -568,4 +626,4 @@ $(document).ready(function() {
 
     $('#print-invoice-btn').on('click', () => window.print());
 
-}); // CHIUSURA CORRETTA DEL DOCUMENT READY
+});
