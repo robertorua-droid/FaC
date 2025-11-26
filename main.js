@@ -1,5 +1,3 @@
-// FILE: main.js - v9.4 (Fix Navigazione e Popup Fattura)
-
 $(document).ready(function() {
 
     // Variabili di stato per tracciare le modifiche
@@ -52,11 +50,11 @@ $(document).ready(function() {
             } 
             // Se clicco Fattura (o arrivo dal modale), preparo il form
             else if (this.id === 'menu-nuova-fattura') {
-                // Questo viene gestito dal modale bootstrap, non fare nulla qui
+                // Questo viene gestito dal modale bootstrap, non fare nulla qui (aspetta il popup)
                 return; 
             }
             else {
-                 // Fallback per click diretti non gestiti
+                 // Fallback per click diretti non gestiti (es. link generici)
                  prepareDocumentForm('Fattura');
             }
         }
@@ -69,41 +67,50 @@ $(document).ready(function() {
         $('#' + target).removeClass('d-none');
     });
 
-    // --- 2b. GESTIONE MODALE NUOVA FATTURA (Copia/Nuova) ---
+    // ==================================================================
+    // --- 2b. GESTIONE MODALE NUOVA FATTURA (QUESTA PARTE MANCAVA) ---
+    // ==================================================================
     
-    // Quando il modale si apre, popola la select
+    // 1. Quando il modale si apre, popola la select
     $('#newInvoiceChoiceModal').on('show.bs.modal', function () {
         const invoices = getData('invoices').filter(i => i.type === 'Fattura' || i.type === undefined);
+        
+        // Ordina per data decrescente (più recente in alto)
+        invoices.sort((a, b) => new Date(b.date) - new Date(a.date));
+
         const options = invoices.map(inv => `<option value="${inv.id}">${inv.number} - ${formatDateForDisplay(inv.date)}</option>`).join('');
         $('#copy-from-invoice-select').html('<option selected value="">Copia da esistente...</option>' + options);
     });
 
-    // Click su "Crea Nuova Vuota"
+    // 2. Click su "Crea Nuova Vuota"
     $('#btn-create-new-blank-invoice').click(function() {
         $('#newInvoiceChoiceModal').modal('hide'); // Chiudi popup
         
-        // Attiva menu e mostra sezione
+        // Forza la navigazione visuale
         $('.sidebar .nav-link').removeClass('active');
-        $('#menu-nuova-fattura').addClass('active'); // Evidenzia menu fattura (anche se è un modale, usiamo l'ID per stile)
+        // Nota: usiamo un selettore generico per evidenziare "Nuova Fattura" visivamente
+        $('[data-bs-target="#newInvoiceChoiceModal"]').addClass('active'); 
+        
         $('.content-section').addClass('d-none');
         $('#nuova-fattura-accompagnatoria').removeClass('d-none');
 
         prepareDocumentForm('Fattura');
     });
 
-    // Click su "Copia"
+    // 3. Click su "Copia"
     $('#btn-copy-from-invoice').click(function() {
         const invoiceId = $('#copy-from-invoice-select').val();
         if (!invoiceId) { alert("Seleziona una fattura da copiare."); return; }
 
         $('#newInvoiceChoiceModal').modal('hide');
         
-        // Attiva menu e mostra sezione
         $('.sidebar .nav-link').removeClass('active');
+        $('[data-bs-target="#newInvoiceChoiceModal"]').addClass('active');
+        
         $('.content-section').addClass('d-none');
         $('#nuova-fattura-accompagnatoria').removeClass('d-none');
 
-        // Carica i dati (True = isCopy: genera nuovo numero)
+        // Carica i dati (True = isCopy: genera nuovo numero e pulisce ID)
         loadInvoiceForEditing(invoiceId, true); 
     });
 
@@ -246,6 +253,9 @@ $(document).ready(function() {
             CURRENT_EDITING_INVOICE_ID = String(invoice.id);
             $('#invoice-id').val(invoice.id);
             $('#document-title').text(`Modifica ${type} ${invoice.number}`);
+        } else {
+            $('#invoice-id').val('Nuovo (Copia)');
+            $('#document-title').text(`Nuova Fattura (Copia da ${invoice.number})`);
         }
         
         $('#invoice-customer-select').val(invoice.customerId);
