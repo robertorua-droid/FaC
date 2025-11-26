@@ -1,10 +1,11 @@
-// FILE: main.js - Logica Principale ed Eventi (v8.95 - Fix CRUD Definitivo)
+// FILE: main.js - v9.0 (Fix CRUD con ID Espliciti)
 
 $(document).ready(function() {
 
-    // Variabili di stato per tracciare le modifiche (più sicuro dei campi hidden)
-    let editingCustomerId = null;
-    let editingProductId = null;
+    // --- VARIABILE DI STATO CRUCIALE ---
+    // Questa variabile memorizza l'ID che stiamo modificando. 
+    // Se è null, stiamo creando. Se ha un valore, stiamo aggiornando.
+    let CURRENT_EDITING_ID = null;
 
     // --- 1. GESTIONE AUTENTICAZIONE ---
     auth.onAuthStateChanged(async (user) => {
@@ -12,12 +13,9 @@ $(document).ready(function() {
             currentUser = user;
             $('#login-container').addClass('d-none');
             $('#loading-screen').removeClass('d-none');
-            
             await loadAllDataFromCloud(); 
-            
             $('#loading-screen').addClass('d-none');
             $('#main-app').removeClass('d-none');
-            
             renderAll(); 
         } else {
             currentUser = null;
@@ -45,12 +43,15 @@ $(document).ready(function() {
         const target = $(this).data('target');
 
         if(target === 'nuova-fattura-accompagnatoria') {
+            // Reset Totale fattura
             $('#new-invoice-form')[0].reset();
             $('#invoice-lines-tbody').empty();
             window.tempInvoiceLines = []; 
             populateDropdowns();
             $('#invoice-date').val(new Date().toISOString().slice(0, 10));
-            $('#editing-invoice-id').val('');
+            
+            // Qui usiamo un campo hidden standard perché la logica fattura è diversa
+            $('#editing-invoice-id').val(''); 
 
             if(this.id === 'menu-nuova-nota-credito') {
                  $('#document-type').val('Nota di Credito'); 
@@ -71,26 +72,25 @@ $(document).ready(function() {
         $('#' + target).removeClass('d-none');
     });
 
-    // --- 3. FUNZIONI DI SUPPORTO CRUD ---
+    // --- 3. FUNZIONI DI SUPPORTO CRUD (BLINDATE) ---
     
     function editItem(type, id) { 
-        // Reset variabili di stato in base al tipo
-        if (type === 'customer') editingCustomerId = String(id);
-        if (type === 'product') editingProductId = String(id);
+        // 1. Impostiamo la variabile globale
+        CURRENT_EDITING_ID = String(id);
 
         const items = getData(`${type}s`); 
         const item = items.find(i => String(i.id) === String(id)); 
         
-        if (!item) { 
-            alert("Errore: Elemento non trovato."); 
-            return; 
-        }
+        if (!item) { alert("Elemento non trovato"); return; }
         
-        // Resetta form
+        // 2. Reset Form
         $(`#${type}Form`)[0].reset();
         $(`#${type}ModalTitle`).text(`Modifica ${type === 'product' ? 'Servizio' : 'Cliente'}`); 
         
-        // Popola campi
+        // 3. Mostriamo l'ID a video (così sei sicuro)
+        $(`#${type}-id`).val(String(item.id));
+        
+        // 4. Popoliamo i campi
         for (const key in item) { 
             const field = $(`#${type}-${key}`); 
             if (field.length) {
@@ -108,14 +108,28 @@ $(document).ready(function() {
     }
 
     // --- 4. GESTIONE CLIENTI ---
+    
+    // Pulsante NUOVO Cliente
     $('#newCustomerBtn').click(() => { 
-        editingCustomerId = null; // È un nuovo inserimento
+        CURRENT_EDITING_ID = null; // Reset Variabile Globale
         $('#customerForm')[0].reset(); 
+        $('#customer-id').val(''); // Pulisci campo visivo
         $('#customerModalTitle').text('Nuovo Cliente');
         $('#customerModal').modal('show'); 
     });
 
+    // Pulsante SALVA Cliente
     $('#saveCustomerBtn').click(async () => {
+        // Determina ID: se c'è CURRENT_EDITING_ID usalo, altrimenti generane uno nuovo
+        let finalId;
+        if (CURRENT_EDITING_ID) {
+            finalId = CURRENT_EDITING_ID;
+            console.log("Aggiornamento Cliente esistente: " + finalId);
+        } else {
+            finalId = String(getNextId(getData('customers')));
+            console.log("Creazione Nuovo Cliente: " + finalId);
+        }
+
         const data = {
             name: $('#customer-name').val(), 
             piva: $('#customer-piva').val(), 
@@ -129,38 +143,46 @@ $(document).ready(function() {
             rivalsaInps: $('#customer-rivalsaInps').is(':checked')
         };
         
-        // Usa l'ID memorizzato se in modifica, altrimenti genera nuovo
-        let id = editingCustomerId ? editingCustomerId : String(getNextId(getData('customers')));
-        
-        console.log(`Salvataggio Cliente. ID: ${id} (Modifica: ${!!editingCustomerId})`);
-
-        await saveDataToCloud('customers', data, id); 
+        await saveDataToCloud('customers', data, finalId); 
         $('#customerModal').modal('hide'); 
         renderAll();
     });
 
-    // Eventi tabella (Delegati)
-    $('#customers-table-body').on('click', '.btn-edit-customer', function(e) {
-        const id = $(e.currentTarget).attr('data-id');
+    // Pulsante MODIFICA (Dalla tabella)
+    $('#customers-table-body').on('click', '.btn-edit-customer', function() {
+        const id = $(this).attr('data-id');
         editItem('customer', id);
     });
 
-    $('#customers-table-body').on('click', '.btn-delete-customer', function(e) {
-        const id = $(e.currentTarget).attr('data-id');
+    // Pulsante ELIMINA
+    $('#customers-table-body').on('click', '.btn-delete-customer', function() {
+        const id = $(this).attr('data-id');
         if(id) deleteDataFromCloud('customers', id);
-        else alert("Impossibile eliminare: ID mancante");
     });
 
     // --- 5. GESTIONE PRODOTTI ---
+    
+    // Pulsante NUOVO Prodotto
     $('#newProductBtn').click(() => { 
-        editingProductId = null; // È un nuovo inserimento
+        CURRENT_EDITING_ID = null; // Reset Variabile Globale
         $('#productForm')[0].reset(); 
+        $('#product-id').val(''); 
         $('#product-iva').val('0').change(); 
         $('#productModalTitle').text('Nuovo Servizio');
         $('#productModal').modal('show'); 
     });
 
+    // Pulsante SALVA Prodotto
     $('#saveProductBtn').click(async () => {
+        let finalId;
+        if (CURRENT_EDITING_ID) {
+            finalId = CURRENT_EDITING_ID;
+            console.log("Aggiornamento Prodotto esistente: " + finalId);
+        } else {
+            finalId = 'PRD' + new Date().getTime();
+            console.log("Creazione Nuovo Prodotto: " + finalId);
+        }
+
         const data = {
             description: $('#product-description').val(), 
             code: $('#product-code').val(),
@@ -169,20 +191,20 @@ $(document).ready(function() {
             esenzioneIva: $('#product-esenzioneIva').val()
         };
         
-        let id = editingProductId ? editingProductId : 'PRD' + new Date().getTime();
-        
-        await saveDataToCloud('products', data, id); 
+        await saveDataToCloud('products', data, finalId); 
         $('#productModal').modal('hide'); 
         renderAll();
     });
 
-    $('#products-table-body').on('click', '.btn-edit-product', function(e) {
-        const id = $(e.currentTarget).attr('data-id');
+    // Pulsante MODIFICA (Dalla tabella)
+    $('#products-table-body').on('click', '.btn-edit-product', function() {
+        const id = $(this).attr('data-id');
         editItem('product', id);
     });
 
-    $('#products-table-body').on('click', '.btn-delete-product', function(e) {
-        const id = $(e.currentTarget).attr('data-id');
+    // Pulsante ELIMINA
+    $('#products-table-body').on('click', '.btn-delete-product', function() {
+        const id = $(this).attr('data-id');
         if(id) deleteDataFromCloud('products', id);
     });
 
@@ -294,6 +316,7 @@ $(document).ready(function() {
         $('.sidebar .nav-link[data-target="elenco-fatture"]').click();
     });
 
+    // Azioni Fatture
     $('#invoices-table-body').on('click', '.btn-edit-invoice', function() { 
         const id = $(this).attr('data-id'); 
         const inv = getData('invoices').find(i => String(i.id) === String(id));
@@ -318,13 +341,10 @@ $(document).ready(function() {
         }
     });
     
-    $('#invoices-table-body').on('click', '.btn-delete-invoice', function(e) { 
-        const id = $(e.currentTarget).attr('data-id');
-        if(id) deleteDataFromCloud('invoices', id);
-    });
+    $('#invoices-table-body').on('click', '.btn-delete-invoice', function() { deleteDataFromCloud('invoices', $(this).attr('data-id')); });
     
-    $('#invoices-table-body').on('click', '.btn-mark-paid', async function(e) { 
-        const id = $(e.currentTarget).attr('data-id'); 
+    $('#invoices-table-body').on('click', '.btn-mark-paid', async function() { 
+        const id = $(this).attr('data-id'); 
         const inv = getData('invoices').find(i => String(i.id) === String(id));
         if(confirm("Confermi il cambio stato?")) {
             await saveDataToCloud('invoices', { status: inv.type === 'Nota di Credito' ? 'Emessa' : 'Pagata' }, id);
