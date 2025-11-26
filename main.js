@@ -1,4 +1,4 @@
-// FILE: main.js - Logica Principale ed Eventi (v8.8 - Fix Modifica Anagrafiche)
+// FILE: main.js - Logica Principale ed Eventi (v8.9 - Fix ID Update)
 
 $(document).ready(function() {
 
@@ -71,41 +71,57 @@ $(document).ready(function() {
     
     function editItem(type, id) { 
         const items = getData(`${type}s`); 
+        // Forza conversione a stringa per confronto sicuro
         const item = items.find(i => String(i.id) === String(id)); 
         
-        if (!item) { alert("Elemento non trovato (ID: " + id + ")"); return; }
+        if (!item) { 
+            alert("Errore: Elemento non trovato nel database locale."); 
+            return; 
+        }
         
+        // 1. Resetta il form
         $(`#${type}Form`)[0].reset();
+        
+        // 2. Imposta Titolo
         $(`#${type}ModalTitle`).text(`Modifica ${type === 'product' ? 'Servizio' : 'Cliente'}`); 
         
-        // Imposta l'ID nel campo nascosto PRIMA di mostrare il modale
-        // Questo è fondamentale per dire al tasto "Salva" che è una modifica
+        // 3. Imposta ID nel campo nascosto (FONDAMENTALE)
         $(`#${type}-id`).val(String(item.id)); 
         
-        // Popola campi
+        // 4. Popola gli altri campi
         for (const key in item) { 
             const field = $(`#${type}-${key}`); 
-            if (field.is(':checkbox')) field.prop('checked', item[key]); 
-            else if (field.length) field.val(item[key]); 
+            if (field.length) {
+                if (field.is(':checkbox')) {
+                    field.prop('checked', item[key]); 
+                } else { 
+                    field.val(item[key]); 
+                }
+            }
         } 
         
+        // Gestione specifica IVA prodotti
         if (type === 'product') { 
             $('#product-iva').trigger('change');
             if(item.iva == '0') $('#product-esenzioneIva').val(item.esenzioneIva);
         } 
         
+        // 5. Mostra modale
         $(`#${type}Modal`).modal('show'); 
     }
 
     // --- 4. GESTIONE CLIENTI ---
     $('#newCustomerBtn').click(() => { 
         $('#customerForm')[0].reset(); 
-        $('#customer-id').val(''); // IMPORTANTE: Svuota ID per indicare "Nuovo"
+        $('#customer-id').val(''); // Pulisce ID per indicare "Nuovo"
         $('#customerModal').modal('show'); 
     });
 
     $('#saveCustomerBtn').click(async () => {
-        const idInput = $('#customer-id').val(); 
+        // Legge ID dal campo nascosto. Trim() rimuove spazi vuoti accidentali.
+        let idInput = $('#customer-id').val();
+        if (idInput) idInput = String(idInput).trim();
+
         const data = {
             name: $('#customer-name').val(), 
             piva: $('#customer-piva').val(), 
@@ -119,38 +135,40 @@ $(document).ready(function() {
             rivalsaInps: $('#customer-rivalsaInps').is(':checked')
         };
         
-        // Logica ID corretta:
-        // Se idInput esiste (non è vuoto), usiamo quello (MODIFICA).
-        // Se idInput è vuoto, ne generiamo uno nuovo (CREAZIONE).
-        let id = (idInput && idInput.trim() !== "") ? idInput : String(getNextId(getData('customers')));
+        // Se c'è un ID input valido, usalo (MODIFICA). Altrimenti genera nuovo (NUOVO).
+        // Nota: getNextId è utile per ID numerici progressivi, altrimenti usiamo timestamp per ID unici stringa
+        let id = (idInput && idInput !== "") ? idInput : String(getNextId(getData('customers')));
         
-        console.log("Salvataggio Cliente. ID:", id, "Modalità:", (idInput ? "Update" : "Create"));
+        console.log(`Salvataggio Cliente - InputID: "${idInput}" -> ID Finale: "${id}"`);
 
         await saveDataToCloud('customers', data, id); 
         $('#customerModal').modal('hide'); 
         renderAll();
     });
 
+    // Usa .attr('data-id') per sicurezza assoluta
     $('#customers-table-body').on('click', '.btn-edit-customer', function() {
-        editItem('customer', $(this).attr('data-id'));
+        const id = $(this).attr('data-id');
+        editItem('customer', id);
     });
 
     $('#customers-table-body').on('click', '.btn-delete-customer', function() {
         const id = $(this).attr('data-id');
         if(id) deleteDataFromCloud('customers', id);
-        else alert("Errore: ID cliente non valido.");
     });
 
     // --- 5. GESTIONE PRODOTTI ---
     $('#newProductBtn').click(() => { 
         $('#productForm')[0].reset(); 
-        $('#product-id').val(''); // Svuota ID
+        $('#product-id').val(''); 
         $('#product-iva').val('0').change(); 
         $('#productModal').modal('show'); 
     });
 
     $('#saveProductBtn').click(async () => {
-        const idInput = $('#product-id').val();
+        let idInput = $('#product-id').val();
+        if (idInput) idInput = String(idInput).trim();
+
         const data = {
             description: $('#product-description').val(), 
             code: $('#product-code').val(),
@@ -159,9 +177,10 @@ $(document).ready(function() {
             esenzioneIva: $('#product-esenzioneIva').val()
         };
         
-        let id = (idInput && idInput.trim() !== "") ? idInput : 'PRD' + new Date().getTime();
+        // Genera ID univoco se nuovo
+        let id = (idInput && idInput !== "") ? idInput : 'PRD' + new Date().getTime();
         
-        console.log("Salvataggio Prodotto. ID:", id, "Modalità:", (idInput ? "Update" : "Create"));
+        console.log(`Salvataggio Prodotto - InputID: "${idInput}" -> ID Finale: "${id}"`);
 
         await saveDataToCloud('products', data, id); 
         $('#productModal').modal('hide'); 
@@ -169,13 +188,13 @@ $(document).ready(function() {
     });
 
     $('#products-table-body').on('click', '.btn-edit-product', function() {
-        editItem('product', $(this).attr('data-id'));
+        const id = $(this).attr('data-id');
+        editItem('product', id);
     });
 
     $('#products-table-body').on('click', '.btn-delete-product', function() {
         const id = $(this).attr('data-id');
         if(id) deleteDataFromCloud('products', id);
-        else alert("Errore: ID prodotto non valido.");
     });
 
     $('#product-iva').change(function() { 
@@ -286,6 +305,7 @@ $(document).ready(function() {
         $('.sidebar .nav-link[data-target="elenco-fatture"]').click();
     });
 
+    // Azioni Fatture
     $('#invoices-table-body').on('click', '.btn-edit-invoice', function() { 
         const id = $(this).attr('data-id'); 
         const inv = getData('invoices').find(i => String(i.id) === String(id));
@@ -310,7 +330,10 @@ $(document).ready(function() {
         }
     });
     
-    $('#invoices-table-body').on('click', '.btn-delete-invoice', function() { deleteDataFromCloud('invoices', $(this).attr('data-id')); });
+    $('#invoices-table-body').on('click', '.btn-delete-invoice', function() { 
+        const id = $(this).attr('data-id');
+        if(id) deleteDataFromCloud('invoices', id);
+    });
     
     $('#invoices-table-body').on('click', '.btn-mark-paid', async function() { 
         const id = $(this).attr('data-id'); 
