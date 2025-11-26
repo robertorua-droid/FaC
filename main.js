@@ -1,6 +1,11 @@
-// FILE: main.js - v9.2 (Fix CRUD con Data-Attributes)
+// FILE: main.js - v9.3 (Fix Documenti & Logica Completa)
 
 $(document).ready(function() {
+
+    // --- VARIABILI DI STATO ---
+    let CURRENT_EDITING_ID = null;         // Per Clienti e Prodotti
+    let CURRENT_EDITING_INVOICE_ID = null; // Per i Documenti (Fatture/NdC)
+    window.tempInvoiceLines = [];          // Righe temporanee fattura
 
     // --- 1. GESTIONE AUTENTICAZIONE ---
     auth.onAuthStateChanged(async (user) => {
@@ -38,22 +43,7 @@ $(document).ready(function() {
         const target = $(this).data('target');
 
         if(target === 'nuova-fattura-accompagnatoria') {
-            $('#new-invoice-form')[0].reset();
-            $('#invoice-lines-tbody').empty();
-            window.tempInvoiceLines = []; 
-            populateDropdowns();
-            $('#invoice-date').val(new Date().toISOString().slice(0, 10));
-            $('#editing-invoice-id').val('');
-
-            if(this.id === 'menu-nuova-nota-credito') {
-                 $('#document-type').val('Nota di Credito'); 
-                 $('#document-title').text('Nuova Nota di Credito'); 
-                 $('#credit-note-fields').removeClass('d-none');
-            } else {
-                 $('#document-type').val('Fattura'); 
-                 $('#document-title').text('Nuova Fattura'); 
-                 $('#credit-note-fields').addClass('d-none');
-            }
+            prepareDocumentForm(this.id === 'menu-nuova-nota-credito' ? 'Nota di Credito' : 'Fattura');
         }
         
         if(target === 'statistiche') renderStatisticsPage();
@@ -64,27 +54,19 @@ $(document).ready(function() {
         $('#' + target).removeClass('d-none');
     });
 
-    // --- 3. FUNZIONI DI SUPPORTO CRUD ---
-    
+    // --- 3. FUNZIONI SUPPORTO CRUD (ANAGRAFICHE) ---
     function editItem(type, id) { 
+        if (type === 'customer' || type === 'product') CURRENT_EDITING_ID = String(id);
+        
         const items = getData(`${type}s`); 
         const item = items.find(i => String(i.id) === String(id)); 
         
         if (!item) { alert("Elemento non trovato"); return; }
         
-        // Reset Form
         $(`#${type}Form`)[0].reset();
         $(`#${type}ModalTitle`).text(`Modifica ${type === 'product' ? 'Servizio' : 'Cliente'}`); 
-        
-        // Mostra ID a video (solo lettura)
         $(`#${type}-id`).val(String(item.id));
         
-        // --- FIX CRUCIALE: Salva l'ID direttamente sul bottone di salvataggio ---
-        const btnSave = (type === 'product') ? $('#saveProductBtn') : $('#saveCustomerBtn');
-        btnSave.data('edit-id', String(item.id)); 
-        // -----------------------------------------------------------------------
-
-        // Popola campi
         for (const key in item) { 
             const field = $(`#${type}-${key}`); 
             if (field.length) {
@@ -97,27 +79,18 @@ $(document).ready(function() {
             $('#product-iva').trigger('change');
             if(item.iva == '0') $('#product-esenzioneIva').val(item.esenzioneIva);
         } 
-        
         $(`#${type}Modal`).modal('show'); 
     }
 
     // --- 4. GESTIONE CLIENTI ---
-    
     $('#newCustomerBtn').click(() => { 
+        CURRENT_EDITING_ID = null; 
         $('#customerForm')[0].reset(); 
         $('#customer-id').val('Nuovo'); 
-        
-        // Pulisce l'ID dal bottone (modalità creazione)
-        $('#saveCustomerBtn').data('edit-id', null);
-        
-        $('#customerModalTitle').text('Nuovo Cliente');
         $('#customerModal').modal('show'); 
     });
 
-    $('#saveCustomerBtn').click(async function() {
-        // Leggi ID dal bottone stesso
-        const editId = $(this).data('edit-id');
-        
+    $('#saveCustomerBtn').click(async () => {
         const data = {
             name: $('#customer-name').val(), 
             piva: $('#customer-piva').val(), 
@@ -130,49 +103,28 @@ $(document).ready(function() {
             nazione: $('#customer-nazione').val(),
             rivalsaInps: $('#customer-rivalsaInps').is(':checked')
         };
-        
-        let id;
-        if (editId) {
-            id = editId;
-            console.log("Aggiorno Cliente esistente:", id);
-        } else {
-            id = String(getNextId(getData('customers')));
-            console.log("Creo Nuovo Cliente:", id);
-        }
-
+        let id = CURRENT_EDITING_ID ? CURRENT_EDITING_ID : String(getNextId(getData('customers')));
         await saveDataToCloud('customers', data, id); 
         $('#customerModal').modal('hide'); 
         renderAll();
     });
 
-    $('#customers-table-body').on('click', '.btn-edit-customer', function(e) {
-        const id = $(e.currentTarget).attr('data-id');
-        editItem('customer', id);
-    });
-
+    $('#customers-table-body').on('click', '.btn-edit-customer', function(e) { editItem('customer', $(e.currentTarget).attr('data-id')); });
     $('#customers-table-body').on('click', '.btn-delete-customer', function(e) {
         const id = $(e.currentTarget).attr('data-id');
         if(id) deleteDataFromCloud('customers', id);
     });
 
     // --- 5. GESTIONE PRODOTTI ---
-    
     $('#newProductBtn').click(() => { 
+        CURRENT_EDITING_ID = null; 
         $('#productForm')[0].reset(); 
         $('#product-id').val('Nuovo'); 
         $('#product-iva').val('0').change(); 
-        
-        // Pulisce l'ID dal bottone (modalità creazione)
-        $('#saveProductBtn').data('edit-id', null);
-
-        $('#productModalTitle').text('Nuovo Servizio');
         $('#productModal').modal('show'); 
     });
 
-    $('#saveProductBtn').click(async function() {
-        // Leggi ID dal bottone stesso
-        const editId = $(this).data('edit-id');
-
+    $('#saveProductBtn').click(async () => {
         const data = {
             description: $('#product-description').val(), 
             code: $('#product-code').val(),
@@ -180,40 +132,77 @@ $(document).ready(function() {
             iva: $('#product-iva').val(), 
             esenzioneIva: $('#product-esenzioneIva').val()
         };
-        
-        let id;
-        if (editId) {
-            id = editId;
-            console.log("Aggiorno Prodotto esistente:", id);
-        } else {
-            id = 'PRD' + new Date().getTime();
-            console.log("Creo Nuovo Prodotto:", id);
-        }
-        
+        let id = CURRENT_EDITING_ID ? CURRENT_EDITING_ID : 'PRD' + new Date().getTime();
         await saveDataToCloud('products', data, id); 
         $('#productModal').modal('hide'); 
         renderAll();
     });
 
-    $('#products-table-body').on('click', '.btn-edit-product', function(e) {
-        const id = $(e.currentTarget).attr('data-id');
-        editItem('product', id);
-    });
-
+    $('#products-table-body').on('click', '.btn-edit-product', function(e) { editItem('product', $(e.currentTarget).attr('data-id')); });
     $('#products-table-body').on('click', '.btn-delete-product', function(e) {
         const id = $(e.currentTarget).attr('data-id');
         if(id) deleteDataFromCloud('products', id);
     });
-
     $('#product-iva').change(function() { 
         const val = $(this).val();
-        if(val == '0') $('#esenzione-iva-container').removeClass('d-none');
-        else $('#esenzione-iva-container').addClass('d-none');
+        if(val == '0') $('#esenzione-iva-container').removeClass('d-none'); else $('#esenzione-iva-container').addClass('d-none');
     });
 
-    // --- 6. GESTIONE FATTURE ---
-    window.tempInvoiceLines = []; 
+    // ====================================================================================
+    // --- 6. GESTIONE DOCUMENTI (CORE LOGIC) ---
+    // ====================================================================================
 
+    function prepareDocumentForm(type) {
+        CURRENT_EDITING_INVOICE_ID = null; // Reset ID modifica
+        
+        $('#new-invoice-form')[0].reset();
+        $('#invoice-id').val('Nuovo Documento');
+        $('#document-type').val(type);
+        $('#invoice-lines-tbody').empty();
+        window.tempInvoiceLines = []; 
+        
+        populateDropdowns();
+        const today = new Date().toISOString().slice(0, 10);
+        $('#invoice-date').val(today);
+        $('#invoice-dataRiferimento').val(today);
+
+        if (type === 'Nota di Credito') {
+            $('#document-title').text('Nuova Nota di Credito'); 
+            $('#credit-note-fields').removeClass('d-none');
+        } else {
+            $('#document-title').text('Nuova Fattura'); 
+            $('#credit-note-fields').addClass('d-none');
+        }
+        
+        // Calcola numero successivo (solo se creazione)
+        updateInvoiceNumber(type, today.substring(0, 4));
+        updateTotalsDisplay();
+    }
+
+    function updateInvoiceNumber(type, year) {
+        if (CURRENT_EDITING_INVOICE_ID) return; // Non cambiare numero se modifico
+        const invoices = getData('invoices');
+        const prefix = type === 'Fattura' ? 'FATT' : 'NC';
+        
+        const docsForYear = invoices.filter(inv => 
+            (inv.type === type || (type==='Fattura' && !inv.type)) && 
+            inv.date.substring(0, 4) === String(year)
+        );
+        
+        let nextNum = 1;
+        if (docsForYear.length > 0) {
+            const numbers = docsForYear.map(inv => {
+                const parts = inv.number.split('-');
+                return parseInt(parts[parts.length - 1]) || 0;
+            });
+            nextNum = Math.max(...numbers) + 1;
+        }
+        
+        const padded = String(nextNum).padStart(2, '0');
+        $('#invoice-number').val(`${prefix}-${year}-${padded}`);
+    }
+
+    // Aggiungi Riga
     $('#add-product-to-invoice-btn').click(() => {
         const desc = $('#invoice-product-description').val();
         if(!desc) return;
@@ -222,26 +211,72 @@ $(document).ready(function() {
         const iva = $('#invoice-product-iva').val();
         const esenzione = $('#invoice-product-esenzioneIva').val();
         
-        window.tempInvoiceLines.push({ productName: desc, qty, price, subtotal: qty*price, iva, esenzioneIva: esenzione });
+        window.tempInvoiceLines.push({ 
+            productName: desc, qty, price, subtotal: qty*price, iva, esenzioneIva: esenzione 
+        });
+        
         renderLocalInvoiceLines();
-        $('#invoice-product-select').val(''); $('#invoice-product-description').val(''); $('#invoice-product-price').val('');
+        // Reset campi riga
+        $('#invoice-product-select').val('');
+        $('#invoice-product-description').val('');
+        $('#invoice-product-price').val('');
+        $('#invoice-product-qty').val(1);
+        updateTotalsDisplay();
     });
-    
+
     function renderLocalInvoiceLines() {
         const tbody = $('#invoice-lines-tbody').empty(); 
-        let total = 0;
         window.tempInvoiceLines.forEach((l, i) => { 
-            total += l.subtotal; 
-            tbody.append(`<tr><td>${l.productName}</td><td class="text-end">${l.qty}</td><td class="text-end">${l.price.toFixed(2)}</td><td class="text-end">${l.subtotal.toFixed(2)}</td><td><button type="button" class="btn btn-sm btn-danger del-line" data-i="${i}">x</button></td></tr>`); 
+            tbody.append(`
+                <tr>
+                    <td>${l.productName}</td>
+                    <td class="text-end">${l.qty}</td>
+                    <td class="text-end">€ ${l.price.toFixed(2)}</td>
+                    <td class="text-end">€ ${l.subtotal.toFixed(2)}</td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-outline-danger del-line" data-i="${i}"><i class="fas fa-times"></i></button>
+                    </td>
+                </tr>`); 
         });
-        $('#invoice-total').text(total.toFixed(2));
     }
-    
+
     $('#invoice-lines-tbody').on('click', '.del-line', function() { 
         window.tempInvoiceLines.splice($(this).data('i'), 1); 
         renderLocalInvoiceLines(); 
+        updateTotalsDisplay();
     });
 
+    // Calcolo Totali (Rivalsa + Bollo)
+    function updateTotalsDisplay() {
+        const customerId = $('#invoice-customer-select').val();
+        const customer = getData('customers').find(c => String(c.id) === String(customerId));
+        const company = getData('companyInfo');
+        
+        const bolloDesc = 'rivalsa bollo';
+        const righePrestazioni = window.tempInvoiceLines.filter(l => l.productName.toLowerCase() !== bolloDesc);
+        const rigaBollo = window.tempInvoiceLines.find(l => l.productName.toLowerCase() === bolloDesc);
+        
+        const importoBollo = rigaBollo ? rigaBollo.subtotal : 0;
+        const totalePrestazioni = righePrestazioni.reduce((s, l) => s + l.subtotal, 0);
+        
+        let rivalsaImporto = 0;
+        if (customer && customer.rivalsaInps && company.aliquotaInps) {
+             rivalsaImporto = totalePrestazioni * (parseFloat(company.aliquotaInps) / 100);
+        }
+        
+        const totaleImponibile = totalePrestazioni + rivalsaImporto;
+        const totaleDocumento = totaleImponibile + importoBollo;
+        
+        $('#invoice-total').text(`€ ${totaleDocumento.toFixed(2)}`);
+        $('#invoice-tax-details').text(`(Imponibile: € ${totaleImponibile.toFixed(2)} - Rivalsa: € ${rivalsaImporto.toFixed(2)} - Bollo: € ${importoBollo.toFixed(2)})`);
+        
+        return { totalePrestazioni, rivalsaImporto, importoBollo, totaleImponibile, totaleDocumento };
+    }
+    
+    // Trigger ricalcolo al cambio cliente (per la rivalsa)
+    $('#invoice-customer-select').change(updateTotalsDisplay);
+
+    // Auto-compilazione Prodotti
     $('#invoice-product-select').change(function() {
         const pid = $(this).val();
         const p = getData('products').find(x => String(x.id) === String(pid));
@@ -258,71 +293,98 @@ $(document).ready(function() {
             else $('#invoice-esenzione-iva-container').addClass('d-none');
         }
     });
-
+    
     $('#invoice-product-iva').change(function() {
         if($(this).val() == '0') $('#invoice-esenzione-iva-container').removeClass('d-none');
         else $('#invoice-esenzione-iva-container').addClass('d-none');
     });
+    
+    $('#invoice-date').change(function() {
+        $('#invoice-dataRiferimento').val($(this).val());
+        // Aggiorna numero solo se è nuovo
+        if(!CURRENT_EDITING_INVOICE_ID) updateInvoiceNumber($('#document-type').val(), $(this).val().substring(0, 4));
+    });
+    
+    // Calcolo Scadenza
+    $('#invoice-dataRiferimento, #invoice-giorniTermini').on('input', function() { 
+        const d = $('#invoice-dataRiferimento').val(); 
+        const g = parseInt($('#invoice-giorniTermini').val()); 
+        if(d && !isNaN(g)) { 
+            const dt = new Date(d); dt.setDate(dt.getDate() + g); 
+            $('#invoice-dataScadenza').val(dt.toISOString().split('T')[0]); 
+        } 
+    });
 
-    // Salva Fattura
+    // SALVA DOCUMENTO
     $('#new-invoice-form').submit(async function(e) {
         e.preventDefault();
-        const idInput = $('#editing-invoice-id').val();
-        const customerId = $('#invoice-customer-select').val();
-        if (!customerId || window.tempInvoiceLines.length === 0) { alert("Inserire almeno un cliente e una riga."); return; }
-
-        const type = $('#document-type').val();
-        const total = parseFloat($('#invoice-total').text());
-
-        const customer = getData('customers').find(c => String(c.id) === String(customerId)); 
-        const company = getData('companyInfo');
         
-        let rivalsa = {};
-        if (customer && customer.rivalsaInps) {
-             const aliq = parseFloat(company.aliquotaInps || 0);
-             rivalsa = { aliquota: aliq, importo: total * (aliq / 100) };
-        }
-        const finalTotal = total + (rivalsa.importo || 0);
+        // Calcola i totali finali al momento del salvataggio
+        const calcs = updateTotalsDisplay();
+        
+        if (!calcs.totaleDocumento || window.tempInvoiceLines.length === 0) { alert("Inserire almeno una riga."); return; }
+        if (!$('#invoice-customer-select').val()) { alert("Selezionare un cliente."); return; }
+        
+        const docType = $('#document-type').val();
+        const company = getData('companyInfo');
 
         const data = {
             number: $('#invoice-number').val(), 
             date: $('#invoice-date').val(),
-            customerId: customerId,
-            type: type,
+            customerId: $('#invoice-customer-select').val(), 
+            type: docType,
             lines: window.tempInvoiceLines, 
-            total: finalTotal,
-            totaleImponibile: total, 
-            rivalsa: rivalsa,
-            status: (type === 'Fattura' ? 'Da Incassare' : 'Emessa'),
+            
+            // Dati Calcolati
+            totalePrestazioni: calcs.totalePrestazioni,
+            importoBollo: calcs.importoBollo,
+            rivalsa: { aliquota: company.aliquotaInps, importo: calcs.rivalsaImporto },
+            totaleImponibile: calcs.totaleImponibile,
+            total: calcs.totaleDocumento,
+            
+            status: (docType === 'Fattura' ? 'Da Incassare' : 'Emessa'), // NdC nasce emessa
+            
             dataScadenza: $('#invoice-dataScadenza').val(),
             condizioniPagamento: $('#invoice-condizioniPagamento').val(),
             modalitaPagamento: $('#invoice-modalitaPagamento').val(),
             linkedInvoice: $('#linked-invoice').val(),
             reason: $('#reason').val()
         };
-        
-        if(idInput) {
-            const old = getData('invoices').find(i => String(i.id) === String(idInput));
-            if(old) data.status = old.status; 
+
+        // Se stiamo modificando, mantieni lo status originale (es. se era già Pagata)
+        if (CURRENT_EDITING_INVOICE_ID) {
+            const oldInv = getData('invoices').find(i => String(i.id) === CURRENT_EDITING_INVOICE_ID);
+            if(oldInv) data.status = oldInv.status;
         }
 
-        let id = (idInput && idInput !== "") ? idInput : String(getNextId(getData('invoices')));
-        
+        // ID: Usa quello in editing o generane uno nuovo
+        let id = CURRENT_EDITING_INVOICE_ID ? CURRENT_EDITING_INVOICE_ID : String(getNextId(getData('invoices')));
+
+        console.log("Salvataggio Documento:", id, data);
         await saveDataToCloud('invoices', data, id);
+        
         alert("Documento salvato!"); 
         $('.sidebar .nav-link[data-target="elenco-fatture"]').click();
     });
 
-    // Azioni Fatture
+    // --- AZIONI TABELLA FATTURE ---
+    
+    // Modifica Fattura
     $('#invoices-table-body').on('click', '.btn-edit-invoice', function() { 
         const id = $(this).attr('data-id'); 
         const inv = getData('invoices').find(i => String(i.id) === String(id));
+        
         if(inv) {
+            CURRENT_EDITING_INVOICE_ID = String(inv.id); // Setta stato
+            
+            // Naviga alla pagina corretta
             if(inv.type === 'Nota di Credito') $('#menu-nuova-nota-credito').click();
             else $('#menu-nuova-fattura').click();
             
+            // Aspetta che il form si sia resettato (dalla navigazione) e poi popola
             setTimeout(() => {
-                $('#editing-invoice-id').val(inv.id);
+                $('#invoice-id').val(inv.id); // Mostra ID a video
+                
                 $('#invoice-customer-select').val(inv.customerId);
                 $('#invoice-date').val(inv.date);
                 $('#invoice-number').val(inv.number);
@@ -332,20 +394,42 @@ $(document).ready(function() {
                 $('#reason').val(inv.reason);
                 $('#invoice-dataScadenza').val(inv.dataScadenza);
                 
-                window.tempInvoiceLines = inv.lines || [];
+                // Importante: clona le righe per non modificare l'oggetto originale in memoria
+                window.tempInvoiceLines = JSON.parse(JSON.stringify(inv.lines || []));
                 renderLocalInvoiceLines();
+                updateTotalsDisplay();
             }, 200);
         }
     });
-    
-    $('#invoices-table-body').on('click', '.btn-delete-invoice', function() { deleteDataFromCloud('invoices', $(this).attr('data-id')); });
-    
+
+    // Cambio Stato
     $('#invoices-table-body').on('click', '.btn-mark-paid', async function() { 
         const id = $(this).attr('data-id'); 
         const inv = getData('invoices').find(i => String(i.id) === String(id));
-        if(confirm("Confermi il cambio stato?")) {
+        if(confirm("Confermi il cambio stato in Pagata/Emessa?")) {
             await saveDataToCloud('invoices', { status: inv.type === 'Nota di Credito' ? 'Emessa' : 'Pagata' }, id);
-            renderInvoicesTable(); 
+            renderInvoicesTable();
+        }
+    });
+    
+    // Elimina
+    $('#invoices-table-body').on('click', '.btn-delete-invoice', function() { 
+        const id = $(this).attr('data-id');
+        if(id) deleteDataFromCloud('invoices', id);
+    });
+    
+    // Autocomplete Nota Credito
+    $('#linked-invoice').on('change', function() {
+        const linkedNumber = $(this).val().trim();
+        const sourceInvoice = getData('invoices').find(inv => inv.number === linkedNumber);
+        if(sourceInvoice && confirm(`Trovata fattura ${sourceInvoice.number}. Importare dati?`)) {
+            $('#invoice-customer-select').val(sourceInvoice.customerId);
+            window.tempInvoiceLines = JSON.parse(JSON.stringify(sourceInvoice.lines)); 
+            renderLocalInvoiceLines();
+            updateTotalsDisplay();
+            $('#invoice-condizioniPagamento').val(sourceInvoice.condizioniPagamento);
+            $('#invoice-modalitaPagamento').val(sourceInvoice.modalitaPagamento);
+            if(!$('#reason').val()) $('#reason').val(`Storno totale fattura n. ${sourceInvoice.number} del ${formatDateForDisplay(sourceInvoice.date)}`);
         }
     });
 
@@ -381,5 +465,4 @@ $(document).ready(function() {
         alert("Dati salvati!");
         updateCompanyUI();
     });
-
 });

@@ -124,54 +124,68 @@
                 <table class="table table-hover"><thead><tr><th>Tipo</th><th>Numero</th><th>Data</th><th>Cliente</th><th class="text-end-numbers">Totale</th><th class="text-end-numbers">Scadenza</th><th>Stato</th><th class="text-end col-actions">Azioni</th></tr></thead><tbody id="invoices-table-body"></tbody></table>
             </div>
             
-            <!-- NUOVA FATTURA -->
+            <!-- NUOVA FATTURA / NOTA CREDITO -->
             <div id="nuova-fattura-accompagnatoria" class="content-section d-none">
                 <h2 id="document-title">Nuovo Documento</h2>
                 <form id="new-invoice-form">
-                    <input type="hidden" id="editing-invoice-id">
-                    <input type="hidden" id="document-type" value="Fattura">
-                    
-                    <div id="credit-note-fields" class="row d-none bg-light p-3 rounded mb-3">
+                    <!-- ID SISTEMA VISIBILE -->
+                    <div class="mb-3 p-2 bg-light border rounded">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="small text-muted fw-bold">ID Interno (Sistema)</label>
+                                <input type="text" class="form-control-plaintext fw-bold" id="invoice-id" readonly placeholder="Nuovo Documento">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="small text-muted fw-bold">Tipo Documento</label>
+                                <input type="text" class="form-control-plaintext" id="document-type" readonly value="Fattura">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="credit-note-fields" class="row d-none bg-warning-subtle p-3 rounded mb-3 border border-warning">
                         <div class="col-md-6 mb-3"><label class="form-label">Fattura da Rettificare</label><input type="text" class="form-control" id="linked-invoice" placeholder="Es. FATT-2025-01"></div>
                         <div class="col-md-6 mb-3"><label class="form-label">Causale</label><input type="text" class="form-control" id="reason"></div>
                     </div>
 
                     <div class="row">
                         <div class="col-md-6 mb-3"><label class="form-label">Cliente</label><select class="form-select" id="invoice-customer-select" required></select></div>
-                        <div class="col-md-3 mb-3"><label class="form-label">Data</label><input type="date" class="form-control" id="invoice-date" required></div>
-                        <div class="col-md-3 mb-3"><label class="form-label">Numero</label><input type="text" class="form-control" id="invoice-number"></div>
+                        <div class="col-md-3 mb-3"><label class="form-label">Data Documento</label><input type="date" class="form-control" id="invoice-date" required></div>
+                        <div class="col-md-3 mb-3"><label class="form-label">Numero Documento</label><input type="text" class="form-control" id="invoice-number"></div>
                     </div>
                     <hr>
                     
                     <!-- Riga inserimento prodotti -->
                     <h5>Righe Documento</h5>
-                    <div class="row align-items-end g-2">
-                        <div class="col-lg-3"><label class="form-label">Seleziona</label><select class="form-select" id="invoice-product-select"></select></div>
-                        <div class="col-lg-3"><label class="form-label">Descrizione</label><input type="text" class="form-control" id="invoice-product-description" readonly></div>
-                        <div class="col-lg-1"><label class="form-label">Qtà</label><input type="number" class="form-control" id="invoice-product-qty" value="1"></div>
-                        <div class="col-lg-2"><label class="form-label">Prezzo</label><input type="number" class="form-control" id="invoice-product-price"></div>
-                        <div class="col-lg-1"><label class="form-label">IVA</label><select class="form-select" id="invoice-product-iva" disabled><option value="0">0%</option><option value="22">22%</option></select></div>
-                        <div class="col-lg-1 d-none" id="invoice-esenzione-iva-container"><label class="form-label">Esenzione</label><select class="form-select" id="invoice-product-esenzioneIva" disabled><option value="N2.1">N2.1</option><option value="N2.2">N2.2</option><option value="N4">N4</option></select></div>
-                        <div class="col-lg-1"><button type="button" class="btn btn-secondary w-100" id="add-product-to-invoice-btn"><i class="fas fa-plus"></i></button></div>
+                    <div class="row align-items-end g-2 bg-light p-2 rounded">
+                        <div class="col-lg-3"><label class="form-label small">Seleziona Servizio</label><select class="form-select form-select-sm" id="invoice-product-select"></select></div>
+                        <div class="col-lg-3"><label class="form-label small">Descrizione</label><input type="text" class="form-control form-select-sm" id="invoice-product-description" readonly></div>
+                        <div class="col-lg-1"><label class="form-label small">Qtà</label><input type="number" class="form-control form-select-sm" id="invoice-product-qty" value="1"></div>
+                        <div class="col-lg-2"><label class="form-label small">Prezzo</label><input type="number" class="form-control form-select-sm" id="invoice-product-price"></div>
+                        <div class="col-lg-1"><label class="form-label small">IVA</label><select class="form-select form-select-sm" id="invoice-product-iva" disabled><option value="0">0%</option><option value="22">22%</option></select></div>
+                        <div class="col-lg-1 d-none" id="invoice-esenzione-iva-container"><label class="form-label small">Esenzione</label><select class="form-select form-select-sm" id="invoice-product-esenzioneIva" disabled><option value="N2.1">N2.1</option><option value="N2.2">N2.2</option><option value="N4">N4</option></select></div>
+                        <div class="col-lg-1"><button type="button" class="btn btn-success w-100 btn-sm" id="add-product-to-invoice-btn"><i class="fas fa-plus"></i></button></div>
                     </div>
 
-                    <table class="table mt-3 table-striped">
-                        <thead><tr><th>Descrizione</th><th class="text-end">Qtà</th><th class="text-end">Prezzo</th><th class="text-end">Totale</th><th></th></tr></thead>
+                    <table class="table mt-3 table-bordered table-sm">
+                        <thead class="table-light"><tr><th>Descrizione</th><th class="text-end">Qtà</th><th class="text-end">Prezzo</th><th class="text-end">Totale</th><th class="text-center" style="width: 50px;">Del</th></tr></thead>
                         <tbody id="invoice-lines-tbody"></tbody>
                     </table>
 
                     <div class="row mt-4">
-                        <div class="col-md-6 mb-3"><label class="form-label">Condizioni</label><input type="text" class="form-control" id="invoice-condizioniPagamento"></div>
-                        <div class="col-md-6 mb-3"><label class="form-label">Modalità</label><input type="text" class="form-control" id="invoice-modalitaPagamento"></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">Condizioni Pagamento</label><input type="text" class="form-control" id="invoice-condizioniPagamento"></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">Modalità Pagamento</label><input type="text" class="form-control" id="invoice-modalitaPagamento"></div>
                     </div>
                     <div class="row align-items-end">
-                        <div class="col-md-3 mb-3"><label class="form-label">Data Rif.</label><input type="date" class="form-control" id="invoice-dataRiferimento"></div>
-                        <div class="col-md-2 mb-3"><label class="form-label">Giorni</label><input type="number" class="form-control" id="invoice-giorniTermini"></div>
-                        <div class="col-md-3 mb-3"><label class="form-label">Scadenza</label><input type="date" class="form-control" id="invoice-dataScadenza"></div>
+                        <div class="col-md-3 mb-3"><label class="form-label">Data Riferimento</label><input type="date" class="form-control" id="invoice-dataRiferimento"></div>
+                        <div class="col-md-2 mb-3"><label class="form-label">Giorni Scadenza</label><input type="number" class="form-control" id="invoice-giorniTermini"></div>
+                        <div class="col-md-3 mb-3"><label class="form-label">Data Scadenza</label><input type="date" class="form-control" id="invoice-dataScadenza"></div>
                     </div>
 
-                    <div class="text-end mt-3"><h3>Totale Documento: <span id="invoice-total">0.00</span></h3></div>
-                    <button type="submit" class="btn btn-primary mt-3 btn-lg"><i class="fas fa-save"></i> Salva Documento</button>
+                    <div class="text-end mt-3 p-3 bg-light border rounded">
+                        <h4 class="mb-0">Totale Documento: <span id="invoice-total" class="text-primary">€ 0.00</span></h4>
+                        <small class="text-muted" id="invoice-tax-details">(Imponibile: € 0.00)</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary mt-3 btn-lg w-100"><i class="fas fa-save"></i> Salva Documento</button>
                 </form>
             </div>
 
