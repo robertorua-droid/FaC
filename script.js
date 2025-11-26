@@ -1,21 +1,9 @@
 // =========================================================
-// CONFIGURAZIONE FIREBASE (GLOBALE)
+// CONFIGURAZIONE E INIZIALIZZAZIONE FIREBASE
 // =========================================================
-const firebaseConfig = {
-  apiKey: "AIzaSyCuGd5MSKdixcMYOYullnyam6Pj1D9tNbM",
-  authDomain: "fprf-6c080.firebaseapp.com",
-  projectId: "fprf-6c080",
-  storageBucket: "fprf-6c080.firebasestorage.app",
-  messagingSenderId: "406236428222",
-  appId: "1:406236428222:web:3be6b3b8530ab20ba36bef"
-};
 
-// Inizializza Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const auth = firebase.auth();
-
-// Variabili Globali per la Cache
+// Variabili globali per l'app
+let db, auth;
 let globalData = {
     companyInfo: {},
     products: [],
@@ -23,13 +11,34 @@ let globalData = {
     invoices: [],
     notes: []
 };
-
 let currentUser = null;
 let dateTimeInterval = null;
-// Variabili di stato per CRUD e Documenti
 let CURRENT_EDITING_ID = null;         
 let CURRENT_EDITING_INVOICE_ID = null; 
-window.tempInvoiceLines = [];          
+window.tempInvoiceLines = []; 
+
+try {
+    const firebaseConfig = {
+      apiKey: "AIzaSyCuGd5MSKdixcMYOYullnyam6Pj1D9tNbM",
+      authDomain: "fprf-6c080.firebaseapp.com",
+      projectId: "fprf-6c080",
+      storageBucket: "fprf-6c080.firebasestorage.app",
+      messagingSenderId: "406236428222",
+      appId: "1:406236428222:web:3be6b3b8530ab20ba36bef"
+    };
+
+    // Inizializzazione sicura
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    db = firebase.firestore();
+    auth = firebase.auth();
+    console.log("Firebase inizializzato con successo.");
+
+} catch (error) {
+    console.error("Errore critico inizializzazione Firebase:", error);
+    alert("Errore critico: Impossibile connettersi al database. Controlla la console.");
+}
 
 $(document).ready(function() {
 
@@ -197,8 +206,7 @@ $(document).ready(function() {
         }
     }
 
-    // --- HOME, CALENDARIO, STATISTICHE ---
-
+    // --- HOME PAGE ---
     function renderHomePage() { 
         if(currentUser && currentUser.email) $('#welcome-message').text(`Benvenuto, ${currentUser.email}`); 
         const note = getData('notes').find(n => n.userId === currentUser.uid);
@@ -232,10 +240,12 @@ $(document).ready(function() {
             startingDay++;
         }
         while (startingDay <= 6) { html += '<td class="bg-light"></td>'; startingDay++; }
+        
         html += '</tr></tbody></table></div></div>';
         c.html(html);
     }
 
+    // --- STATISTICHE ---
     function renderStatisticsPage() {
         const container = $('#stats-table-container').empty();
         const facts = getData('invoices').filter(i => i.type === 'Fattura' || i.type === undefined || i.type === '');
