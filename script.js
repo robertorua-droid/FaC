@@ -24,9 +24,9 @@ let globalData = {
 
 let currentUser = null;
 let dateTimeInterval = null;
-let CURRENT_EDITING_ID = null;         // Per Clienti e Prodotti
-let CURRENT_EDITING_INVOICE_ID = null; // Per i Documenti
-window.tempInvoiceLines = [];          // Righe temporanee fattura
+let CURRENT_EDITING_ID = null;         
+let CURRENT_EDITING_INVOICE_ID = null; 
+window.tempInvoiceLines = [];          
 
 $(document).ready(function() {
 
@@ -208,7 +208,6 @@ $(document).ready(function() {
         const tax = (netTaxable > 0) ? netTaxable * (taxRate / 100) : 0;
         const totalDue = socialSecurity + tax;
 
-        // HTML DETTAGLIATO COME RICHIESTO
         const html = `
             <div class="row">
                 <div class="col-lg-6 mb-4"><div class="card h-100"><div class="card-header fw-bold">Simulazione Contributi INPS</div><div class="card-body"><dl class="row mb-0">
@@ -271,10 +270,26 @@ $(document).ready(function() {
         });
     }
 
+    // 4.5 - FIX POPOLAMENTO DROPDOWN
     function populateDropdowns() {
-        $('#invoice-customer-select').empty().append('<option selected disabled value="">Seleziona...</option>').append(getData('customers').map(c => `<option value="${c.id}">${c.name}</option>`));
-        $('#invoice-product-select').empty().append('<option selected value="">Seleziona...</option><option value="manual">Manuale</option>').append(getData('products').map(p => `<option value="${p.id}">${p.code}</option>`));
-        if(!$('#editing-invoice-id').val()) { $('#invoice-date').val(new Date().toISOString().slice(0, 10)); updateInvoiceNumber(); }
+        // Popola Clienti
+        const custSelect = $('#invoice-customer-select').empty().append('<option selected disabled value="">Seleziona Cliente...</option>');
+        getData('customers').forEach(c => {
+            custSelect.append(`<option value="${c.id}">${c.name}</option>`);
+        });
+    
+        // Popola Prodotti (Con Codice e Descrizione)
+        const prodSelect = $('#invoice-product-select').empty().append('<option selected value="">Seleziona Servizio...</option><option value="manual">--- Inserimento Manuale ---</option>');
+        getData('products').forEach(p => {
+            const label = (p.code ? p.code + ' - ' : '') + p.description;
+            prodSelect.append(`<option value="${p.id}">${label}</option>`);
+        });
+
+        // Aggiorna data e numero se è una nuova fattura
+        if(!$('#editing-invoice-id').val()) { 
+            $('#invoice-date').val(new Date().toISOString().slice(0, 10)); 
+            // updateInvoiceNumber viene chiamata quando si apre il modale o si clicca il pulsante
+        }
     }
 
     // =========================================================
@@ -303,6 +318,7 @@ $(document).ready(function() {
 
     $('#logout-btn').on('click', function(e) { e.preventDefault(); auth.signOut().then(() => location.reload()); });
 
+    // NAVIGAZIONE
     $('.sidebar .nav-link').on('click', function(e) { 
         if ($(this).attr('id') === 'logout-btn' || $(this).data('bs-toggle') === 'modal') return; 
         e.preventDefault(); 
@@ -317,7 +333,7 @@ $(document).ready(function() {
         $('.content-section').addClass('d-none'); $('#' + target).removeClass('d-none'); 
     });
 
-    // Modale Nuova Fattura
+    // MODALE NUOVA FATTURA
     $('#newInvoiceChoiceModal').on('show.bs.modal', function () {
         const invoices = getData('invoices').filter(i => i.type === 'Fattura' || i.type === undefined);
         invoices.sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -341,48 +357,67 @@ $(document).ready(function() {
         loadInvoiceForEditing(id, true);
     });
 
-    // CRUD Anagrafiche
+    // CRUD ANAGRAFICHE
     function editItem(type, id) { 
         if (type === 'customer' || type === 'product') CURRENT_EDITING_ID = String(id);
-        const items = getData(`${type}s`); 
-        const item = items.find(i => String(i.id) === String(id)); 
+        const item = getData(`${type}s`).find(i => String(i.id) === String(id)); 
         if (!item) { alert("Elemento non trovato"); return; }
         
         $(`#${type}Form`)[0].reset(); 
         $(`#${type}ModalTitle`).text(`Modifica ${type === 'product' ? 'Servizio' : 'Cliente'}`); 
         $(`#${type}-id`).val(String(item.id));
         
+        // Set ID sul bottone per sicurezza
+        const btnSave = (type === 'product') ? $('#saveProductBtn') : $('#saveCustomerBtn');
+        btnSave.data('edit-id', String(item.id)); 
+        
         for (const key in item) { 
             const field = $(`#${type}-${key}`); 
-            if (field.is(':checkbox')) field.prop('checked', item[key]); 
-            else field.val(item[key]); 
+            if (field.length) { if (field.is(':checkbox')) field.prop('checked', item[key]); else field.val(item[key]); }
         } 
-        if (type === 'product') { $('#product-iva').trigger('change'); if(item.iva == '0') $('#product-esenzioneIva').val(item.esenzioneIva); }
+        if (type === 'product') { $('#product-iva').trigger('change'); if(item.iva == '0') $('#product-esenzioneIva').val(item.esenzioneIva); } 
         $(`#${type}Modal`).modal('show'); 
     }
 
-    $('#newCustomerBtn').click(() => { CURRENT_EDITING_ID = null; $('#customerForm')[0].reset(); $('#customer-id').val('Nuovo'); $('#customerModal').modal('show'); });
-    $('#saveCustomerBtn').click(async () => {
+    $('#newCustomerBtn').click(() => { 
+        CURRENT_EDITING_ID = null; 
+        $('#saveCustomerBtn').data('edit-id', null); 
+        $('#customerForm')[0].reset(); 
+        $('#customer-id').val('Nuovo'); 
+        $('#customerModal').modal('show'); 
+    });
+
+    $('#saveCustomerBtn').click(async function() {
+        const editId = $(this).data('edit-id');
         const data = {
             name: $('#customer-name').val(), piva: $('#customer-piva').val(), codiceFiscale: $('#customer-codiceFiscale').val(),
             sdi: $('#customer-sdi').val(), address: $('#customer-address').val(), comune: $('#customer-comune').val(),
             provincia: $('#customer-provincia').val(), cap: $('#customer-cap').val(), nazione: $('#customer-nazione').val(),
             rivalsaInps: $('#customer-rivalsaInps').is(':checked')
         };
-        let id = CURRENT_EDITING_ID ? CURRENT_EDITING_ID : String(getNextId(getData('customers')));
+        let id = editId ? editId : String(getNextId(getData('customers')));
         await saveDataToCloud('customers', data, id); $('#customerModal').modal('hide'); renderAll();
     });
 
     $('#customers-table-body').on('click', '.btn-edit-customer', function(e) { editItem('customer', $(e.currentTarget).attr('data-id')); });
     $('#customers-table-body').on('click', '.btn-delete-customer', function(e) { deleteDataFromCloud('customers', $(e.currentTarget).attr('data-id')); });
 
-    $('#newProductBtn').click(() => { CURRENT_EDITING_ID = null; $('#productForm')[0].reset(); $('#product-id').val('Nuovo'); $('#product-iva').val('0').change(); $('#productModal').modal('show'); });
-    $('#saveProductBtn').click(async () => {
+    $('#newProductBtn').click(() => { 
+        CURRENT_EDITING_ID = null; 
+        $('#saveProductBtn').data('edit-id', null);
+        $('#productForm')[0].reset(); 
+        $('#product-id').val('Nuovo'); 
+        $('#product-iva').val('0').change(); 
+        $('#productModal').modal('show'); 
+    });
+
+    $('#saveProductBtn').click(async function() {
+        const editId = $(this).data('edit-id');
         const data = {
             description: $('#product-description').val(), code: $('#product-code').val(),
             salePrice: $('#product-salePrice').val(), iva: $('#product-iva').val(), esenzioneIva: $('#product-esenzioneIva').val()
         };
-        let id = CURRENT_EDITING_ID ? CURRENT_EDITING_ID : 'PRD' + new Date().getTime();
+        let id = editId ? editId : 'PRD' + new Date().getTime();
         await saveDataToCloud('products', data, id); $('#productModal').modal('hide'); renderAll();
     });
 
@@ -392,11 +427,15 @@ $(document).ready(function() {
     
     function toggleEsenzioneIvaField(container, ivaValue) { const div = (container === 'product') ? $('#esenzione-iva-container') : $('#invoice-esenzione-iva-container'); if (ivaValue == '0') div.removeClass('d-none'); else div.addClass('d-none'); }
 
-    // Core Fatture
+    // FATTURE CORE
     function prepareDocumentForm(type) {
         CURRENT_EDITING_INVOICE_ID = null; 
         $('#new-invoice-form')[0].reset(); $('#invoice-id').val('Nuovo'); $('#document-type').val(type);
-        $('#invoice-lines-tbody').empty(); window.tempInvoiceLines = []; populateDropdowns();
+        $('#invoice-lines-tbody').empty(); window.tempInvoiceLines = []; 
+        
+        // IMPORTANTE: Chiama populate per riempire i dropdown!
+        populateDropdowns(); 
+        
         const today = new Date().toISOString().slice(0, 10); $('#invoice-date').val(today);
         if (type === 'Nota di Credito') { $('#document-title').text('Nuova Nota di Credito'); $('#credit-note-fields').removeClass('d-none'); } 
         else { $('#document-title').text('Nuova Fattura'); $('#credit-note-fields').addClass('d-none'); }
@@ -431,7 +470,7 @@ $(document).ready(function() {
 
     function renderLocalInvoiceLines() {
         const t = $('#invoice-lines-tbody').empty(); 
-        window.tempInvoiceLines.forEach((l, i) => { t.append(`<tr><td>${l.productName}</td><td class="text-end">${l.qty}</td><td class="text-end">€ ${l.price.toFixed(2)}</td><td class="text-end">€ ${l.subtotal.toFixed(2)}</td><td class="text-center"><button type="button" class="btn btn-sm btn-danger del-line" data-i="${i}">x</button></td></tr>`); });
+        window.tempInvoiceLines.forEach((l, i) => { t.append(`<tr><td>${l.productName}</td><td class="text-end">${l.qty}</td><td class="text-end">€ ${l.price.toFixed(2)}</td><td class="text-end">€ ${l.subtotal.toFixed(2)}</td><td class="text-center"><button type="button" class="btn btn-sm btn-danger del-line" data-i="${i}"><i class="fas fa-times"></i></button></td></tr>`); });
     }
     $('#invoice-lines-tbody').on('click', '.del-line', function() { window.tempInvoiceLines.splice($(this).data('i'), 1); renderLocalInvoiceLines(); updateTotalsDisplay(); });
 
