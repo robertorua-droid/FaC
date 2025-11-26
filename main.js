@@ -1,4 +1,4 @@
-// FILE: main.js - Logica Principale ed Eventi (v8.6 - Fix Anagrafiche)
+// FILE: main.js - Logica Principale ed Eventi (v8.7 - Fix CRUD Completo)
 
 $(document).ready(function() {
 
@@ -8,13 +8,10 @@ $(document).ready(function() {
             currentUser = user;
             $('#login-container').addClass('d-none');
             $('#loading-screen').removeClass('d-none');
-            
-            await loadAllDataFromCloud(); // Funzione in data.js
-            
+            await loadAllDataFromCloud(); 
             $('#loading-screen').addClass('d-none');
             $('#main-app').removeClass('d-none');
-            
-            renderAll(); // Funzione in ui.js
+            renderAll();
         } else {
             currentUser = null;
             $('#main-app').addClass('d-none');
@@ -41,7 +38,6 @@ $(document).ready(function() {
         const target = $(this).data('target');
 
         if(target === 'nuova-fattura-accompagnatoria') {
-            // Logica reset form fattura
             $('#new-invoice-form')[0].reset();
             $('#invoice-lines-tbody').empty();
             window.tempInvoiceLines = []; 
@@ -68,52 +64,44 @@ $(document).ready(function() {
         $('#' + target).removeClass('d-none');
     });
 
-    // --- 3. FUNZIONE DI SUPPORTO: EDIT ITEM ---
-    // Questa funzione serve a popolare i modali di modifica
+    // --- 3. FUNZIONI DI SUPPORTO CRUD ---
+    
     function editItem(type, id) { 
-        const items = getData(`${type}s`); // 'products' o 'customers'
-        // Cerca l'elemento (confrontando le stringhe per sicurezza)
+        const items = getData(`${type}s`); 
+        // Importante: conversione in stringa per confronto sicuro
         const item = items.find(i => String(i.id) === String(id)); 
         
-        if (!item) { alert("Elemento non trovato"); return; }
+        if (!item) { alert("Elemento non trovato (ID: " + id + ")"); return; }
         
-        // Resetta e prepara il form
         $(`#${type}Form`)[0].reset();
         $(`#${type}ModalTitle`).text(`Modifica ${type === 'product' ? 'Servizio' : 'Cliente'}`); 
         
-        // Popola i campi del form
+        // Popola campi
         for (const key in item) { 
             const field = $(`#${type}-${key}`); 
-            if (field.is(':checkbox')) { 
-                field.prop('checked', item[key]); 
-            } else if (field.length) { 
-                field.val(item[key]); 
-            } 
+            if (field.is(':checkbox')) field.prop('checked', item[key]); 
+            else if (field.length) field.val(item[key]); 
         } 
         
-        // Gestione specifica per i prodotti (campo IVA condizionale)
         if (type === 'product') { 
-            $('#product-iva').trigger('change'); // Aggiorna visibilità esenzione
-            // Reimposta il valore dell'esenzione se necessario
+            $('#product-iva').trigger('change');
             if(item.iva == '0') $('#product-esenzioneIva').val(item.esenzioneIva);
         } 
         
-        // Imposta l'ID nel campo nascosto
+        // Imposta l'ID nel campo nascosto (CRUCIALE PER L'UPDATE)
         $(`#${type}-id`).val(String(item.id)); 
-        
-        // Apre il modale
         $(`#${type}Modal`).modal('show'); 
     }
 
     // --- 4. GESTIONE CLIENTI ---
     $('#newCustomerBtn').click(() => { 
         $('#customerForm')[0].reset(); 
-        $('#customer-id').val(''); 
+        $('#customer-id').val(''); // Pulisce l'ID per indicare "Nuovo"
         $('#customerModal').modal('show'); 
     });
 
     $('#saveCustomerBtn').click(async () => {
-        const idInput = $('#customer-id').val();
+        const idInput = $('#customer-id').val(); // Legge l'ID nascosto
         const data = {
             name: $('#customer-name').val(), 
             piva: $('#customer-piva').val(), 
@@ -127,29 +115,29 @@ $(document).ready(function() {
             rivalsaInps: $('#customer-rivalsaInps').is(':checked')
         };
         
-        // Se non c'è ID, ne generiamo uno nuovo, altrimenti usiamo quello esistente
-        let id = idInput ? idInput : String(getNextId(getData('customers')));
+        // Se c'è un ID input, usa quello (Update), altrimenti crea nuovo ID
+        let id = (idInput && idInput !== "") ? idInput : String(getNextId(getData('customers')));
         
         await saveDataToCloud('customers', data, id); 
         $('#customerModal').modal('hide'); 
         renderAll();
     });
 
-    // Eventi Tabella Clienti
+    // Usa .attr('data-id') per sicurezza assoluta
     $('#customers-table-body').on('click', '.btn-edit-customer', function() {
-        const id = $(this).attr('data-id');
-        editItem('customer', id);
+        editItem('customer', $(this).attr('data-id'));
     });
 
     $('#customers-table-body').on('click', '.btn-delete-customer', function() {
         const id = $(this).attr('data-id');
-        deleteDataFromCloud('customers', id); // Funzione in data.js
+        if(id) deleteDataFromCloud('customers', id);
+        else alert("Errore: ID cliente non valido.");
     });
 
     // --- 5. GESTIONE PRODOTTI ---
     $('#newProductBtn').click(() => { 
         $('#productForm')[0].reset(); 
-        $('#product-id').val(''); 
+        $('#product-id').val(''); // Pulisce ID
         $('#product-iva').val('0').change(); 
         $('#productModal').modal('show'); 
     });
@@ -164,25 +152,24 @@ $(document).ready(function() {
             esenzioneIva: $('#product-esenzioneIva').val()
         };
         
-        let id = idInput ? idInput : 'PRD' + new Date().getTime();
+        // Logica ID Prodotto
+        let id = (idInput && idInput !== "") ? idInput : 'PRD' + new Date().getTime();
         
         await saveDataToCloud('products', data, id); 
         $('#productModal').modal('hide'); 
         renderAll();
     });
 
-    // Eventi Tabella Prodotti
     $('#products-table-body').on('click', '.btn-edit-product', function() {
-        const id = $(this).attr('data-id');
-        editItem('product', id);
+        editItem('product', $(this).attr('data-id'));
     });
 
     $('#products-table-body').on('click', '.btn-delete-product', function() {
         const id = $(this).attr('data-id');
-        deleteDataFromCloud('products', id);
+        if(id) deleteDataFromCloud('products', id);
+        else alert("Errore: ID prodotto non valido.");
     });
 
-    // Gestione select IVA
     $('#product-iva').change(function() { 
         const val = $(this).val();
         if(val == '0') $('#esenzione-iva-container').removeClass('d-none');
@@ -190,9 +177,6 @@ $(document).ready(function() {
     });
 
     // --- 6. GESTIONE FATTURE ---
-    
-    // ... (Il resto della logica fatture rimane invariato se funzionava) ...
-    // Variabile globale per le righe della fattura in creazione
     window.tempInvoiceLines = []; 
 
     $('#add-product-to-invoice-btn').click(() => {
@@ -203,11 +187,12 @@ $(document).ready(function() {
         const iva = $('#invoice-product-iva').val();
         const esenzione = $('#invoice-product-esenzioneIva').val();
         
-        window.tempInvoiceLines.push({ 
-            productName: desc, qty, price, subtotal: qty*price, iva, esenzioneIva: esenzione 
-        });
-        
-        // Render righe (piccola funzione locale per la tabella di creazione)
+        window.tempInvoiceLines.push({ productName: desc, qty, price, subtotal: qty*price, iva, esenzioneIva: esenzione });
+        renderLocalInvoiceLines();
+        $('#invoice-product-select').val(''); $('#invoice-product-description').val(''); $('#invoice-product-price').val('');
+    });
+    
+    function renderLocalInvoiceLines() {
         const tbody = $('#invoice-lines-tbody').empty(); 
         let total = 0;
         window.tempInvoiceLines.forEach((l, i) => { 
@@ -215,26 +200,13 @@ $(document).ready(function() {
             tbody.append(`<tr><td>${l.productName}</td><td class="text-end">${l.qty}</td><td class="text-end">${l.price.toFixed(2)}</td><td class="text-end">${l.subtotal.toFixed(2)}</td><td><button type="button" class="btn btn-sm btn-danger del-line" data-i="${i}">x</button></td></tr>`); 
         });
         $('#invoice-total').text(total.toFixed(2));
-        
-        // Reset campi
-        $('#invoice-product-select').val('');
-        $('#invoice-product-description').val('');
-        $('#invoice-product-price').val('');
-    });
+    }
     
     $('#invoice-lines-tbody').on('click', '.del-line', function() { 
         window.tempInvoiceLines.splice($(this).data('i'), 1); 
-        // Re-render (copia semplificata della logica sopra)
-        const tbody = $('#invoice-lines-tbody').empty(); 
-        let total = 0;
-        window.tempInvoiceLines.forEach((l, i) => { 
-            total += l.subtotal; 
-            tbody.append(`<tr><td>${l.productName}</td><td class="text-end">${l.qty}</td><td class="text-end">${l.price.toFixed(2)}</td><td class="text-end">${l.subtotal.toFixed(2)}</td><td><button type="button" class="btn btn-sm btn-danger del-line" data-i="${i}">x</button></td></tr>`); 
-        });
-        $('#invoice-total').text(total.toFixed(2));
+        renderLocalInvoiceLines(); 
     });
 
-    // Auto-compilazione Prodotti in fattura
     $('#invoice-product-select').change(function() {
         const pid = $(this).val();
         const p = getData('products').find(x => String(x.id) === String(pid));
@@ -247,13 +219,11 @@ $(document).ready(function() {
             $('#invoice-product-price').val(p.salePrice);
             $('#invoice-product-iva').val(p.iva).prop('disabled', true).change();
             $('#invoice-product-esenzioneIva').val(p.esenzioneIva);
-            // Gestione visibilità campo esenzione in fattura
             if(p.iva == '0') $('#invoice-esenzione-iva-container').removeClass('d-none');
             else $('#invoice-esenzione-iva-container').addClass('d-none');
         }
     });
 
-    // Gestione visibilità IVA manuale in fattura
     $('#invoice-product-iva').change(function() {
         if($(this).val() == '0') $('#invoice-esenzione-iva-container').removeClass('d-none');
         else $('#invoice-esenzione-iva-container').addClass('d-none');
@@ -263,19 +233,35 @@ $(document).ready(function() {
     $('#new-invoice-form').submit(async function(e) {
         e.preventDefault();
         const idInput = $('#editing-invoice-id').val();
+        const customerId = $('#invoice-customer-select').val();
+        if (!customerId || window.tempInvoiceLines.length === 0) { alert("Inserire almeno un cliente e una riga."); return; }
+
         const type = $('#document-type').val();
         const total = parseFloat($('#invoice-total').text());
+
+        // Recupera dati per calcoli completi (rivalsa)
+        const customer = getData('customers').find(c => String(c.id) === String(customerId));
+        const company = getData('companyInfo');
         
-        if(window.tempInvoiceLines.length === 0) { alert("Inserire almeno una riga."); return; }
+        // Calcoli Rivalasa (semplificati per brevità, ma presenti)
+        let rivalsa = {};
+        if (customer && customer.rivalsaInps) {
+             const aliq = parseFloat(company.aliquotaInps || 0);
+             rivalsa = { aliquota: aliq, importo: total * (aliq / 100) };
+        }
+        // Nota: Il totale visualizzato in tabella è quello calcolato dalle righe. 
+        // Se serve aggiungere la rivalsa al totale finale del documento, va fatto qui.
+        const finalTotal = total + (rivalsa.importo || 0);
 
         const data = {
             number: $('#invoice-number').val(), 
             date: $('#invoice-date').val(),
-            customerId: $('#invoice-customer-select').val(), 
+            customerId: customerId,
             type: type,
             lines: window.tempInvoiceLines, 
-            total: total,
-            totaleImponibile: total, // Semplificato
+            total: finalTotal, // Totale con rivalsa
+            totaleImponibile: total, 
+            rivalsa: rivalsa,
             status: (type === 'Fattura' ? 'Da Incassare' : 'Emessa'),
             dataScadenza: $('#invoice-dataScadenza').val(),
             condizioniPagamento: $('#invoice-condizioniPagamento').val(),
@@ -284,20 +270,20 @@ $(document).ready(function() {
             reason: $('#reason').val()
         };
         
-        // Se stiamo modificando, manteniamo lo status esistente
+        // Update vs Create
         if(idInput) {
             const old = getData('invoices').find(i => String(i.id) === String(idInput));
-            if(old) data.status = old.status;
+            if(old) data.status = old.status; // Mantieni stato
         }
 
-        let id = idInput ? idInput : String(getNextId(getData('invoices')));
+        let id = (idInput && idInput !== "") ? idInput : String(getNextId(getData('invoices')));
         
         await saveDataToCloud('invoices', data, id);
         alert("Documento salvato!"); 
         $('.sidebar .nav-link[data-target="elenco-fatture"]').click();
     });
 
-    // --- Azioni Tabella Fatture ---
+    // Azioni Fatture
     $('#invoices-table-body').on('click', '.btn-edit-invoice', function() { 
         const id = $(this).attr('data-id'); 
         const inv = getData('invoices').find(i => String(i.id) === String(id));
@@ -317,14 +303,7 @@ $(document).ready(function() {
                 $('#invoice-dataScadenza').val(inv.dataScadenza);
                 
                 window.tempInvoiceLines = inv.lines || [];
-                // Trigger render righe
-                const tbody = $('#invoice-lines-tbody').empty(); 
-                let total = 0;
-                window.tempInvoiceLines.forEach((l, i) => { 
-                    total += l.subtotal; 
-                    tbody.append(`<tr><td>${l.productName}</td><td class="text-end">${l.qty}</td><td class="text-end">${l.price.toFixed(2)}</td><td class="text-end">${l.subtotal.toFixed(2)}</td><td><button type="button" class="btn btn-sm btn-danger del-line" data-i="${i}">x</button></td></tr>`); 
-                });
-                $('#invoice-total').text(total.toFixed(2));
+                renderLocalInvoiceLines();
             }, 200);
         }
     });
@@ -332,13 +311,14 @@ $(document).ready(function() {
     $('#invoices-table-body').on('click', '.btn-delete-invoice', function() { deleteDataFromCloud('invoices', $(this).attr('data-id')); });
     
     $('#invoices-table-body').on('click', '.btn-mark-paid', async function() { 
-        const id = $(this).attr('data-id'); const inv = getData('invoices').find(i => String(i.id) === String(id));
+        const id = $(this).attr('data-id'); 
+        const inv = getData('invoices').find(i => String(i.id) === String(id));
         if(confirm("Confermi il cambio stato?")) {
             await saveDataToCloud('invoices', { status: inv.type === 'Nota di Credito' ? 'Emessa' : 'Pagata' }, id);
-            renderInvoicesTable(); // Funzione in ui.js, ma chiamata qui perché aggiorniamo i dati
+            renderInvoicesTable(); // ui.js
         }
     });
-    
+
     // --- 7. NOTE E IMPORT ---
     $('#save-notes-btn').on('click', async function() { 
         await saveDataToCloud('notes', { userId: currentUser.uid, text: $('#notes-textarea').val() }, currentUser.uid); 
@@ -351,15 +331,15 @@ $(document).ready(function() {
         reader.onload = async (ev) => {
             const d = JSON.parse(ev.target.result);
             if(d.companyInfo) await saveDataToCloud('companyInfo', d.companyInfo);
-            if(d.customers) for(let c of d.customers) await saveDataToCloud('customers', c, c.id);
-            if(d.products) for(let p of d.products) await saveDataToCloud('products', p, p.id);
-            if(d.invoices) for(let i of d.invoices) await saveDataToCloud('invoices', i, i.id);
+            if(d.customers) for(let c of d.customers) await saveDataToCloud('customers', c, String(c.id));
+            if(d.products) for(let p of d.products) await saveDataToCloud('products', p, String(p.id));
+            if(d.invoices) for(let i of d.invoices) await saveDataToCloud('invoices', i, String(i.id));
             alert("Import completato"); location.reload();
         };
         reader.readAsText(file);
     });
 
-    // --- 8. SALVATAGGIO AZIENDA ---
+    // --- 8. AZIENDA ---
     $('#company-info-form').on('submit', async function(e) {
         e.preventDefault();
         const data = {};
