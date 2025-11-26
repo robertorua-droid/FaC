@@ -13,7 +13,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// Variabili Globali per mantenere i dati in memoria (Cache)
+// Variabili Globali
 let globalData = {
     companyInfo: {},
     products: [],
@@ -27,123 +27,9 @@ let dateTimeInterval = null;
 
 $(document).ready(function() {
 
-    // --- GESTIONE AUTENTICAZIONE ---
-    
-    // Controlla se l'utente è già loggato
-    auth.onAuthStateChanged(async (user) => {
-        if (user) {
-            currentUser = user;
-            $('#login-container').addClass('d-none');
-            $('#loading-screen').removeClass('d-none'); // Mostra caricamento
-            
-            try {
-                await loadAllDataFromCloud(); // Carica tutto dal Cloud
-                $('#loading-screen').addClass('d-none');
-                $('#main-app').removeClass('d-none');
-                initializeApp();
-            } catch (error) {
-                console.error("Errore caricamento dati:", error);
-                alert("Errore di connessione al database.");
-                $('#loading-screen').addClass('d-none');
-            }
-        } else {
-            currentUser = null;
-            $('#main-app').addClass('d-none');
-            $('#loading-screen').addClass('d-none');
-            $('#login-container').removeClass('d-none');
-        }
-    });
-
-    // Login Form Submit
-    $('#login-form').on('submit', function(e) {
-        e.preventDefault();
-        const email = $('#email').val();
-        const password = $('#password').val();
-        
-        $('#btn-login-submit').prop('disabled', true);
-        $('#login-spinner').removeClass('d-none');
-        $('#login-error').addClass('d-none');
-
-        auth.signInWithEmailAndPassword(email, password)
-            .catch((error) => {
-                console.error("Login error:", error);
-                $('#login-error').text("Email o password errati.").removeClass('d-none');
-                $('#btn-login-submit').prop('disabled', false);
-                $('#login-spinner').addClass('d-none');
-            });
-    });
-
-    // Logout
-    $('#logout-btn').on('click', function(e) {
-        e.preventDefault();
-        auth.signOut().then(() => {
-            location.reload();
-        });
-    });
-
-    // --- GESTIONE DATI (CLOUD + CACHE) ---
-
-    async function loadAllDataFromCloud() {
-        // Carica Azienda (Documento singolo)
-        const companyDoc = await db.collection('settings').doc('companyInfo').get();
-        if (companyDoc.exists) globalData.companyInfo = companyDoc.data();
-
-        // Carica Collezioni
-        const collections = ['products', 'customers', 'invoices', 'notes'];
-        for (const col of collections) {
-            const snapshot = await db.collection(col).get();
-            globalData[col] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        }
-        console.log("Dati caricati dal cloud:", globalData);
-    }
-
-    // Funzioni Helper per accedere ai dati
-    function getData(key) {
-        return globalData[key] || [];
-    }
-    
-    // Funzione di salvataggio CLOUD
-    async function saveDataToCloud(collection, dataObj, id = null) {
-        try {
-            if (collection === 'companyInfo') {
-                await db.collection('settings').doc('companyInfo').set(dataObj);
-                globalData.companyInfo = dataObj;
-            } else {
-                // Per array (prodotti, clienti, fatture)
-                if (id) {
-                    // Update o Create con ID specifico
-                    await db.collection(collection).doc(String(id)).set(dataObj, { merge: true });
-                    // Aggiorna Cache locale
-                    const index = globalData[collection].findIndex(item => item.id == id);
-                    if (index > -1) {
-                         globalData[collection][index] = { ...globalData[collection][index], ...dataObj };
-                    } else {
-                         globalData[collection].push({ id: id, ...dataObj });
-                    }
-                } else {
-                    console.error("ID mancante per il salvataggio");
-                }
-            }
-        } catch (e) {
-            console.error("Errore salvataggio Cloud:", e);
-            alert("Errore durante il salvataggio online: " + e.message);
-        }
-    }
-
-    async function deleteDataFromCloud(collection, id) {
-        if (confirm("Sei sicuro di voler eliminare questo elemento?")) {
-            try {
-                await db.collection(collection).doc(String(id)).delete();
-                // Aggiorna cache
-                globalData[collection] = globalData[collection].filter(item => item.id != id);
-                renderAll();
-            } catch (e) {
-                alert("Errore eliminazione: " + e.message);
-            }
-        }
-    }
-
-    // --- FUNZIONI DI UTILITÀ UI ---
+    // =========================================================
+    // 1. FUNZIONI DI UTILITÀ E ACCESSO DATI
+    // =========================================================
 
     function formatDateForDisplay(dateString) {
         if (!dateString) return '-';
@@ -163,26 +49,66 @@ $(document).ready(function() {
         return numericIds.length > 0 ? Math.max(...numericIds) + 1 : 1; 
     }
 
-    // --- UI RENDERING E LOGICA APPLICAZIONE ---
-
-    function initializeApp() { 
-        $('.content-section').addClass('d-none'); 
-        $('#home').removeClass('d-none'); 
-        $('.sidebar .nav-link').removeClass('active'); 
-        $('.sidebar .nav-link[data-target="home"]').addClass('active'); 
-        renderAll(); 
+    function getData(key) {
+        return globalData[key] || [];
     }
 
-    function renderAll() {
-        renderCompanyInfoForm(); 
-        updateCompanyUI(); 
-        renderProductsTable(); 
-        renderCustomersTable(); 
-        renderInvoicesTable();
-        populateDropdowns(); 
-        renderStatisticsPage();
-        renderHomePage();
+    // Caricamento massivo dal Cloud (Cache)
+    async function loadAllDataFromCloud() {
+        const companyDoc = await db.collection('settings').doc('companyInfo').get();
+        if (companyDoc.exists) globalData.companyInfo = companyDoc.data();
+
+        const collections = ['products', 'customers', 'invoices', 'notes'];
+        for (const col of collections) {
+            const snapshot = await db.collection(col).get();
+            globalData[col] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        }
+        console.log("Dati sincronizzati:", globalData);
     }
+
+    // Salvataggio su Cloud
+    async function saveDataToCloud(collection, dataObj, id = null) {
+        try {
+            if (collection === 'companyInfo') {
+                await db.collection('settings').doc('companyInfo').set(dataObj);
+                globalData.companyInfo = dataObj;
+            } else {
+                if (id) {
+                    await db.collection(collection).doc(String(id)).set(dataObj, { merge: true });
+                    const index = globalData[collection].findIndex(item => item.id == id);
+                    if (index > -1) globalData[collection][index] = { ...globalData[collection][index], ...dataObj };
+                    else globalData[collection].push({ id: id, ...dataObj });
+                } else {
+                    console.error("ID mancante per il salvataggio");
+                }
+            }
+        } catch (e) {
+            console.error("Errore salvataggio Cloud:", e);
+            alert("Errore Cloud: " + e.message);
+        }
+    }
+
+    async function deleteDataFromCloud(collection, id) {
+        if (confirm("Sei sicuro di voler eliminare questo elemento?")) {
+            try {
+                await db.collection(collection).doc(String(id)).delete();
+                globalData[collection] = globalData[collection].filter(item => item.id != id);
+                renderAll();
+            } catch (e) {
+                alert("Errore eliminazione: " + e.message);
+            }
+        }
+    }
+
+    function toggleEsenzioneIvaField(container, ivaValue) { 
+        const esenzioneContainer = (container === 'product') ? $('#esenzione-iva-container') : $('#invoice-esenzione-iva-container'); 
+        if (ivaValue == '0') esenzioneContainer.removeClass('d-none'); 
+        else esenzioneContainer.addClass('d-none'); 
+    }
+
+    // =========================================================
+    // 2. FUNZIONI DI RENDER (DEFINITE PRIMA DELL'USO)
+    // =========================================================
 
     function updateCompanyUI() { 
         const company = getData('companyInfo'); 
@@ -190,17 +116,37 @@ $(document).ready(function() {
         if(currentUser) $('#user-name-sidebar').text(currentUser.email);
     }
 
-    // --- RENDER FUNZIONI ---
-    function renderCompanyInfoForm() { const company = getData('companyInfo'); for (const key in company) { $(`#company-${key}`).val(company[key]); } }
+    function renderCompanyInfoForm() { 
+        const company = getData('companyInfo'); 
+        for (const key in company) { $(`#company-${key}`).val(company[key]); } 
+    }
     
-    function renderProductsTable() { const products = getData('products'); const tableBody = $('#products-table-body').empty(); products.forEach(p => { const salePrice = p.salePrice ? `€ ${parseFloat(p.salePrice).toFixed(2)}` : '-'; const ivaText = (p.iva == 0 && p.esenzioneIva) ? `0% (${p.esenzioneIva})` : `${p.iva}%`; tableBody.append(`<tr><td>${p.code}</td><td>${p.description}</td><td class="text-end-numbers pe-5">${salePrice}</td><td class="text-end-numbers">${ivaText}</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-product" data-id="${p.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-product" data-id="${p.id}"><i class="fas fa-trash"></i></button></td></tr>`); }); }
+    function renderProductsTable() { 
+        const products = getData('products'); 
+        const tableBody = $('#products-table-body').empty(); 
+        products.forEach(p => { 
+            const salePrice = p.salePrice ? `€ ${parseFloat(p.salePrice).toFixed(2)}` : '-'; 
+            const ivaText = (p.iva == 0 && p.esenzioneIva) ? `0% (${p.esenzioneIva})` : `${p.iva}%`; 
+            tableBody.append(`<tr><td>${p.code}</td><td>${p.description}</td><td class="text-end-numbers pe-5">${salePrice}</td><td class="text-end-numbers">${ivaText}</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-product" data-id="${p.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-product" data-id="${p.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
+        }); 
+    }
     
-    function renderCustomersTable() { const customers = getData('customers'); const tableBody = $('#customers-table-body').empty(); customers.forEach(c => { const pivaCf = c.piva || c.codiceFiscale || '-'; const fullAddress = `${c.address || ''}, ${c.cap || ''} ${c.comune || ''} (${c.provincia || ''})`; tableBody.append(`<tr><td>${c.name}</td><td>${pivaCf}</td><td>${c.sdi || '-'}</td><td>${fullAddress}</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-customer" data-id="${c.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-customer" data-id="${c.id}"><i class="fas fa-trash"></i></button></td></tr>`); }); }
+    function renderCustomersTable() { 
+        const customers = getData('customers'); 
+        const tableBody = $('#customers-table-body').empty(); 
+        customers.forEach(c => { 
+            const pivaCf = c.piva || c.codiceFiscale || '-'; 
+            const fullAddress = `${c.address || ''}, ${c.cap || ''} ${c.comune || ''} (${c.provincia || ''})`; 
+            tableBody.append(`<tr><td>${c.name}</td><td>${pivaCf}</td><td>${c.sdi || '-'}</td><td>${fullAddress}</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-customer" data-id="${c.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-customer" data-id="${c.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
+        }); 
+    }
     
     function renderInvoicesTable() {
-        const invoices = getData('invoices'); const customers = getData('customers'); const tableBody = $('#invoices-table-body').empty();
+        const invoices = getData('invoices'); 
+        const customers = getData('customers'); 
+        const tableBody = $('#invoices-table-body').empty();
         
-        // Ordinamento per Numero Decrescente
+        // Ordina per numero decrescente
         invoices.sort((a, b) => {
             const numA = a.number || ''; const numB = b.number || '';
             return numB.localeCompare(numA);
@@ -217,8 +163,9 @@ $(document).ready(function() {
                 statusBadge = isPaid ? `<span class="badge bg-success">Pagata</span>` : `<span class="badge bg-warning text-dark">Da Incassare</span>`;
             }
             
-            // Badge Tipo Documento
-            const docTypeBadge = inv.type === 'Nota di Credito' ? `<span class="badge bg-warning text-dark">NdC</span>` : `<span class="badge bg-primary">Fatt.</span>`;
+            const docTypeBadge = inv.type === 'Nota di Credito' 
+                ? `<span class="badge bg-warning text-dark">NdC</span>` 
+                : `<span class="badge bg-primary">Fatt.</span>`;
 
             // Azioni Incolonnate
             const btnDetails = `<button class="btn btn-sm btn-info btn-view-invoice" data-id="${inv.id}" data-bs-toggle="modal" data-bs-target="#invoiceDetailModal" title="Dettagli"><i class="fas fa-eye"></i></button>`;
@@ -238,71 +185,229 @@ $(document).ready(function() {
         });
     }
 
-    // --- GESTIONE INTERFACCIA ---
+    function renderTaxSimulation() {
+        const container = $('#tax-simulation-container').empty(); 
+        const invoices = getData('invoices'); 
+        const company = getData('companyInfo');
+        
+        const coeff = parseFloat(company.coefficienteRedditivita); 
+        const taxRate = parseFloat(company.aliquotaSostitutiva);
+        const socialSecurityRate = parseFloat(company.aliquotaContributi);
+        
+        let warningHtml = `<div class="alert alert-warning small"><i class="fas fa-exclamation-triangle me-2"></i><strong>ATTENZIONE:</strong> Stima didattica.</div>`;
+        
+        if (!coeff || !taxRate || !socialSecurityRate) { 
+            container.html(warningHtml + '<div class="alert alert-danger">Dati fiscali mancanti in Anagrafica Azienda.</div>'); 
+            return; 
+        }
+        
+        const fatturato = invoices.filter(i => i.type === 'Fattura' || i.type === undefined || i.type === '').reduce((sum, inv) => sum + inv.totaleImponibile, 0);
+        const noteCredito = invoices.filter(i => i.type === 'Nota di Credito').reduce((sum, inv) => sum + inv.totaleImponibile, 0);
+        
+        const grossRevenue = fatturato - noteCredito;
+        const taxableGross = grossRevenue > 0 ? grossRevenue * (coeff / 100) : 0;
+        const totalSocialSecurityDue = taxableGross > 0 ? taxableGross * (socialSecurityRate / 100) : 0;
+        
+        let socialFirstAdvance = 0; let socialSecondAdvance = 0;
+        if(totalSocialSecurityDue > 0){ socialFirstAdvance = totalSocialSecurityDue * 0.40; socialSecondAdvance = totalSocialSecurityDue * 0.40; }
+        
+        const netTaxable = taxableGross > 0 ? taxableGross - totalSocialSecurityDue : 0; 
+        const totalTaxDue = netTaxable > 0 ? netTaxable * (taxRate / 100) : 0;
+        
+        let taxFirstAdvance = 0; let taxSecondAdvance = 0;
+        if (totalTaxDue >= 257.52) { taxFirstAdvance = totalTaxDue * 0.50; taxSecondAdvance = totalTaxDue * 0.50; }
+        
+        const totalDue = totalSocialSecurityDue + totalTaxDue;
+        
+        let resultHtml = `<div class="row"><div class="col-lg-6 mb-4"><div class="card h-100"><div class="card-header fw-bold">Simulazione Contributi INPS</div><div class="card-body"><dl class="row mb-0"><dt class="col-sm-6">Reddito Lordo Imponibile</dt><dd class="col-sm-6 text-end">€ ${taxableGross.toFixed(2)}</dd><dt class="col-sm-6">Aliquota Contributi INPS</dt><dd class="col-sm-6 text-end">${socialSecurityRate}%</dd><dt class="col-sm-6 h5 text-primary border-top pt-3">Contributi Totali Previsti</dt><dd class="col-sm-6 text-end h5 text-primary border-top pt-3">€ ${totalSocialSecurityDue.toFixed(2)}</dd><hr class="my-3"><dt class="col-sm-6">Stima Primo Acconto (40%)</dt><dd class="col-sm-6 text-end">€ ${socialFirstAdvance.toFixed(2)}</dd><dt class="col-sm-6">Stima Secondo Acconto (40%)</dt><dd class="col-sm-6 text-end">€ ${socialSecondAdvance.toFixed(2)}</dd></dl></div></div></div><div class="col-lg-6 mb-4"><div class="card h-100"><div class="card-header fw-bold">Simulazione Imposta Sostitutiva (IRPEF)</div><div class="card-body"><dl class="row mb-0"><dt class="col-sm-6">Reddito Lordo Imponibile</dt><dd class="col-sm-6 text-end">€ ${taxableGross.toFixed(2)}</dd><dt class="col-sm-6">Contributi INPS Deducibili</dt><dd class="col-sm-6 text-end">- € ${totalSocialSecurityDue.toFixed(2)}</dd><dt class="col-sm-6 border-top pt-2">Reddito Netto Imponibile</dt><dd class="col-sm-6 text-end border-top pt-2">€ ${netTaxable.toFixed(2)}</dd><dt class="col-sm-6">Aliquota Imposta</dt><dd class="col-sm-6 text-end">${taxRate}%</dd><dt class="col-sm-6 h5 text-primary border-top pt-3">Imposta Totale Prevista</dt><dd class="col-sm-6 text-end h5 text-primary border-top pt-3">€ ${totalTaxDue.toFixed(2)}</dd><hr class="my-3"><dt class="col-sm-6">Stima Primo Acconto (50%)</dt><dd class="col-sm-6 text-end">€ ${taxFirstAdvance.toFixed(2)}</dd><dt class="col-sm-6">Stima Secondo Acconto (50%)</dt><dd class="col-sm-6 text-end">€ ${taxSecondAdvance.toFixed(2)}</dd></dl></div></div></div></div><div class="card bg-light mt-4"><div class="card-body d-flex justify-content-between align-items-center"><h5 class="card-title mb-0">Totale Uscite Stimate (Contributi + Imposte)</h5><h5 class="card-title mb-0">€ ${totalDue.toFixed(2)}</h5></div></div>`;
+        container.html(warningHtml + resultHtml);
+    }
+
+    function renderStatisticsPage() {
+        const container = $('#stats-table-container').empty(); 
+        const invoices = getData('invoices'); 
+        const customers = getData('customers');
+        const fakture = invoices.filter(i => i.type === 'Fattura' || i.type === undefined || i.type === '');
+        const noteCredito = invoices.filter(i => i.type === 'Nota di Credito');
+
+        if (fakture.length === 0) { 
+            container.html('<div class="alert alert-info">Non ci sono ancora fatture per generare statistiche.</div>'); 
+            renderTaxSimulation(); 
+            return; 
+        }
+        
+        const grandTotal = fakture.reduce((sum, inv) => sum + inv.total, 0); 
+        const totalCreditNotes = noteCredito.reduce((sum, inv) => sum + inv.total, 0);
+        const netTotal = grandTotal - totalCreditNotes;
+
+        let customerTotals = {}; 
+        fakture.forEach(inv => { if (!customerTotals[inv.customerId]) customerTotals[inv.customerId] = 0; customerTotals[inv.customerId] += inv.total; });
+        noteCredito.forEach(inv => { if (customerTotals[inv.customerId]) customerTotals[inv.customerId] -= inv.total; });
+
+        let tableHtml = `<table class="table table-hover"><thead><tr><th>Cliente</th><th class="text-end-numbers">Fatturato Netto</th><th class="text-end-numbers">% sul Totale</th></tr></thead><tbody>`;
+        const sortedCustomerIds = Object.keys(customerTotals).sort((a, b) => customerTotals[b] - customerTotals[a]);
+        for (const customerId of sortedCustomerIds) { 
+            const customer = customers.find(c => c.id == customerId) || { name: 'Cliente Eliminato' }; 
+            const total = customerTotals[customerId]; 
+            const percentage = netTotal > 0 ? (total / netTotal) * 100 : 0; 
+            tableHtml += `<tr><td>${customer.name}</td><td class="text-end-numbers">€ ${total.toFixed(2)}</td><td class="text-end-numbers">${percentage.toFixed(2)}%</td></tr>`; 
+        }
+        tableHtml += `</tbody><tfoot><tr class="table-group-divider fw-bold"><td>Totale Generale Netto</td><td class="text-end-numbers">€ ${netTotal.toFixed(2)}</td><td class="text-end-numbers">100.00%</td></tr></tfoot></table>`;
+        container.html(tableHtml);
+        renderTaxSimulation();
+    }
+
+    function renderCalendar() {
+        const c = $('#calendar-widget');
+        const n = new Date();
+        const m = n.getMonth();
+        const y = n.getFullYear();
+        const t = n.getDate();
+        const f = new Date(y, m, 1);
+        const l = new Date(y, m + 1, 0);
+        let h = `<h5 class="text-center">${f.toLocaleDateString('it-IT',{month:'long',year:'numeric'})}</h5><table class="table table-bordered"><thead><tr><th>Dom</th><th>Lun</th><th>Mar</th><th>Mer</th><th>Gio</th><th>Ven</th><th>Sab</th></tr></thead><tbody><tr>`;
+        let d=f.getDay();
+        for(let i=0;i<d;i++){h+='<td></td>'}
+        for(let day=1;day<=l.getDate();day++){
+            if(d===7){d=0;h+='</tr><tr>'}
+            h+=`<td${(day===t)?' class="today"':''}>${day}</td>`;
+            d++
+        }
+        for(let i=d;i<7;i++){h+='<td></td>'}
+        h+='</tr></tbody></table>';
+        c.html(h);
+    }
+
+    function loadUserNotes() { 
+        const notes = getData('notes').find(n => n.userId === currentUser.uid); 
+        if(notes) $('#notes-textarea').val(notes.text); 
+    }
+
+    function renderHomePage() { 
+        if(currentUser) $('#welcome-message').text(`Benvenuto, ${currentUser.email}`); 
+        loadUserNotes(); 
+        renderCalendar();
+        if (dateTimeInterval) clearInterval(dateTimeInterval);
+        const updateDateTime = () => $('#current-datetime').text(new Date().toLocaleDateString('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        updateDateTime();
+        dateTimeInterval = setInterval(updateDateTime, 1000);
+    }
+
+    function populateDropdowns() {
+        $('#invoice-customer-select').empty().append('<option selected disabled value="">Seleziona...</option>').append(getData('customers').map(c => `<option value="${c.id}">${c.name}</option>`));
+        $('#invoice-product-select').empty().append('<option selected value="">Seleziona...</option><option value="manual">Manuale</option>').append(getData('products').map(p => `<option value="${p.id}">${p.code}</option>`));
+        if(!$('#editing-invoice-id').val()) { $('#invoice-date').val(new Date().toISOString().slice(0, 10)); updateInvoiceNumber(); }
+    }
+
+    // =========================================================
+    // 3. LOGICA PRINCIPALE (RENDERALL E EVENTI)
+    // =========================================================
+
+    function renderAll() {
+        renderCompanyInfoForm(); 
+        updateCompanyUI(); 
+        renderProductsTable(); 
+        renderCustomersTable(); 
+        renderInvoicesTable();
+        populateDropdowns(); 
+        renderStatisticsPage(); // ORA è DEFINITA SICURAMENTE PRIMA DI ESSERE CHIAMATA
+        renderHomePage();
+    }
+
+    function initializeApp() { 
+        $('.content-section').addClass('d-none'); 
+        $('#home').removeClass('d-none'); 
+        $('.sidebar .nav-link').removeClass('active'); 
+        $('.sidebar .nav-link[data-target="home"]').addClass('active'); 
+        renderAll(); 
+    }
+
+    // --- AUTHENTICATION ---
+    auth.onAuthStateChanged(async (user) => {
+        if (user) {
+            currentUser = user;
+            $('#login-container').addClass('d-none');
+            $('#loading-screen').removeClass('d-none'); 
+            try {
+                await loadAllDataFromCloud(); 
+                $('#loading-screen').addClass('d-none');
+                $('#main-app').removeClass('d-none');
+                initializeApp();
+            } catch (error) {
+                console.error("Errore caricamento:", error);
+                alert("Errore DB: " + error.message);
+            }
+        } else {
+            currentUser = null;
+            $('#main-app').addClass('d-none');
+            $('#loading-screen').addClass('d-none');
+            $('#login-container').removeClass('d-none');
+        }
+    });
+
+    $('#login-form').on('submit', function(e) {
+        e.preventDefault();
+        const email = $('#email').val(); const password = $('#password').val();
+        $('#btn-login-submit').prop('disabled', true); $('#login-spinner').removeClass('d-none'); $('#login-error').addClass('d-none');
+        auth.signInWithEmailAndPassword(email, password).catch((error) => {
+            $('#login-error').text("Email o password errati.").removeClass('d-none');
+            $('#btn-login-submit').prop('disabled', false); $('#login-spinner').addClass('d-none');
+        });
+    });
+
+    $('#logout-btn').on('click', function(e) { e.preventDefault(); auth.signOut().then(() => location.reload()); });
+
+    // --- EVENT HANDLERS UI ---
     $('.sidebar .nav-link').on('click', function(e) { 
         if ($(this).attr('id') === 'logout-btn' || $(this).data('bs-toggle') === 'modal') return; 
         e.preventDefault(); 
         const target = $(this).data('target');
-        
         if (target === 'nuova-fattura-accompagnatoria') {
-            if ($(this).attr('id') === 'menu-nuova-nota-credito') { prepareDocumentForm('Nota di Credito'); } else { return; }
+            if ($(this).attr('id') === 'menu-nuova-nota-credito') prepareDocumentForm('Nota di Credito'); 
+            else return;
         }
-        if (target === 'statistiche') { renderStatisticsPage(); }
-        
-        $('.sidebar .nav-link').removeClass('active'); 
-        $(this).addClass('active');
-        $('.content-section').addClass('d-none'); 
-        $('#' + target).removeClass('d-none'); 
+        if (target === 'statistiche') renderStatisticsPage(); 
+        $('.sidebar .nav-link').removeClass('active'); $(this).addClass('active');
+        $('.content-section').addClass('d-none'); $('#' + target).removeClass('d-none'); 
     });
 
-    // --- SALVATAGGIO DATI (FORM SUBMIT) ---
+    // --- EVENT HANDLERS FORM ---
     $('#company-info-form').on('submit', async function(e) { 
-        e.preventDefault(); 
-        const companyInfo = {}; 
-        $(this).find('input, select').each(function() { const id = $(this).attr('id'); if (id) { const key = id.replace('company-', ''); companyInfo[key] = $(this).val(); } }); 
-        await saveDataToCloud('companyInfo', companyInfo); 
-        alert("Dati azienda salvati nel Cloud!"); updateCompanyUI(); 
+        e.preventDefault(); const companyInfo = {}; 
+        $(this).find('input, select').each(function() { const id = $(this).attr('id'); if (id) companyInfo[id.replace('company-', '')] = $(this).val(); }); 
+        await saveDataToCloud('companyInfo', companyInfo); alert("Salvataggio completato!"); updateCompanyUI(); 
     });
 
-    // --- PRODOTTI E CLIENTI (CRUD) ---
-    function prepareNewItemModal(type) { const form = $(`#${type}Form`); if (form.length) form[0].reset(); $(`#${type}-id`).val(''); const titleText = (type === 'product') ? 'Servizio/Prodotto' : type.charAt(0).toUpperCase() + type.slice(1); $(`#${type}ModalTitle`).text(`Nuovo ${titleText}`); if (type === 'product') { $('#product-iva').val('0'); $('#product-esenzioneIva').val('N2.2'); toggleEsenzioneIvaField('product', '0'); } }
-    function editItem(type, id) { const items = getData(`${type}s`); const item = items.find(i => i.id == id); if (!item) return; prepareNewItemModal(type); $(`#${type}ModalTitle`).text(`Modifica`); for (const key in item) { const field = $(`#${type}-${key}`); if (field.is(':checkbox')) { field.prop('checked', item[key]); } else if (field.length) { field.val(item[key]); } } if (type === 'product') { toggleEsenzioneIvaField('product', item.iva); } $(`#${type}-id`).val(item.id); $(`#${type}Modal`).modal('show'); }
-    
-    function toggleEsenzioneIvaField(container, ivaValue) { const esenzioneContainer = (container === 'product') ? $('#esenzione-iva-container') : $('#invoice-esenzione-iva-container'); if (ivaValue == '0') { esenzioneContainer.removeClass('d-none'); } else { esenzioneContainer.addClass('d-none'); } }
     $('#product-iva').on('change', function() { toggleEsenzioneIvaField('product', $(this).val()); });
     $('#invoice-product-iva').on('change', function() { toggleEsenzioneIvaField('invoice', $(this).val()); });
 
+    // CRUD Handlers
     ['product', 'customer'].forEach(type => {
         $(`#new${type.charAt(0).toUpperCase() + type.slice(1)}Btn`).on('click', function() { prepareNewItemModal(type); });
         $(`#save${type.charAt(0).toUpperCase() + type.slice(1)}Btn`).on('click', async function() { 
             const typePlural = `${type}s`; 
-            let items = getData(typePlural); 
             const idInput = $(`#${type}-id`).val(); 
             let itemData = {}; 
-            $(`#${type}Form`).find('input, select').each(function() { const field = $(this); const fieldId = field.attr('id'); if (fieldId) { const key = fieldId.replace(`${type}-`, ''); itemData[key] = field.is(':checkbox') ? field.is(':checked') : field.val(); } }); 
-            
-            let id = idInput;
-            if (!id) { id = (type === 'product') ? 'PRD' + new Date().getTime() : String(getNextId(items)); }
-            
+            $(`#${type}Form`).find('input, select').each(function() { const id = $(this).attr('id'); if (id) itemData[id.replace(`${type}-`, '')] = $(this).is(':checkbox') ? $(this).is(':checked') : $(this).val(); }); 
+            let id = idInput ? idInput : (type === 'product' ? 'PRD' + new Date().getTime() : String(getNextId(getData(typePlural))));
             await saveDataToCloud(typePlural, itemData, id);
-            $(`#${type}Modal`).modal('hide'); 
-            renderAll(); 
+            $(`#${type}Modal`).modal('hide'); renderAll(); 
         });
         $(`#${type}s-table-body`).on('click', `.btn-edit-${type}`, function() { editItem(type, $(this).data('id')); });
         $(`#${type}s-table-body`).on('click', `.btn-delete-${type}`, function() { deleteDataFromCloud(`${type}s`, $(this).data('id')); });
     });
 
-    // --- FATTURE ---
+    // --- EVENT HANDLERS FATTURE ---
     let currentInvoiceLines = [];
-    function generateNextDocumentNumber(type, year) { const invoices = getData('invoices'); const prefix = type === 'Fattura' ? 'FATT' : 'NC'; const documentsForYear = invoices.filter(inv => inv.type === type && inv.date.substring(0, 4) === String(year)); if (documentsForYear.length === 0) { return 1; } else { const lastNumbers = documentsForYear.map(inv => { const parts = inv.number.split('-'); const numPart = parts[parts.length - 1]; return parseInt(numPart, 10) || 0; }); return Math.max(...lastNumbers) + 1; } }
-    function updateInvoiceNumber() { if ($('#editing-invoice-id').val()) return; const dateStr = $('#invoice-date').val(); if (!dateStr) return; const year = dateStr.substring(0, 4); const type = $('#document-type').val(); const prefix = type === 'Fattura' ? 'FATT' : 'NC'; const nextNumber = generateNextDocumentNumber(type, year); const paddedNumber = String(nextNumber).padStart(2, '0'); $('#invoice-number').val(`${prefix}-${year}-${paddedNumber}`); }
-    function renderInvoiceLines() { const tbody = $('#invoice-lines-tbody').empty(); let total = 0; currentInvoiceLines.forEach((line, index) => { tbody.append(`<tr><td>${line.productName}</td><td class="text-end-numbers">${line.qty}</td><td class="text-end-numbers">€ ${line.price.toFixed(2)}</td><td class="text-end-numbers">€ ${line.subtotal.toFixed(2)}</td><td><button type="button" class="btn btn-sm btn-danger remove-invoice-line" data-index="${index}"><i class="fas fa-times"></i></button></td></tr>`); total += line.subtotal; }); $('#invoice-total').text(`€ ${total.toFixed(2)}`); }
     
-    // Autocomplete Nota Credito
+    function updateInvoiceNumber() { if ($('#editing-invoice-id').val()) return; const dateStr = $('#invoice-date').val(); if (!dateStr) return; const year = dateStr.substring(0, 4); const type = $('#document-type').val(); const prefix = type === 'Fattura' ? 'FATT' : 'NC'; const nextNumber = generateNextDocumentNumber(type, year); const paddedNumber = String(nextNumber).padStart(2, '0'); $('#invoice-number').val(`${prefix}-${year}-${paddedNumber}`); }
+    function generateNextDocumentNumber(type, year) { const invoices = getData('invoices'); const documentsForYear = invoices.filter(inv => inv.type === type && inv.date.substring(0, 4) === String(year)); if (documentsForYear.length === 0) return 1; const lastNumbers = documentsForYear.map(inv => { const parts = inv.number.split('-'); const numPart = parts[parts.length - 1]; return parseInt(numPart, 10) || 0; }); return Math.max(...lastNumbers) + 1; }
+    function renderInvoiceLines() { const tbody = $('#invoice-lines-tbody').empty(); let total = 0; currentInvoiceLines.forEach((line, index) => { tbody.append(`<tr><td>${line.productName}</td><td class="text-end-numbers">${line.qty}</td><td class="text-end-numbers">€ ${line.price.toFixed(2)}</td><td class="text-end-numbers">€ ${line.subtotal.toFixed(2)}</td><td><button type="button" class="btn btn-sm btn-danger remove-invoice-line" data-index="${index}"><i class="fas fa-times"></i></button></td></tr>`); total += line.subtotal; }); $('#invoice-total').text(`€ ${total.toFixed(2)}`); }
+
     $('#linked-invoice').on('change', function() {
         const linkedNumber = $(this).val().trim();
         const sourceInvoice = getData('invoices').find(inv => inv.number === linkedNumber);
-        if(sourceInvoice && confirm(`Trovata fattura ${sourceInvoice.number}. Importare dati?`)) {
+        if(sourceInvoice && confirm(`Importare dati da ${sourceInvoice.number}?`)) {
             $('#invoice-customer-select').val(sourceInvoice.customerId);
             currentInvoiceLines = JSON.parse(JSON.stringify(sourceInvoice.lines)); renderInvoiceLines();
             $('#invoice-condizioniPagamento').val(sourceInvoice.condizioniPagamento);
@@ -311,19 +416,20 @@ $(document).ready(function() {
         }
     });
 
-    $('#invoice-product-select').on('change', function() { const productId = $(this).val(); const p = getData('products').find(p => p.id === productId); if(productId === 'manual') { $('#invoice-product-description').val('').prop('readonly',false).focus(); $('#invoice-product-price').val(''); $('#invoice-product-iva').prop('disabled',false).val('0'); toggleEsenzioneIvaField('invoice','0'); } else if(p) { $('#invoice-product-description').val(p.description).prop('readonly',true); $('#invoice-product-price').val(p.salePrice); $('#invoice-product-iva').val(p.iva).prop('disabled',true); $('#invoice-product-esenzioneIva').val(p.esenzioneIva); toggleEsenzioneIvaField('invoice', p.iva); } });
+    $('#invoice-product-select').on('change', function() { const pid = $(this).val(); const p = getData('products').find(x => x.id === pid); if(pid === 'manual') { $('#invoice-product-description').val('').prop('readonly',false).focus(); $('#invoice-product-price').val(''); $('#invoice-product-iva').prop('disabled',false).val('0'); toggleEsenzioneIvaField('invoice','0'); } else if(p) { $('#invoice-product-description').val(p.description).prop('readonly',true); $('#invoice-product-price').val(p.salePrice); $('#invoice-product-iva').val(p.iva).prop('disabled',true); $('#invoice-product-esenzioneIva').val(p.esenzioneIva); toggleEsenzioneIvaField('invoice', p.iva); } });
+    
     $('#add-product-to-invoice-btn').on('click', function() { 
         const desc = $('#invoice-product-description').val(); const qty = parseInt($('#invoice-product-qty').val()); const price = parseFloat($('#invoice-product-price').val()); 
         if(!desc || !qty || isNaN(price)) return;
-        const line = { productName: desc, qty: qty, price: price, subtotal: qty*price, iva: $('#invoice-product-iva').val(), esenzioneIva: $('#invoice-product-esenzioneIva').val() };
-        currentInvoiceLines.push(line); renderInvoiceLines();
+        currentInvoiceLines.push({ productName: desc, qty: qty, price: price, subtotal: qty*price, iva: $('#invoice-product-iva').val(), esenzioneIva: $('#invoice-product-esenzioneIva').val() });
+        renderInvoiceLines();
     });
+
     $('#invoice-lines-tbody').on('click', '.remove-invoice-line', function() { currentInvoiceLines.splice($(this).data('index'), 1); renderInvoiceLines(); });
     $('#invoice-date').on('change', function() { $('#invoice-dataRiferimento').val($(this).val()); updateInvoiceNumber(); });
 
     $('#new-invoice-form').on('submit', async function(e) {
         e.preventDefault();
-        const editingId = $('#editing-invoice-id').val();
         const customerId = $('#invoice-customer-select').val();
         if (!customerId || currentInvoiceLines.length === 0) { alert("Dati incompleti."); return; }
         
@@ -331,7 +437,6 @@ $(document).ready(function() {
         const company = getData('companyInfo');
         const docType = $('#document-type').val();
         
-        // Calcoli
         const bolloDescription = 'rivalsa bollo';
         const righePrestazioni = currentInvoiceLines.filter(line => line.productName.toLowerCase() !== bolloDescription);
         const rigaBollo = currentInvoiceLines.find(line => line.productName.toLowerCase() === bolloDescription);
@@ -366,30 +471,20 @@ $(document).ready(function() {
             reason: docType === 'Nota di Credito' ? $('#reason').val() : ''
         };
 
-        let id = editingId;
+        let id = $('#editing-invoice-id').val();
         if (!id) {
             id = String(getNextId(getData('invoices')));
         } else {
-            // Mantieni status se in modifica
             const oldInv = getData('invoices').find(i => i.id == id);
             if(oldInv) invoiceData.status = oldInv.status;
         }
 
         await saveDataToCloud('invoices', invoiceData, id);
         alert(`${docType} salvata!`);
-        resetInvoiceForm(); 
+        prepareDocumentForm('Fattura');
         $('.sidebar .nav-link[data-target="elenco-fatture"]').click();
     });
 
-    function prepareDocumentForm(type) { $('#new-invoice-form')[0].reset(); currentInvoiceLines = []; renderInvoiceLines(); $('#editing-invoice-id').val(''); $('#document-type').val(type); populateDropdowns(); if (type === 'Nota di Credito') { $('#credit-note-fields').removeClass('d-none'); $('#document-title').text('Nuova Nota di Credito'); } else { $('#credit-note-fields').addClass('d-none'); $('#document-title').text('Nuova Fattura'); } }
-    function resetInvoiceForm() { prepareDocumentForm('Fattura'); }
-    function populateDropdowns() {
-        $('#invoice-customer-select').empty().append('<option selected disabled value="">Seleziona...</option>').append(getData('customers').map(c => `<option value="${c.id}">${c.name}</option>`));
-        $('#invoice-product-select').empty().append('<option selected value="">Seleziona...</option><option value="manual">Manuale</option>').append(getData('products').map(p => `<option value="${p.id}">${p.code}</option>`));
-        if(!$('#editing-invoice-id').val()) { $('#invoice-date').val(new Date().toISOString().slice(0, 10)); updateInvoiceNumber(); }
-    }
-
-    // Edit & Delete & Pay Invoice
     $('#invoices-table-body').on('click', '.btn-edit-invoice', function() { 
         const id = $(this).data('id'); const inv = getData('invoices').find(i => i.id == id); 
         if(!inv) return; 
@@ -398,62 +493,22 @@ $(document).ready(function() {
         currentInvoiceLines = JSON.parse(JSON.stringify(inv.lines)); renderInvoiceLines();
         $('.content-section').addClass('d-none'); $('#nuova-fattura-accompagnatoria').removeClass('d-none');
     });
-    $('#invoices-table-body').on('click', '.btn-delete-invoice', function() { deleteDataFromCloud('invoices', $(this).data('id')); });
+
     $('#invoices-table-body').on('click', '.btn-mark-paid', async function() { 
         const id = $(this).data('id'); const inv = getData('invoices').find(i => i.id == id);
-        if(confirm("Segnare come pagata/emessa?")) {
-            const newStatus = inv.type === 'Nota di Credito' ? 'Emessa' : 'Pagata';
-            await saveDataToCloud('invoices', { status: newStatus }, id);
+        if(confirm("Confermi il cambio stato?")) {
+            await saveDataToCloud('invoices', { status: inv.type === 'Nota di Credito' ? 'Emessa' : 'Pagata' }, id);
             renderInvoicesTable();
         }
     });
-
-    // --- HOME & NOTES & CALENDAR ---
-    function renderHomePage() { 
-        if(currentUser) $('#welcome-message').text(`Benvenuto, ${currentUser.email}`); 
-        loadUserNotes(); 
-        renderCalendar();
-        
-        // Avvia orologio
-        if (dateTimeInterval) clearInterval(dateTimeInterval);
-        const updateDateTime = () => $('#current-datetime').text(new Date().toLocaleDateString('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-        updateDateTime();
-        dateTimeInterval = setInterval(updateDateTime, 1000);
-    }
-
-    function renderCalendar() {
-        const c = $('#calendar-widget');
-        const n = new Date();
-        const m = n.getMonth();
-        const y = n.getFullYear();
-        const t = n.getDate();
-        const f = new Date(y, m, 1);
-        const l = new Date(y, m + 1, 0);
-        let h = `<h5 class="text-center">${f.toLocaleDateString('it-IT',{month:'long',year:'numeric'})}</h5><table class="table table-bordered"><thead><tr><th>Dom</th><th>Lun</th><th>Mar</th><th>Mer</th><th>Gio</th><th>Ven</th><th>Sab</th></tr></thead><tbody><tr>`;
-        let d=f.getDay();
-        for(let i=0;i<d;i++){h+='<td></td>'}
-        for(let day=1;day<=l.getDate();day++){
-            if(d===7){d=0;h+='</tr><tr>'}
-            h+=`<td${(day===t)?' class="today"':''}>${day}</td>`;
-            d++
-        }
-        for(let i=d;i<7;i++){h+='<td></td>'}
-        h+='</tr></tbody></table>';
-        c.html(h);
-    }
-
-    function loadUserNotes() { 
-        const notes = getData('notes').find(n => n.userId === currentUser.uid); 
-        if(notes) $('#notes-textarea').val(notes.text); 
-    }
     
+    $('#invoices-table-body').on('click', '.btn-delete-invoice', function() { deleteDataFromCloud('invoices', $(this).data('id')); });
+
     $('#save-notes-btn').on('click', async function() { 
-        const text = $('#notes-textarea').val(); 
-        await saveDataToCloud('notes', { userId: currentUser.uid, text: text }, currentUser.uid); 
+        await saveDataToCloud('notes', { userId: currentUser.uid, text: $('#notes-textarea').val() }, currentUser.uid); 
         alert("Note salvate!");
     });
 
-    // --- IMPORTAZIONE DATI (MIGRAZIONE) ---
     $('#import-file-input').on('change', function(event) {
         const file = event.target.files[0]; if (!file) return;
         if (confirm("Vuoi migrare i dati da questo file al Cloud?")) {
@@ -461,29 +516,23 @@ $(document).ready(function() {
             reader.onload = async function(e) {
                 try {
                     const data = JSON.parse(e.target.result);
-                    // Importa Azienda
                     if (data.companyInfo) await saveDataToCloud('companyInfo', data.companyInfo);
-                    // Importa collezioni
                     if (data.customers) for (let c of data.customers) await saveDataToCloud('customers', c, c.id);
                     if (data.products) for (let p of data.products) await saveDataToCloud('products', p, p.id);
                     if (data.invoices) for (let i of data.invoices) await saveDataToCloud('invoices', i, i.id);
-                    
-                    alert("Migrazione completata! I dati sono ora su Firebase.");
-                    location.reload();
+                    alert("Migrazione completata! Ricarica la pagina."); location.reload();
                 } catch (err) { alert("Errore importazione: " + err.message); }
             };
             reader.readAsText(file);
         }
     });
     
-    // --- XML EXPORT ---
      $('#invoices-table-body, #invoiceDetailModal').on('click', '.btn-export-xml, #export-xml-btn, .btn-export-xml-row', function() { 
-         let invoiceId; 
-         if ($(this).attr('id') === 'export-xml-btn') { invoiceId = $('#export-xml-btn').data('invoiceId'); } 
-         else { invoiceId = $(this).data('id'); } 
-         if (invoiceId) { generateInvoiceXML(invoiceId); } 
+         let invoiceId = $(this).attr('id') === 'export-xml-btn' ? $('#export-xml-btn').data('invoiceId') : $(this).data('id');
+         if (invoiceId) generateInvoiceXML(invoiceId); 
     });
 
+    // Funzione XML (Semplificata per brevità - assicurarsi che sia completa se serve la generazione reale)
     function generateInvoiceXML(invoiceId) {
         const invoice = getData('invoices').find(inv => inv.id == invoiceId); if (!invoice) { alert("Errore!"); return; }
         const company = getData('companyInfo'); const customer = getData('customers').find(c => c.id == invoice.customerId);
@@ -506,4 +555,17 @@ $(document).ready(function() {
         const fileNameProgressive = (Math.random().toString(36) + '00000').slice(2, 7);
         const a = document.createElement('a'); a.download = `IT${company.piva}_${fileNameProgressive}.xml`; const blob = new Blob([xml], { type: 'application/xml' }); a.href = URL.createObjectURL(blob); a.click(); URL.revokeObjectURL(a.href);
     }
+
+    // --- DETTAGLIO FATTURA (AGGIUNTO) ---
+    $('#invoices-table-body').on('click', '.btn-view-invoice', function() {
+        const invoiceId = $(this).data('id'); const invoice = getData('invoices').find(inv => inv.id == invoiceId); if (!invoice) return;
+        $('#export-xml-btn').data('invoiceId', invoiceId); const customer = getData('customers').find(c => c.id == invoice.customerId) || {}; const company = getData('companyInfo'); const customerAddress = `${customer.address || ''}<br>${customer.cap || ''} ${customer.comune || ''} (${customer.provincia || ''}) - ${customer.nazione || ''}`; const companyAddress = `${company.address || ''} ${company.numeroCivico || ''}<br>${company.zip || ''} ${company.city || ''} (${company.province || ''})`; $('#invoiceDetailModalTitle').text(`Dettaglio ${invoice.type} N° ${invoice.number}`);
+        let modalBodyHtml = `<div class="row mb-3"><div class="col-6"><h5>${company.name || ''}</h5><p class="mb-0 small">${company.cognome || ''} ${company.nome || ''}<br>${companyAddress}<br>P.IVA: ${company.piva || ''} - C.F: ${company.codiceFiscale || ''}<br>${company.regimeFiscale || ''} (${company.codiceRegimeFiscale || ''})</p></div><div class="col-6 text-end"><h5>Spett.le</h5><p class="mb-0 small">${customer.name}<br>${customer.address}<br>P.IVA: ${customer.piva || ''} - C.F: ${customer.codiceFiscale || ''}<br>Codice S.d.I: ${customer.sdi || ''}</p></div></div><hr><div class="row mb-3"><div class="col-6"><h4>${invoice.type} N° ${invoice.number}</h4></div><div class="col-6 text-end"><h4>Data: ${formatDateForDisplay(invoice.date)}</h4></div></div><table class="table table-sm"><thead class="table-light"><tr><th>Descrizione</th><th>Qtà</th><th>Prezzo</th><th>IVA</th><th class="text-end">Imponibile</th></tr></thead><tbody>`;
+        invoice.lines.forEach(line => { const ivaCell = (line.iva == 0 && line.esenzioneIva) ? `0% (${line.esenzioneIva})` : `${line.iva}%`; modalBodyHtml += `<tr><td>${line.productName}</td><td>${line.qty}</td><td>€ ${line.price.toFixed(2)}</td><td>${ivaCell}</td><td class="text-end">€ ${line.subtotal.toFixed(2)}</td></tr>`; }); modalBodyHtml += `</tbody></table>`; let summaryHtml = '<div class="row justify-content-end mt-4"><div class="col-md-6"><table class="table table-sm">'; summaryHtml += `<tr><td>Totale Prestazioni</td><td class="text-end">€ ${invoice.totalePrestazioni.toFixed(2)}</td></tr>`; if (invoice.rivalsa && invoice.rivalsa.importo > 0) { summaryHtml += `<tr><td>Rivalsa INPS ${invoice.rivalsa.aliquota}%</td><td class="text-end">€ ${invoice.rivalsa.importo.toFixed(2)}</td></tr>`; } summaryHtml += `<tr><td><strong>Totale Imponibile</strong></td><td class="text-end"><strong>€ ${invoice.totaleImponibile.toFixed(2)}</strong></td></tr>`; if (invoice.totaleIva > 0) { summaryHtml += `<tr><td>Totale IVA</td><td class="text-end">€ ${invoice.totaleIva.toFixed(2)}</td></tr>`; } if (invoice.importoBollo > 0) { summaryHtml += `<tr><td>Marca da Bollo</td><td class="text-end">€ ${invoice.importoBollo.toFixed(2)}</td></tr>`; } summaryHtml += `<tr class="fw-bold fs-5 border-top"><td>Totale Documento</td><td class="text-end">€ ${invoice.total.toFixed(2)}</td></tr></tbody></table></div></div>`; modalBodyHtml += summaryHtml;
+        if(company.regimeFiscale === "Regime Forfettario"){ modalBodyHtml += `<hr><p class="small text-muted">Operazione senza applicazione dell’IVA ai sensi dell’art. 1, commi da 54 a 89, Legge n. 190/2014 (Regime Forfettario). Si richiede la non applicazione della ritenuta alla fonte a titolo d’acconto ai sensi dell’art. 1, comma 67, Legge n. 190/2014.</p>`; } modalBodyHtml += `<hr><div class="row mt-2"><div class="col-6"><small><strong>Condizioni:</strong> ${invoice.condizioniPagamento}<br><strong>Modalità:</strong> ${invoice.modalitaPagamento}<br><strong>Scadenza:</strong> ${formatDateForDisplay(invoice.dataScadenza)}</small></div><div class="col-6"><small><strong>Coordinate Bancarie:</strong><br><strong>Banca:</strong> ${company.banca || ''}<br><strong>IBAN:</strong> ${company.iban || ''}</small></div></div>`;
+        $('#invoiceDetailModalBody').html(modalBodyHtml);
+    });
+
+    $('#print-invoice-btn').on('click', () => window.print());
+
 });
