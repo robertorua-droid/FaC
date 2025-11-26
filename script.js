@@ -1,9 +1,19 @@
-// =========================================================
-// CONFIGURAZIONE E INIZIALIZZAZIONE FIREBASE
-// =========================================================
+// CONFIGURAZIONE FIREBASE
+const firebaseConfig = {
+  apiKey: "AIzaSyCuGd5MSKdixcMYOYullnyam6Pj1D9tNbM",
+  authDomain: "fprf-6c080.firebaseapp.com",
+  projectId: "fprf-6c080",
+  storageBucket: "fprf-6c080.firebasestorage.app",
+  messagingSenderId: "406236428222",
+  appId: "1:406236428222:web:3be6b3b8530ab20ba36bef"
+};
 
-// Variabili globali per l'app
-let db, auth;
+// Inizializza Firebase (Sintassi corretta per CDN)
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const auth = firebase.auth();
+
+// Variabili Globali
 let globalData = {
     companyInfo: {},
     products: [],
@@ -11,39 +21,17 @@ let globalData = {
     invoices: [],
     notes: []
 };
+
 let currentUser = null;
 let dateTimeInterval = null;
 let CURRENT_EDITING_ID = null;         
 let CURRENT_EDITING_INVOICE_ID = null; 
-window.tempInvoiceLines = []; 
-
-try {
-    const firebaseConfig = {
-      apiKey: "AIzaSyCuGd5MSKdixcMYOYullnyam6Pj1D9tNbM",
-      authDomain: "fprf-6c080.firebaseapp.com",
-      projectId: "fprf-6c080",
-      storageBucket: "fprf-6c080.firebasestorage.app",
-      messagingSenderId: "406236428222",
-      appId: "1:406236428222:web:3be6b3b8530ab20ba36bef"
-    };
-
-    // Inizializzazione sicura
-    if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-    }
-    db = firebase.firestore();
-    auth = firebase.auth();
-    console.log("Firebase inizializzato con successo.");
-
-} catch (error) {
-    console.error("Errore critico inizializzazione Firebase:", error);
-    alert("Errore critico: Impossibile connettersi al database. Controlla la console.");
-}
+window.tempInvoiceLines = [];          
 
 $(document).ready(function() {
 
     // =========================================================
-    // 1. FUNZIONI DI UTILITÀ (HELPERS)
+    // 1. FUNZIONI DI UTILITÀ E ACCESSO DATI
     // =========================================================
 
     function formatDateForDisplay(dateString) {
@@ -65,38 +53,26 @@ $(document).ready(function() {
     }
 
     function getData(key) { return globalData[key] || []; }
-    
-    function safeFloat(val) { 
-        const n = parseFloat(val); 
-        return isNaN(n) ? 0 : n; 
-    }
-
-    function toggleEsenzioneIvaField(container, ivaValue) { 
-        const div = (container === 'product') ? $('#esenzione-iva-container') : $('#invoice-esenzione-iva-container'); 
-        if (ivaValue == '0') div.removeClass('d-none'); else div.addClass('d-none'); 
-    }
+    function safeFloat(val) { const n = parseFloat(val); return isNaN(n) ? 0 : n; }
 
     // =========================================================
-    // 2. FUNZIONI CLOUD (LOAD/SAVE/DELETE)
+    // 2. GESTIONE DATI CLOUD
     // =========================================================
 
     async function loadAllDataFromCloud() {
         try {
-            // Azienda
+            // Carica Azienda
             const companyDoc = await db.collection('settings').doc('companyInfo').get();
             if (companyDoc.exists) globalData.companyInfo = companyDoc.data();
 
-            // Collezioni
+            // Carica Collezioni
             const collections = ['products', 'customers', 'invoices', 'notes'];
             for (const col of collections) {
                 const snapshot = await db.collection(col).get();
                 globalData[col] = snapshot.docs.map(doc => ({ id: String(doc.id), ...doc.data() }));
             }
             console.log("Dati sincronizzati:", globalData);
-        } catch (e) { 
-            console.error("Errore Load Cloud:", e); 
-            throw e; 
-        }
+        } catch (e) { console.error("Errore Load Cloud:", e); throw e; } // Rilancia errore per gestirlo nel catch principale
     }
 
     async function saveDataToCloud(collection, dataObj, id = null) {
@@ -108,7 +84,7 @@ $(document).ready(function() {
                 if (id) {
                     const strId = String(id);
                     await db.collection(collection).doc(strId).set(dataObj, { merge: true });
-                    // Aggiorna Cache
+                    // Aggiorna cache locale
                     const index = globalData[collection].findIndex(item => String(item.id) === strId);
                     if (index > -1) globalData[collection][index] = { ...globalData[collection][index], ...dataObj };
                     else globalData[collection].push({ id: strId, ...dataObj });
@@ -129,81 +105,24 @@ $(document).ready(function() {
     }
 
     // =========================================================
-    // 3. FUNZIONI DI RENDER (GRAFICA)
+    // 3. FUNZIONI DI RENDER UI
     // =========================================================
+
+    function renderAll() {
+        renderCompanyInfoForm(); 
+        updateCompanyUI(); 
+        renderProductsTable(); 
+        renderCustomersTable(); 
+        renderInvoicesTable();
+        populateDropdowns(); 
+        renderStatisticsPage(); 
+        renderHomePage();
+    }
 
     function updateCompanyUI() { 
         const company = getData('companyInfo'); 
         if(company.name) $('#company-name-sidebar').text(company.name);
         if(currentUser && currentUser.email) $('#user-name-sidebar').text(currentUser.email);
-    }
-
-    function renderCompanyInfoForm() { 
-        const c = getData('companyInfo'); 
-        for (const k in c) $(`#company-${k}`).val(c[k]); 
-    }
-    
-    function renderProductsTable() { 
-        const table = $('#products-table-body').empty(); 
-        getData('products').forEach(p => { 
-            const price = parseFloat(p.salePrice).toFixed(2);
-            table.append(`<tr><td>${p.code}</td><td>${p.description}</td><td class="text-end">€ ${price}</td><td class="text-end">${p.iva}%</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-product" data-id="${p.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-product" data-id="${p.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
-        }); 
-    }
-    
-    function renderCustomersTable() { 
-        const table = $('#customers-table-body').empty(); 
-        getData('customers').forEach(c => { 
-            table.append(`<tr><td>${c.name}</td><td>${c.piva}</td><td>${c.sdi || '-'}</td><td>${c.address || ''}</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-customer" data-id="${c.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-customer" data-id="${c.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
-        }); 
-    }
-    
-    function renderInvoicesTable() {
-        const table = $('#invoices-table-body').empty();
-        const invoices = getData('invoices').sort((a, b) => (b.number || '').localeCompare(a.number || ''));
-        
-        invoices.forEach(inv => {
-            const c = getData('customers').find(cust => String(cust.id) === String(inv.customerId)) || { name: 'Sconosciuto' }; 
-            const isPaid = inv.status === 'Pagata' || inv.status === 'Emessa';
-            
-            let statusBadge = `<span class="badge bg-warning text-dark">Da Incassare</span>`;
-            if (inv.type === 'Nota di Credito') statusBadge = isPaid ? `<span class="badge bg-info text-dark">Emessa</span>` : `<span class="badge bg-secondary">Bozza</span>`;
-            else statusBadge = isPaid ? `<span class="badge bg-success">Pagata</span>` : `<span class="badge bg-warning text-dark">Da Incassare</span>`;
-            
-            const docTypeBadge = inv.type === 'Nota di Credito' ? `<span class="badge bg-warning text-dark">NdC</span>` : `<span class="badge bg-primary">Fatt.</span>`;
-
-            // Bottoni allineati
-            const payClass = isPaid ? 'btn-secondary disabled' : 'btn-success';
-            const editClass = isPaid ? 'btn-secondary disabled' : 'btn-secondary';
-            
-            const btns = `
-                <div class="d-flex justify-content-end gap-1">
-                    <button class="btn btn-sm btn-info btn-view-invoice text-white" data-id="${inv.id}" data-bs-toggle="modal" data-bs-target="#invoiceDetailModal" title="Dettagli"><i class="fas fa-eye"></i></button>
-                    <button class="btn btn-sm ${editClass} btn-edit-invoice" data-id="${inv.id}" title="Modifica" ${isPaid ? 'disabled' : ''}><i class="fas fa-edit"></i></button>
-                    <button class="btn btn-sm btn-warning btn-export-xml-row" data-id="${inv.id}" title="XML"><i class="fas fa-file-code"></i></button>
-                    <button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="Stato" ${isPaid ? 'disabled' : ''}><i class="fas fa-check"></i></button>
-                    <button class="btn btn-sm btn-danger btn-delete-invoice" data-id="${inv.id}" title="Elimina"><i class="fas fa-trash"></i></button>
-                </div>
-            `;
-            
-            const total = safeFloat(inv.total).toFixed(2);
-            table.append(`<tr class="${isPaid?'table-light text-muted':''}"><td>${docTypeBadge}</td><td class="fw-bold">${inv.number}</td><td>${formatDateForDisplay(inv.date)}</td><td>${c.name}</td><td class="text-end pe-4">€ ${total}</td><td class="text-end">${formatDateForDisplay(inv.dataScadenza)}</td><td>${statusBadge}</td><td class="text-end">${btns}</td></tr>`);
-        });
-    }
-
-    function populateDropdowns() {
-        // Clienti
-        $('#invoice-customer-select').empty().append('<option selected disabled value="">Seleziona Cliente...</option>')
-            .append(getData('customers').map(c => `<option value="${c.id}">${c.name}</option>`));
-        
-        // Prodotti
-        $('#invoice-product-select').empty().append('<option selected value="">Seleziona Servizio...</option><option value="manual">--- Inserimento Manuale ---</option>')
-            .append(getData('products').map(p => `<option value="${p.id}">${p.code} - ${p.description}</option>`));
-        
-        // Data default
-        if(!$('#editing-invoice-id').val()) { 
-            $('#invoice-date').val(new Date().toISOString().slice(0, 10)); 
-        }
     }
 
     // --- HOME PAGE ---
@@ -315,30 +234,76 @@ $(document).ready(function() {
         container.html(html);
     }
 
-    function renderAll() {
-        renderCompanyInfoForm(); 
-        updateCompanyUI(); 
-        renderProductsTable(); 
-        renderCustomersTable(); 
-        renderInvoicesTable();
-        populateDropdowns(); 
-        renderStatisticsPage(); 
-        renderHomePage();
+    // --- ANAGRAFICHE ---
+    function renderCompanyInfoForm() { const c = getData('companyInfo'); for (const k in c) $(`#company-${k}`).val(c[k]); }
+    
+    function renderProductsTable() { 
+        const table = $('#products-table-body').empty(); 
+        getData('products').forEach(p => { 
+            const price = parseFloat(p.salePrice).toFixed(2);
+            table.append(`<tr><td>${p.code}</td><td>${p.description}</td><td class="text-end">€ ${price}</td><td class="text-end">${p.iva}%</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-product" data-id="${p.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-product" data-id="${p.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
+        }); 
+    }
+    
+    function renderCustomersTable() { 
+        const table = $('#customers-table-body').empty(); 
+        getData('customers').forEach(c => { 
+            table.append(`<tr><td>${c.name}</td><td>${c.piva}</td><td>${c.sdi || '-'}</td><td>${c.address || ''}</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-customer" data-id="${c.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-customer" data-id="${c.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
+        }); 
+    }
+    
+    function renderInvoicesTable() {
+        const table = $('#invoices-table-body').empty();
+        const invoices = getData('invoices').sort((a, b) => (b.number || '').localeCompare(a.number || ''));
+        
+        invoices.forEach(inv => {
+            const c = getData('customers').find(cust => String(cust.id) === String(inv.customerId)) || { name: 'Sconosciuto' }; 
+            const isPaid = inv.status === 'Pagata' || inv.status === 'Emessa';
+            
+            let statusBadge = `<span class="badge bg-warning text-dark">Da Incassare</span>`;
+            if (inv.type === 'Nota di Credito') statusBadge = isPaid ? `<span class="badge bg-info text-dark">Emessa</span>` : `<span class="badge bg-secondary">Bozza</span>`;
+            else statusBadge = isPaid ? `<span class="badge bg-success">Pagata</span>` : `<span class="badge bg-warning text-dark">Da Incassare</span>`;
+            
+            const docTypeBadge = inv.type === 'Nota di Credito' ? `<span class="badge bg-warning text-dark">NdC</span>` : `<span class="badge bg-primary">Fatt.</span>`;
+
+            // Bottoni allineati
+            const payClass = isPaid ? 'btn-secondary disabled' : 'btn-success';
+            const editClass = isPaid ? 'btn-secondary disabled' : 'btn-secondary';
+            
+            const btns = `
+                <div class="d-flex justify-content-end gap-1">
+                    <button class="btn btn-sm btn-info btn-view-invoice text-white" data-id="${inv.id}" data-bs-toggle="modal" data-bs-target="#invoiceDetailModal" title="Dettagli"><i class="fas fa-eye"></i></button>
+                    <button class="btn btn-sm ${editClass} btn-edit-invoice" data-id="${inv.id}" title="Modifica" ${isPaid ? 'disabled' : ''}><i class="fas fa-edit"></i></button>
+                    <button class="btn btn-sm btn-warning btn-export-xml-row" data-id="${inv.id}" title="XML"><i class="fas fa-file-code"></i></button>
+                    <button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="Stato" ${isPaid ? 'disabled' : ''}><i class="fas fa-check"></i></button>
+                    <button class="btn btn-sm btn-danger btn-delete-invoice" data-id="${inv.id}" title="Elimina"><i class="fas fa-trash"></i></button>
+                </div>
+            `;
+            
+            const total = safeFloat(inv.total).toFixed(2);
+            table.append(`<tr class="${isPaid?'table-light text-muted':''}"><td>${docTypeBadge}</td><td class="fw-bold">${inv.number}</td><td>${formatDateForDisplay(inv.date)}</td><td>${c.name}</td><td class="text-end pe-4">€ ${total}</td><td class="text-end">${formatDateForDisplay(inv.dataScadenza)}</td><td>${statusBadge}</td><td class="text-end">${btns}</td></tr>`);
+        });
     }
 
-    function startDashboard() { 
-        $('.content-section').addClass('d-none'); 
-        $('#home').removeClass('d-none'); 
-        $('.sidebar .nav-link').removeClass('active'); 
-        $('.sidebar .nav-link[data-target="home"]').addClass('active'); 
-        renderAll(); 
+    function populateDropdowns() {
+        // Clienti
+        $('#invoice-customer-select').empty().append('<option selected disabled value="">Seleziona Cliente...</option>')
+            .append(getData('customers').map(c => `<option value="${c.id}">${c.name}</option>`));
+        
+        // Prodotti
+        $('#invoice-product-select').empty().append('<option selected value="">Seleziona Servizio...</option><option value="manual">--- Inserimento Manuale ---</option>')
+            .append(getData('products').map(p => `<option value="${p.id}">${p.code} - ${p.description}</option>`));
+        
+        // Data default
+        if(!$('#editing-invoice-id').val()) { 
+            $('#invoice-date').val(new Date().toISOString().slice(0, 10)); 
+        }
     }
 
     // =========================================================
-    // 4. EVENT LISTENERS (LOGICA AZIONI)
+    // 4. EVENTI E LOGICA CRUD
     // =========================================================
 
-    // AUTH
     auth.onAuthStateChanged(async (user) => {
         if (user) {
             currentUser = user;
@@ -346,7 +311,7 @@ $(document).ready(function() {
             try {
                 await loadAllDataFromCloud(); 
                 $('#loading-screen').addClass('d-none'); $('#main-app').removeClass('d-none');
-                startDashboard();
+                initializeApp();
             } catch (error) { alert("Errore DB: " + error.message); $('#loading-screen').addClass('d-none'); }
         } else {
             currentUser = null;
@@ -386,7 +351,7 @@ $(document).ready(function() {
 
     $('#btn-create-new-blank-invoice').click(function() {
         $('#newInvoiceChoiceModal').modal('hide');
-        $('.sidebar .nav-link').removeClass('active'); $('[data-bs-target="#newInvoiceChoiceModal"]').addClass('active');
+        $('.sidebar .nav-link').removeClass('active'); 
         $('.content-section').addClass('d-none'); $('#nuova-fattura-accompagnatoria').removeClass('d-none');
         prepareDocumentForm('Fattura');
     });
@@ -395,7 +360,7 @@ $(document).ready(function() {
         const id = $('#copy-from-invoice-select').val();
         if(!id) return;
         $('#newInvoiceChoiceModal').modal('hide');
-        $('.sidebar .nav-link').removeClass('active'); $('[data-bs-target="#newInvoiceChoiceModal"]').addClass('active');
+        $('.sidebar .nav-link').removeClass('active'); 
         $('.content-section').addClass('d-none'); $('#nuova-fattura-accompagnatoria').removeClass('d-none');
         loadInvoiceForEditing(id, true);
     });
