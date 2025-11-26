@@ -1,4 +1,4 @@
-// FILE: ui.js - Gestione Interfaccia Utente (v8.4 - Fix Statistiche)
+// FILE: ui.js - Gestione Interfaccia Utente (v8.5 - Statistiche Dettagliate)
 
 // --- Render Principale ---
 function renderAll() {
@@ -114,7 +114,7 @@ function renderStatisticsPage() {
     html += `</tbody><tfoot class="table-dark"><tr><td>TOTALE</td><td class="text-end">€ ${netTotal.toFixed(2)}</td><td class="text-end">100%</td></tr></tfoot></table></div></div>`;
     container.html(html);
     
-    // Calcola imponibili per tasse (usando totaleImponibile o fallback su total)
+    // Calcola imponibili per tasse
     const impFact = facts.reduce((s, i) => s + safeFloat(i.totaleImponibile || i.total), 0);
     const impNote = notes.reduce((s, i) => s + safeFloat(i.totaleImponibile || i.total), 0);
     renderTaxSimulation(impFact, impNote);
@@ -145,7 +145,7 @@ function renderTaxSimulation(fatturatoImponibile, noteCreditoImponibile) {
     const inpsAcconto1 = socialSecurity * 0.40;
     const inpsAcconto2 = socialSecurity * 0.40;
 
-    // Acconti Imposta (50%) - Soglia minima 257.52 per obbligo acconto, ma mostriamo stima pura
+    // Acconti Imposta (50%)
     const taxAcconto1 = tax * 0.50;
     const taxAcconto2 = tax * 0.50;
 
@@ -155,26 +155,26 @@ function renderTaxSimulation(fatturatoImponibile, noteCreditoImponibile) {
         <div class="row">
             <!-- COLONNA INPS -->
             <div class="col-lg-6 mb-4">
-                <div class="card h-100 shadow-sm">
-                    <div class="card-header fw-bold bg-light">Simulazione Contributi INPS</div>
+                <div class="card h-100">
+                    <div class="card-header fw-bold">Simulazione Contributi INPS</div>
                     <div class="card-body">
                         <dl class="row mb-0">
-                            <dt class="col-sm-8">Reddito Lordo Imponibile</dt>
-                            <dd class="col-sm-4 text-end">€ ${taxableIncome.toFixed(2)}</dd>
+                            <dt class="col-sm-6">Reddito Lordo Imponibile</dt>
+                            <dd class="col-sm-6 text-end">€ ${taxableIncome.toFixed(2)}</dd>
 
-                            <dt class="col-sm-8">Aliquota Contributi INPS</dt>
-                            <dd class="col-sm-4 text-end">${inpsRate}%</dd>
+                            <dt class="col-sm-6">Aliquota Contributi INPS</dt>
+                            <dd class="col-sm-6 text-end">${inpsRate}%</dd>
 
-                            <dt class="col-sm-8 h5 text-primary border-top pt-3">Contributi Totali Previsti</dt>
-                            <dd class="col-sm-4 text-end h5 text-primary border-top pt-3">€ ${socialSecurity.toFixed(2)}</dd>
+                            <dt class="col-sm-6 h5 text-primary border-top pt-3">Contributi Totali Previsti</dt>
+                            <dd class="col-sm-6 text-end h5 text-primary border-top pt-3">€ ${socialSecurity.toFixed(2)}</dd>
 
                             <hr class="my-3">
 
-                            <dt class="col-sm-8 fw-normal">Stima Primo Acconto (40%)</dt>
-                            <dd class="col-sm-4 text-end text-muted">€ ${inpsAcconto1.toFixed(2)}</dd>
+                            <dt class="col-sm-6">Stima Primo Acconto (40%)</dt>
+                            <dd class="col-sm-6 text-end">€ ${inpsAcconto1.toFixed(2)}</dd>
 
-                            <dt class="col-sm-8 fw-normal">Stima Secondo Acconto (40%)</dt>
-                            <dd class="col-sm-4 text-end text-muted">€ ${inpsAcconto2.toFixed(2)}</dd>
+                            <dt class="col-sm-6">Stima Secondo Acconto (40%)</dt>
+                            <dd class="col-sm-6 text-end">€ ${inpsAcconto2.toFixed(2)}</dd>
                         </dl>
                     </div>
                 </div>
@@ -182,32 +182,32 @@ function renderTaxSimulation(fatturatoImponibile, noteCreditoImponibile) {
 
             <!-- COLONNA IRPEF -->
             <div class="col-lg-6 mb-4">
-                <div class="card h-100 shadow-sm">
-                    <div class="card-header fw-bold bg-light">Simulazione Imposta Sostitutiva (IRPEF)</div>
+                <div class="card h-100">
+                    <div class="card-header fw-bold">Simulazione Imposta Sostitutiva (IRPEF)</div>
                     <div class="card-body">
                         <dl class="row mb-0">
-                            <dt class="col-sm-8">Reddito Lordo Imponibile</dt>
-                            <dd class="col-sm-4 text-end">€ ${taxableIncome.toFixed(2)}</dd>
+                            <dt class="col-sm-6">Reddito Lordo Imponibile</dt>
+                            <dd class="col-sm-6 text-end">€ ${taxableIncome.toFixed(2)}</dd>
 
-                            <dt class="col-sm-8">Contributi INPS Deducibili</dt>
-                            <dd class="col-sm-4 text-end text-danger">- € ${socialSecurity.toFixed(2)}</dd>
+                            <dt class="col-sm-6">Contributi INPS Deducibili</dt>
+                            <dd class="col-sm-6 text-end">- € ${socialSecurity.toFixed(2)}</dd>
 
-                            <dt class="col-sm-8 border-top pt-2">Reddito Netto Imponibile</dt>
-                            <dd class="col-sm-4 text-end border-top pt-2">€ ${netTaxable.toFixed(2)}</dd>
+                            <dt class="col-sm-6 border-top pt-2">Reddito Netto Imponibile</dt>
+                            <dd class="col-sm-6 text-end border-top pt-2">€ ${netTaxable.toFixed(2)}</dd>
 
-                            <dt class="col-sm-8">Aliquota Imposta</dt>
-                            <dd class="col-sm-4 text-end">${taxRate}%</dd>
+                            <dt class="col-sm-6">Aliquota Imposta</dt>
+                            <dd class="col-sm-6 text-end">${taxRate}%</dd>
 
-                            <dt class="col-sm-8 h5 text-primary border-top pt-3">Imposta Totale Prevista</dt>
-                            <dd class="col-sm-4 text-end h5 text-primary border-top pt-3">€ ${tax.toFixed(2)}</dd>
+                            <dt class="col-sm-6 h5 text-primary border-top pt-3">Imposta Totale Prevista</dt>
+                            <dd class="col-sm-6 text-end h5 text-primary border-top pt-3">€ ${tax.toFixed(2)}</dd>
 
                             <hr class="my-3">
 
-                            <dt class="col-sm-8 fw-normal">Stima Primo Acconto (50%)</dt>
-                            <dd class="col-sm-4 text-end text-muted">€ ${taxAcconto1.toFixed(2)}</dd>
+                            <dt class="col-sm-6">Stima Primo Acconto (50%)</dt>
+                            <dd class="col-sm-6 text-end">€ ${taxAcconto1.toFixed(2)}</dd>
 
-                            <dt class="col-sm-8 fw-normal">Stima Secondo Acconto (50%)</dt>
-                            <dd class="col-sm-4 text-end text-muted">€ ${taxAcconto2.toFixed(2)}</dd>
+                            <dt class="col-sm-6">Stima Secondo Acconto (50%)</dt>
+                            <dd class="col-sm-6 text-end">€ ${taxAcconto2.toFixed(2)}</dd>
                         </dl>
                     </div>
                 </div>
@@ -215,10 +215,10 @@ function renderTaxSimulation(fatturatoImponibile, noteCreditoImponibile) {
         </div>
 
         <!-- TOTALE GENERALE -->
-        <div class="card bg-light mt-2 shadow-sm border-primary">
+        <div class="card bg-light mt-4">
             <div class="card-body d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">Totale Uscite Stimate (Contributi + Imposte)</h5>
-                <h4 class="card-title mb-0 fw-bold text-primary">€ ${totalDue.toFixed(2)}</h4>
+                <h5 class="card-title mb-0">€ ${totalDue.toFixed(2)}</h5>
             </div>
         </div>
     `;
@@ -232,29 +232,32 @@ function renderProductsTable() {
     const table = $('#products-table-body').empty(); 
     getData('products').forEach(p => { 
         const price = parseFloat(p.salePrice).toFixed(2);
-        table.append(`<tr><td>${p.code}</td><td>${p.description}</td><td class="text-end">€ ${price}</td><td class="text-end">${p.iva}%</td><td class="text-end"><button class="btn btn-sm btn-outline-primary btn-edit-product" data-id="${p.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-outline-danger btn-delete-product" data-id="${p.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
+        table.append(`<tr><td>${p.code}</td><td>${p.description}</td><td class="text-end">€ ${price}</td><td class="text-end">${p.iva}%</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-product" data-id="${p.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-product" data-id="${p.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
     }); 
 }
 
 function renderCustomersTable() { 
     const table = $('#customers-table-body').empty(); 
     getData('customers').forEach(c => { 
-        table.append(`<tr><td>${c.name}</td><td>${c.piva}</td><td>${c.sdi || '-'}</td><td>${c.address || ''}</td><td class="text-end"><button class="btn btn-sm btn-outline-primary btn-edit-customer" data-id="${c.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-outline-danger btn-delete-customer" data-id="${c.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
+        table.append(`<tr><td>${c.name}</td><td>${c.piva}</td><td>${c.sdi || '-'}</td><td>${c.address || ''}</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-customer" data-id="${c.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-customer" data-id="${c.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
     }); 
 }
 
 function renderInvoicesTable() {
     const table = $('#invoices-table-body').empty();
+    // Ordine decrescente per numero
     const invoices = getData('invoices').sort((a, b) => (b.number || '').localeCompare(a.number || ''));
     
     invoices.forEach(inv => {
         const c = getData('customers').find(cust => String(cust.id) === String(inv.customerId)) || { name: 'Cliente non trovato' };
         const isPaid = inv.status === 'Pagata' || inv.status === 'Emessa';
         
+        // Badge Tipo
         const badge = inv.type === 'Nota di Credito' 
             ? '<span class="badge bg-warning text-dark border border-dark">NdC</span>' 
             : '<span class="badge bg-primary">Fatt.</span>';
             
+        // Badge Stato
         let statusBadge = '<span class="badge bg-warning text-dark">Da Incassare</span>';
         if (inv.type === 'Nota di Credito') {
              statusBadge = isPaid ? '<span class="badge bg-info text-dark">Emessa</span>' : '<span class="badge bg-secondary">Bozza</span>';
@@ -262,8 +265,9 @@ function renderInvoicesTable() {
              statusBadge = isPaid ? '<span class="badge bg-success">Pagata</span>' : '<span class="badge bg-warning text-dark">Da Incassare</span>';
         }
         
+        // Bottoni
         const payClass = isPaid ? 'btn-secondary disabled' : 'btn-success';
-        const editClass = isPaid ? 'btn-secondary disabled' : 'btn-outline-secondary';
+        const editClass = isPaid ? 'btn-secondary disabled' : 'btn-secondary';
         const btnDelete = `<button class="btn btn-sm btn-danger btn-delete-invoice" data-id="${inv.id}" title="Elimina"><i class="fas fa-trash"></i></button>`;
 
         const btns = `
@@ -291,9 +295,11 @@ function renderInvoicesTable() {
 }
 
 function populateDropdowns() {
+    // Clienti
     $('#invoice-customer-select').empty().append('<option selected disabled value="">Seleziona Cliente...</option>')
         .append(getData('customers').map(c => `<option value="${c.id}">${c.name}</option>`));
     
+    // Prodotti
     $('#invoice-product-select').empty().append('<option selected value="">Seleziona Servizio...</option><option value="manual">Manuale</option>')
         .append(getData('products').map(p => `<option value="${p.id}">${p.code} - ${p.description}</option>`));
 }
