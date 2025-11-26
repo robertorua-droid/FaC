@@ -54,7 +54,7 @@
         <div class="sidebar">
             <h4 class="text-center my-3" id="company-name-sidebar">MIO STUDIO</h4>
             <p class="text-center text-white-50 small" id="user-name-sidebar"></p>
-            <p class="text-center text-white-50" style="font-size: 0.7rem;" id="version-sidebar">v9.1 (Clean)</p>
+            <p class="text-center text-white-50" style="font-size: 0.7rem;" id="version-sidebar">v9.6 (Unified Cloud)</p>
             <ul class="nav flex-column">
                 <li class="nav-item"><a class="nav-link active" href="#" data-target="home"><i class="fas fa-home"></i> Home</a></li>
                 <li class="nav-item"><a class="nav-link" href="#" data-target="statistiche"><i class="fas fa-chart-line"></i> Statistiche</a></li>
@@ -307,7 +307,7 @@
                         </div>
                         <div class="row">
                             <div class="col-md-4 mb-3"><label class="form-label">Prezzo Vendita</label><input type="number" class="form-control" id="product-salePrice" step="0.01"></div>
-                            <div class="col-md-4 mb-3"><label class="form-label">Aliquota IVA</label><select class="form-select" id="product-iva"><option value="0">0%</option><option value="4">4%</option><option value="5">5%</option><option value="10">10%</option><option value="22">22%</option></select></div>
+                            <div class="col-md-4 mb-3"><label class="form-label">Aliquota IVA</label><select class="form-select" id="product-iva"><option value="0">0%</option><option value="4">4%</option><option value="10">10%</option><option value="22">22%</option></select></div>
                             <div class="col-md-4 mb-3 d-none" id="esenzione-iva-container"><label class="form-label">Esenzione</label><select class="form-select" id="product-esenzioneIva"><option value="N2.1">N2.1</option><option value="N2.2">N2.2</option><option value="N4">N4</option></select></div>
                         </div>
                     </form>
@@ -332,11 +332,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
-    <!-- App Modules -->
-    <script src="config.js"></script>
-    <script src="utils.js"></script>
-    <script src="data.js"></script>
-    <script src="ui.js"></script>
-    <script src="main.js"></script>
+    <!-- App Script Unico -->
+    <script src="script.js"></script>
 </body>
 </html>
