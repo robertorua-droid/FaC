@@ -568,4 +568,4 @@ $(document).ready(function() {
 
     $('#print-invoice-btn').on('click', () => window.print());
 
-});
+}); // CHIUSURA CORRETTA DEL DOCUMENT READY
