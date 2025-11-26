@@ -1,11 +1,11 @@
-// FILE: main.js - v9.3 (Fix Documenti & Logica Completa)
+// FILE: main.js - v9.4 (Fix Navigazione e Popup Fattura)
 
 $(document).ready(function() {
 
-    // --- VARIABILI DI STATO ---
-    let CURRENT_EDITING_ID = null;         // Per Clienti e Prodotti
-    let CURRENT_EDITING_INVOICE_ID = null; // Per i Documenti (Fatture/NdC)
-    window.tempInvoiceLines = [];          // Righe temporanee fattura
+    // Variabili di stato per tracciare le modifiche
+    let CURRENT_EDITING_ID = null;
+    let CURRENT_EDITING_INVOICE_ID = null;
+    window.tempInvoiceLines = []; // Variabile globale per righe fattura
 
     // --- 1. GESTIONE AUTENTICAZIONE ---
     auth.onAuthStateChanged(async (user) => {
@@ -13,9 +13,12 @@ $(document).ready(function() {
             currentUser = user;
             $('#login-container').addClass('d-none');
             $('#loading-screen').removeClass('d-none');
+            
             await loadAllDataFromCloud(); 
+            
             $('#loading-screen').addClass('d-none');
             $('#main-app').removeClass('d-none');
+            
             renderAll(); 
         } else {
             currentUser = null;
@@ -43,7 +46,19 @@ $(document).ready(function() {
         const target = $(this).data('target');
 
         if(target === 'nuova-fattura-accompagnatoria') {
-            prepareDocumentForm(this.id === 'menu-nuova-nota-credito' ? 'Nota di Credito' : 'Fattura');
+            // Se clicco direttamente Nota Credito, vado dritto al form
+            if(this.id === 'menu-nuova-nota-credito') {
+                 prepareDocumentForm('Nota di Credito');
+            } 
+            // Se clicco Fattura (o arrivo dal modale), preparo il form
+            else if (this.id === 'menu-nuova-fattura') {
+                // Questo viene gestito dal modale bootstrap, non fare nulla qui
+                return; 
+            }
+            else {
+                 // Fallback per click diretti non gestiti
+                 prepareDocumentForm('Fattura');
+            }
         }
         
         if(target === 'statistiche') renderStatisticsPage();
@@ -54,7 +69,47 @@ $(document).ready(function() {
         $('#' + target).removeClass('d-none');
     });
 
-    // --- 3. FUNZIONI SUPPORTO CRUD (ANAGRAFICHE) ---
+    // --- 2b. GESTIONE MODALE NUOVA FATTURA (Copia/Nuova) ---
+    
+    // Quando il modale si apre, popola la select
+    $('#newInvoiceChoiceModal').on('show.bs.modal', function () {
+        const invoices = getData('invoices').filter(i => i.type === 'Fattura' || i.type === undefined);
+        const options = invoices.map(inv => `<option value="${inv.id}">${inv.number} - ${formatDateForDisplay(inv.date)}</option>`).join('');
+        $('#copy-from-invoice-select').html('<option selected value="">Copia da esistente...</option>' + options);
+    });
+
+    // Click su "Crea Nuova Vuota"
+    $('#btn-create-new-blank-invoice').click(function() {
+        $('#newInvoiceChoiceModal').modal('hide'); // Chiudi popup
+        
+        // Attiva menu e mostra sezione
+        $('.sidebar .nav-link').removeClass('active');
+        $('#menu-nuova-fattura').addClass('active'); // Evidenzia menu fattura (anche se è un modale, usiamo l'ID per stile)
+        $('.content-section').addClass('d-none');
+        $('#nuova-fattura-accompagnatoria').removeClass('d-none');
+
+        prepareDocumentForm('Fattura');
+    });
+
+    // Click su "Copia"
+    $('#btn-copy-from-invoice').click(function() {
+        const invoiceId = $('#copy-from-invoice-select').val();
+        if (!invoiceId) { alert("Seleziona una fattura da copiare."); return; }
+
+        $('#newInvoiceChoiceModal').modal('hide');
+        
+        // Attiva menu e mostra sezione
+        $('.sidebar .nav-link').removeClass('active');
+        $('.content-section').addClass('d-none');
+        $('#nuova-fattura-accompagnatoria').removeClass('d-none');
+
+        // Carica i dati (True = isCopy: genera nuovo numero)
+        loadInvoiceForEditing(invoiceId, true); 
+    });
+
+
+    // --- 3. FUNZIONI DI SUPPORTO CRUD (ANAGRAFICHE) ---
+    
     function editItem(type, id) { 
         if (type === 'customer' || type === 'product') CURRENT_EDITING_ID = String(id);
         
@@ -176,6 +231,40 @@ $(document).ready(function() {
         
         // Calcola numero successivo (solo se creazione)
         updateInvoiceNumber(type, today.substring(0, 4));
+        updateTotalsDisplay();
+    }
+
+    // Funzione Helper per caricare dati in modifica o copia
+    function loadInvoiceForEditing(invoiceId, isCopy = false) {
+        const invoice = getData('invoices').find(inv => String(inv.id) === String(invoiceId)); 
+        if (!invoice) { alert("Documento non trovato!"); return; } 
+        
+        const type = isCopy ? 'Fattura' : (invoice.type || 'Fattura');
+        prepareDocumentForm(type);
+        
+        if (!isCopy) {
+            CURRENT_EDITING_INVOICE_ID = String(invoice.id);
+            $('#invoice-id').val(invoice.id);
+            $('#document-title').text(`Modifica ${type} ${invoice.number}`);
+        }
+        
+        $('#invoice-customer-select').val(invoice.customerId);
+        $('#invoice-date').val(isCopy ? new Date().toISOString().slice(0, 10) : invoice.date);
+        
+        if(!isCopy) $('#invoice-number').val(invoice.number); // Se copia, il numero è già calcolato nuovo da prepareDocumentForm
+
+        $('#invoice-condizioniPagamento').val(invoice.condizioniPagamento);
+        $('#invoice-modalitaPagamento').val(invoice.modalitaPagamento);
+        $('#invoice-dataRiferimento').val(invoice.date);
+        $('#invoice-dataScadenza').val(invoice.dataScadenza); 
+        
+        if (type === 'Nota di Credito') { 
+            $('#linked-invoice').val(invoice.linkedInvoice); 
+            $('#reason').val(invoice.reason); 
+        }
+
+        window.tempInvoiceLines = JSON.parse(JSON.stringify(invoice.lines)); 
+        renderLocalInvoiceLines();
         updateTotalsDisplay();
     }
 
@@ -372,34 +461,7 @@ $(document).ready(function() {
     // Modifica Fattura
     $('#invoices-table-body').on('click', '.btn-edit-invoice', function() { 
         const id = $(this).attr('data-id'); 
-        const inv = getData('invoices').find(i => String(i.id) === String(id));
-        
-        if(inv) {
-            CURRENT_EDITING_INVOICE_ID = String(inv.id); // Setta stato
-            
-            // Naviga alla pagina corretta
-            if(inv.type === 'Nota di Credito') $('#menu-nuova-nota-credito').click();
-            else $('#menu-nuova-fattura').click();
-            
-            // Aspetta che il form si sia resettato (dalla navigazione) e poi popola
-            setTimeout(() => {
-                $('#invoice-id').val(inv.id); // Mostra ID a video
-                
-                $('#invoice-customer-select').val(inv.customerId);
-                $('#invoice-date').val(inv.date);
-                $('#invoice-number').val(inv.number);
-                $('#invoice-condizioniPagamento').val(inv.condizioniPagamento);
-                $('#invoice-modalitaPagamento').val(inv.modalitaPagamento);
-                $('#linked-invoice').val(inv.linkedInvoice);
-                $('#reason').val(inv.reason);
-                $('#invoice-dataScadenza').val(inv.dataScadenza);
-                
-                // Importante: clona le righe per non modificare l'oggetto originale in memoria
-                window.tempInvoiceLines = JSON.parse(JSON.stringify(inv.lines || []));
-                renderLocalInvoiceLines();
-                updateTotalsDisplay();
-            }, 200);
-        }
+        loadInvoiceForEditing(id, false);
     });
 
     // Cambio Stato
