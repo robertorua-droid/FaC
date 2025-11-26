@@ -1,4 +1,3 @@
-// CONFIGURAZIONE FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyCuGd5MSKdixcMYOYullnyam6Pj1D9tNbM",
   authDomain: "fprf-6c080.firebaseapp.com",
@@ -8,7 +7,7 @@ const firebaseConfig = {
   appId: "1:406236428222:web:3be6b3b8530ab20ba36bef"
 };
 
-// Inizializza Firebase (Sintassi Compatibilità Corretta)
+// Inizializza Firebase (Sintassi corretta per CDN)
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
@@ -61,18 +60,16 @@ $(document).ready(function() {
 
     async function loadAllDataFromCloud() {
         try {
-            // Carica Azienda
             const companyDoc = await db.collection('settings').doc('companyInfo').get();
             if (companyDoc.exists) globalData.companyInfo = companyDoc.data();
 
-            // Carica Collezioni
             const collections = ['products', 'customers', 'invoices', 'notes'];
             for (const col of collections) {
                 const snapshot = await db.collection(col).get();
                 globalData[col] = snapshot.docs.map(doc => ({ id: String(doc.id), ...doc.data() }));
             }
             console.log("Dati sincronizzati:", globalData);
-        } catch (e) { console.error("Errore Load Cloud:", e); throw e; } // Rilancia errore per gestirlo nel catch principale
+        } catch (e) { console.error("Errore Load Cloud:", e); throw e; }
     }
 
     async function saveDataToCloud(collection, dataObj, id = null) {
@@ -84,7 +81,6 @@ $(document).ready(function() {
                 if (id) {
                     const strId = String(id);
                     await db.collection(collection).doc(strId).set(dataObj, { merge: true });
-                    // Aggiorna cache locale
                     const index = globalData[collection].findIndex(item => String(item.id) === strId);
                     if (index > -1) globalData[collection][index] = { ...globalData[collection][index], ...dataObj };
                     else globalData[collection].push({ id: strId, ...dataObj });
