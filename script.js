@@ -1,19 +1,5 @@
-// CONFIGURAZIONE FIREBASE
-const firebaseConfig = {
-  apiKey: "AIzaSyCuGd5MSKdixcMYOYullnyam6Pj1D9tNbM",
-  authDomain: "fprf-6c080.firebaseapp.com",
-  projectId: "fprf-6c080",
-  storageBucket: "fprf-6c080.firebasestorage.app",
-  messagingSenderId: "406236428222",
-  appId: "1:406236428222:web:3be6b3b8530ab20ba36bef"
-};
-
-// Inizializza Firebase (Sintassi corretta per CDN)
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const auth = firebase.auth();
-
-// Variabili Globali
+/ Variabili Globali
+let db, auth;
 let globalData = {
     companyInfo: {},
     products: [],
@@ -21,7 +7,6 @@ let globalData = {
     invoices: [],
     notes: []
 };
-
 let currentUser = null;
 let dateTimeInterval = null;
 let CURRENT_EDITING_ID = null;         
@@ -31,7 +16,38 @@ window.tempInvoiceLines = [];
 $(document).ready(function() {
 
     // =========================================================
-    // 1. FUNZIONI DI UTILITÀ E ACCESSO DATI
+    // 0. INIZIALIZZAZIONE FIREBASE (AVVIO SICURO)
+    // =========================================================
+    
+    if (typeof firebase === 'undefined') {
+        alert("ERRORE CRITICO: Firebase non caricato. Controlla la connessione internet.");
+        return;
+    }
+
+    try {
+        const firebaseConfig = {
+          apiKey: "AIzaSyCuGd5MSKdixcMYOYullnyam6Pj1D9tNbM",
+          authDomain: "fprf-6c080.firebaseapp.com",
+          projectId: "fprf-6c080",
+          storageBucket: "fprf-6c080.firebasestorage.app",
+          messagingSenderId: "406236428222",
+          appId: "1:406236428222:web:3be6b3b8530ab20ba36bef"
+        };
+
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        db = firebase.firestore();
+        auth = firebase.auth();
+        console.log("Firebase connesso.");
+
+    } catch (error) {
+        console.error("Firebase Error:", error);
+        alert("Errore connessione Database: " + error.message);
+    }
+
+    // =========================================================
+    // 1. FUNZIONI DI UTILITÀ
     // =========================================================
 
     function formatDateForDisplay(dateString) {
@@ -54,6 +70,10 @@ $(document).ready(function() {
 
     function getData(key) { return globalData[key] || []; }
     function safeFloat(val) { const n = parseFloat(val); return isNaN(n) ? 0 : n; }
+    function toggleEsenzioneIvaField(container, ivaValue) { 
+        const div = (container === 'product') ? $('#esenzione-iva-container') : $('#invoice-esenzione-iva-container'); 
+        if (ivaValue == '0') div.removeClass('d-none'); else div.addClass('d-none'); 
+    }
 
     // =========================================================
     // 2. GESTIONE DATI CLOUD
@@ -61,18 +81,18 @@ $(document).ready(function() {
 
     async function loadAllDataFromCloud() {
         try {
-            // Carica Azienda
+            // Azienda
             const companyDoc = await db.collection('settings').doc('companyInfo').get();
             if (companyDoc.exists) globalData.companyInfo = companyDoc.data();
 
-            // Carica Collezioni
+            // Collezioni
             const collections = ['products', 'customers', 'invoices', 'notes'];
             for (const col of collections) {
                 const snapshot = await db.collection(col).get();
                 globalData[col] = snapshot.docs.map(doc => ({ id: String(doc.id), ...doc.data() }));
             }
             console.log("Dati sincronizzati:", globalData);
-        } catch (e) { console.error("Errore Load Cloud:", e); throw e; } // Rilancia errore per gestirlo nel catch principale
+        } catch (e) { console.error("Errore Load Cloud:", e); throw e; }
     }
 
     async function saveDataToCloud(collection, dataObj, id = null) {
@@ -84,7 +104,7 @@ $(document).ready(function() {
                 if (id) {
                     const strId = String(id);
                     await db.collection(collection).doc(strId).set(dataObj, { merge: true });
-                    // Aggiorna cache locale
+                    // Aggiorna Cache
                     const index = globalData[collection].findIndex(item => String(item.id) === strId);
                     if (index > -1) globalData[collection][index] = { ...globalData[collection][index], ...dataObj };
                     else globalData[collection].push({ id: strId, ...dataObj });
@@ -123,16 +143,14 @@ $(document).ready(function() {
         const company = getData('companyInfo'); 
         if(company.name) $('#company-name-sidebar').text(company.name);
         if(currentUser && currentUser.email) $('#user-name-sidebar').text(currentUser.email);
+        $('#version-sidebar').text('v10.3 (Stable)');
     }
 
-    // --- HOME PAGE ---
     function renderHomePage() { 
         if(currentUser && currentUser.email) $('#welcome-message').text(`Benvenuto, ${currentUser.email}`); 
         const note = getData('notes').find(n => n.userId === currentUser.uid);
         if(note) $('#notes-textarea').val(note.text);
-        
         renderCalendar();
-        
         if (dateTimeInterval) clearInterval(dateTimeInterval);
         const updateDateTime = () => $('#current-datetime').text(new Date().toLocaleDateString('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }));
         updateDateTime();
@@ -151,7 +169,6 @@ $(document).ready(function() {
         let html = `<div class="card shadow-sm border-0"><div class="card-header bg-primary text-white text-center fw-bold">${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase()}</div><div class="card-body p-0"><table class="table table-bordered text-center mb-0" style="table-layout: fixed;"><thead class="table-light"><tr><th class="text-danger">Dom</th><th>Lun</th><th>Mar</th><th>Mer</th><th>Gio</th><th>Ven</th><th>Sab</th></tr></thead><tbody><tr>`;
         
         for (let i = 0; i < startingDay; i++) html += '<td class="bg-light"></td>';
-        
         for (let day = 1; day <= totalDays; day++) {
             if (startingDay > 6) { startingDay = 0; html += '</tr><tr>'; }
             const isToday = (day === t) ? 'bg-primary text-white fw-bold rounded-circle' : '';
@@ -159,12 +176,10 @@ $(document).ready(function() {
             startingDay++;
         }
         while (startingDay <= 6) { html += '<td class="bg-light"></td>'; startingDay++; }
-        
         html += '</tr></tbody></table></div></div>';
         c.html(html);
     }
 
-    // --- STATISTICHE ---
     function renderStatisticsPage() {
         const container = $('#stats-table-container').empty();
         const facts = getData('invoices').filter(i => i.type === 'Fattura' || i.type === undefined || i.type === '');
@@ -234,7 +249,6 @@ $(document).ready(function() {
         container.html(html);
     }
 
-    // --- ANAGRAFICHE ---
     function renderCompanyInfoForm() { const c = getData('companyInfo'); for (const k in c) $(`#company-${k}`).val(c[k]); }
     
     function renderProductsTable() { 
@@ -292,7 +306,10 @@ $(document).ready(function() {
         
         // Prodotti
         $('#invoice-product-select').empty().append('<option selected value="">Seleziona Servizio...</option><option value="manual">--- Inserimento Manuale ---</option>')
-            .append(getData('products').map(p => `<option value="${p.id}">${p.code} - ${p.description}</option>`));
+            .append(getData('products').map(p => {
+                const label = (p.code ? p.code + ' - ' : '') + p.description;
+                return `<option value="${p.id}">${label}</option>`;
+            }));
         
         // Data default
         if(!$('#editing-invoice-id').val()) { 
@@ -301,9 +318,10 @@ $(document).ready(function() {
     }
 
     // =========================================================
-    // 4. EVENTI E LOGICA CRUD
+    // 4. EVENTI (AUTH, NAV, FORM)
     // =========================================================
 
+    // AUTH
     auth.onAuthStateChanged(async (user) => {
         if (user) {
             currentUser = user;
@@ -311,7 +329,7 @@ $(document).ready(function() {
             try {
                 await loadAllDataFromCloud(); 
                 $('#loading-screen').addClass('d-none'); $('#main-app').removeClass('d-none');
-                initializeApp();
+                renderAll();
             } catch (error) { alert("Errore DB: " + error.message); $('#loading-screen').addClass('d-none'); }
         } else {
             currentUser = null;
@@ -341,7 +359,14 @@ $(document).ready(function() {
         $('.content-section').addClass('d-none'); $('#' + target).removeClass('d-none'); 
     });
 
-    // MODALE NUOVA FATTURA
+    // AZIENDA
+    $('#company-info-form').on('submit', async function(e) { 
+        e.preventDefault(); const companyInfo = {}; 
+        $(this).find('input, select').each(function() { const id = $(this).attr('id'); if (id) companyInfo[id.replace('company-', '')] = $(this).val(); }); 
+        await saveDataToCloud('companyInfo', companyInfo); alert("Dati salvati!"); updateCompanyUI(); 
+    });
+
+    // MODALE FATTURA (Fix)
     $('#newInvoiceChoiceModal').on('show.bs.modal', function () {
         const invoices = getData('invoices').filter(i => i.type === 'Fattura' || i.type === undefined);
         invoices.sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -351,7 +376,7 @@ $(document).ready(function() {
 
     $('#btn-create-new-blank-invoice').click(function() {
         $('#newInvoiceChoiceModal').modal('hide');
-        $('.sidebar .nav-link').removeClass('active'); 
+        $('.sidebar .nav-link').removeClass('active'); $('[data-bs-target="#newInvoiceChoiceModal"]').addClass('active');
         $('.content-section').addClass('d-none'); $('#nuova-fattura-accompagnatoria').removeClass('d-none');
         prepareDocumentForm('Fattura');
     });
@@ -360,7 +385,7 @@ $(document).ready(function() {
         const id = $('#copy-from-invoice-select').val();
         if(!id) return;
         $('#newInvoiceChoiceModal').modal('hide');
-        $('.sidebar .nav-link').removeClass('active'); 
+        $('.sidebar .nav-link').removeClass('active'); $('[data-bs-target="#newInvoiceChoiceModal"]').addClass('active');
         $('.content-section').addClass('d-none'); $('#nuova-fattura-accompagnatoria').removeClass('d-none');
         loadInvoiceForEditing(id, true);
     });
@@ -492,6 +517,8 @@ $(document).ready(function() {
         return { totPrest, riv, impBollo, totImp: totPrest+riv, totDoc };
     }
     $('#invoice-customer-select').change(updateTotalsDisplay);
+    $('#invoice-date').change(function() { $('#invoice-dataRiferimento').val($(this).val()); updateInvoiceNumber($('#document-type').val(), $(this).val().substring(0, 4)); });
+    $('#invoice-dataRiferimento, #invoice-giorniTermini').on('input', function() { const d = $('#invoice-dataRiferimento').val(); const g = parseInt($('#invoice-giorniTermini').val()); if(d && !isNaN(g)) { const dt = new Date(d); dt.setDate(dt.getDate() + g); $('#invoice-dataScadenza').val(dt.toISOString().split('T')[0]); } });
 
     $('#new-invoice-form').submit(async function(e) {
         e.preventDefault();
@@ -508,16 +535,19 @@ $(document).ready(function() {
         let id = CURRENT_EDITING_INVOICE_ID ? CURRENT_EDITING_INVOICE_ID : String(getNextId(getData('invoices')));
         await saveDataToCloud('invoices', data, id); alert("Salvato!"); $('.sidebar .nav-link[data-target="elenco-fatture"]').click();
     });
-    
-    $('#company-info-form').on('submit', async function(e) { e.preventDefault(); const d={}; $(this).find('input').each(function(){if(this.id)d[this.id.replace('company-','')] = $(this).val()}); await saveDataToCloud('companyInfo', d); alert("Salvato!"); });
-    $('#save-notes-btn').click(async()=>{ await saveDataToCloud('notes', {userId:currentUser.uid, text:$('#notes-textarea').val()}, currentUser.uid); alert("Salvato!"); });
-    
-    // XML
-     $('#invoices-table-body, #invoiceDetailModal').on('click', '.btn-export-xml, #export-xml-btn, .btn-export-xml-row', function() { 
-         let invoiceId = $(this).attr('id') === 'export-xml-btn' ? $('#export-xml-btn').data('invoiceId') : $(this).attr('data-id');
-         if (invoiceId) generateInvoiceXML(invoiceId); 
+
+    $('#invoices-table-body').on('click', '.btn-edit-invoice', function() { loadInvoiceForEditing($(this).attr('data-id'), false); });
+    $('#invoices-table-body').on('click', '.btn-delete-invoice', function() { deleteDataFromCloud('invoices', $(this).attr('data-id')); });
+    $('#invoices-table-body').on('click', '.btn-mark-paid', async function() { 
+        const id = $(this).attr('data-id'); const inv = getData('invoices').find(i => String(i.id) === String(id));
+        if(confirm("Confermi cambio stato?")) { await saveDataToCloud('invoices', { status: inv.type === 'Nota di Credito' ? 'Emessa' : 'Pagata' }, id); renderInvoicesTable(); }
     });
 
+    // XML
+    $('#invoices-table-body, #invoiceDetailModal').on('click', '.btn-export-xml, #export-xml-btn, .btn-export-xml-row', function() { 
+         let id = $(this).attr('id') === 'export-xml-btn' ? $('#export-xml-btn').data('invoiceId') : $(this).attr('data-id');
+         if (id) generateInvoiceXML(id); 
+    });
     function generateInvoiceXML(invoiceId) {
         const invoice = getData('invoices').find(inv => String(inv.id) === String(invoiceId)); if (!invoice) { alert("Errore!"); return; }
         const company = getData('companyInfo'); const customer = getData('customers').find(c => String(c.id) === String(invoice.customerId));
@@ -546,5 +576,19 @@ $(document).ready(function() {
         $('#invoiceDetailModalBody').html(h);
     });
     $('#print-invoice-btn').click(()=>window.print());
-
+    $('#company-info-form').on('submit', async function(e) { e.preventDefault(); const d={}; $(this).find('input').each(function(){if(this.id)d[this.id.replace('company-','')] = $(this).val()}); await saveDataToCloud('companyInfo', d); alert("Salvato!"); });
+    $('#save-notes-btn').click(async()=>{ await saveDataToCloud('notes', {userId:currentUser.uid, text:$('#notes-textarea').val()}, currentUser.uid); alert("Salvato!"); });
+    $('#import-file-input').change(function(e) {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+            const d = JSON.parse(ev.target.result);
+            if(d.companyInfo) await saveDataToCloud('companyInfo', d.companyInfo);
+            if(d.customers) for(let c of d.customers) await saveDataToCloud('customers', c, String(c.id));
+            if(d.products) for(let p of d.products) await saveDataToCloud('products', p, String(p.id));
+            if(d.invoices) for(let i of d.invoices) await saveDataToCloud('invoices', i, String(i.id));
+            alert("Import completato"); location.reload();
+        };
+        reader.readAsText(file);
+    });
 });
