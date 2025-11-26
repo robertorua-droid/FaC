@@ -107,83 +107,8 @@ $(document).ready(function() {
     }
 
     // =========================================================
-    // 2. FUNZIONI DI RENDER (DEFINITE PRIMA DELL'USO)
+    // 2. FUNZIONI DI RENDER (DEFINITE PRIMA DI RENDERALL)
     // =========================================================
-
-    function updateCompanyUI() { 
-        const company = getData('companyInfo'); 
-        if(company.name) $('#company-name-sidebar').text(company.name);
-        if(currentUser) $('#user-name-sidebar').text(currentUser.email);
-    }
-
-    function renderCompanyInfoForm() { 
-        const company = getData('companyInfo'); 
-        for (const key in company) { $(`#company-${key}`).val(company[key]); } 
-    }
-    
-    function renderProductsTable() { 
-        const products = getData('products'); 
-        const tableBody = $('#products-table-body').empty(); 
-        products.forEach(p => { 
-            const salePrice = p.salePrice ? `€ ${parseFloat(p.salePrice).toFixed(2)}` : '-'; 
-            const ivaText = (p.iva == 0 && p.esenzioneIva) ? `0% (${p.esenzioneIva})` : `${p.iva}%`; 
-            tableBody.append(`<tr><td>${p.code}</td><td>${p.description}</td><td class="text-end-numbers pe-5">${salePrice}</td><td class="text-end-numbers">${ivaText}</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-product" data-id="${p.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-product" data-id="${p.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
-        }); 
-    }
-    
-    function renderCustomersTable() { 
-        const customers = getData('customers'); 
-        const tableBody = $('#customers-table-body').empty(); 
-        customers.forEach(c => { 
-            const pivaCf = c.piva || c.codiceFiscale || '-'; 
-            const fullAddress = `${c.address || ''}, ${c.cap || ''} ${c.comune || ''} (${c.provincia || ''})`; 
-            tableBody.append(`<tr><td>${c.name}</td><td>${pivaCf}</td><td>${c.sdi || '-'}</td><td>${fullAddress}</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-customer" data-id="${c.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-customer" data-id="${c.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
-        }); 
-    }
-    
-    function renderInvoicesTable() {
-        const invoices = getData('invoices'); 
-        const customers = getData('customers'); 
-        const tableBody = $('#invoices-table-body').empty();
-        
-        // Ordina per numero decrescente
-        invoices.sort((a, b) => {
-            const numA = a.number || ''; const numB = b.number || '';
-            return numB.localeCompare(numA);
-        });
-
-        invoices.forEach(inv => {
-            const customer = customers.find(c => c.id == inv.customerId) || { name: 'Sconosciuto' }; 
-            const isPaid = inv.status === 'Pagata' || inv.status === 'Emessa';
-            
-            let statusBadge = `<span class="badge bg-warning text-dark">Da Incassare</span>`;
-            if (inv.type === 'Nota di Credito') {
-                statusBadge = isPaid ? `<span class="badge bg-info text-dark">Emessa</span>` : `<span class="badge bg-secondary">Bozza</span>`;
-            } else {
-                statusBadge = isPaid ? `<span class="badge bg-success">Pagata</span>` : `<span class="badge bg-warning text-dark">Da Incassare</span>`;
-            }
-            
-            const docTypeBadge = inv.type === 'Nota di Credito' 
-                ? `<span class="badge bg-warning text-dark">NdC</span>` 
-                : `<span class="badge bg-primary">Fatt.</span>`;
-
-            // Azioni Incolonnate
-            const btnDetails = `<button class="btn btn-sm btn-info btn-view-invoice" data-id="${inv.id}" data-bs-toggle="modal" data-bs-target="#invoiceDetailModal" title="Dettagli"><i class="fas fa-eye"></i></button>`;
-            const btnEdit = `<button class="btn btn-sm btn-secondary btn-edit-invoice" data-id="${inv.id}" title="Modifica" ${isPaid ? 'disabled' : ''}><i class="fas fa-edit"></i></button>`;
-            const btnXml = `<button class="btn btn-sm btn-warning btn-export-xml-row" data-id="${inv.id}" title="Esporta XML"><i class="fas fa-file-code"></i></button>`;
-            
-            const payLabel = inv.type === 'Nota di Credito' ? 'Segna come Emessa' : 'Segna come Pagata';
-            const payClass = isPaid ? 'btn-secondary' : 'btn-success';
-            const payAttr = isPaid ? 'disabled' : '';
-            const btnPay = `<button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="${payLabel}" ${payAttr}><i class="fas fa-check"></i></button>`;
-            
-            let btnDelete = `<button class="btn btn-sm btn-danger btn-delete-invoice" data-id="${inv.id}" title="Elimina"><i class="fas fa-trash"></i></button>`;
-
-            const actions = `<div class="d-flex justify-content-end gap-1">${btnDetails}${btnEdit}${btnXml}${btnPay}${btnDelete}</div>`;
-            const rowClass = isPaid ? 'class="invoice-paid"' : '';
-            tableBody.append(`<tr ${rowClass}><td>${docTypeBadge}</td><td>${inv.number}</td><td>${formatDateForDisplay(inv.date)}</td><td>${customer.name}</td><td class="text-end-numbers pe-5">€ ${inv.total.toFixed(2)}</td><td class="text-end-numbers">${formatDateForDisplay(inv.dataScadenza)}</td><td>${statusBadge}</td><td class="text-end">${actions}</td></tr>`);
-        });
-    }
 
     function renderTaxSimulation() {
         const container = $('#tax-simulation-container').empty(); 
@@ -293,6 +218,81 @@ $(document).ready(function() {
         dateTimeInterval = setInterval(updateDateTime, 1000);
     }
 
+    function updateCompanyUI() { 
+        const company = getData('companyInfo'); 
+        if(company.name) $('#company-name-sidebar').text(company.name);
+        if(currentUser) $('#user-name-sidebar').text(currentUser.email);
+    }
+
+    function renderCompanyInfoForm() { 
+        const company = getData('companyInfo'); 
+        for (const key in company) { $(`#company-${key}`).val(company[key]); } 
+    }
+    
+    function renderProductsTable() { 
+        const products = getData('products'); 
+        const tableBody = $('#products-table-body').empty(); 
+        products.forEach(p => { 
+            const salePrice = p.salePrice ? `€ ${parseFloat(p.salePrice).toFixed(2)}` : '-'; 
+            const ivaText = (p.iva == 0 && p.esenzioneIva) ? `0% (${p.esenzioneIva})` : `${p.iva}%`; 
+            tableBody.append(`<tr><td>${p.code}</td><td>${p.description}</td><td class="text-end-numbers pe-5">${salePrice}</td><td class="text-end-numbers">${ivaText}</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-product" data-id="${p.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-product" data-id="${p.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
+        }); 
+    }
+    
+    function renderCustomersTable() { 
+        const customers = getData('customers'); 
+        const tableBody = $('#customers-table-body').empty(); 
+        customers.forEach(c => { 
+            const pivaCf = c.piva || c.codiceFiscale || '-'; 
+            const fullAddress = `${c.address || ''}, ${c.cap || ''} ${c.comune || ''} (${c.provincia || ''})`; 
+            tableBody.append(`<tr><td>${c.name}</td><td>${pivaCf}</td><td>${c.sdi || '-'}</td><td>${fullAddress}</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-customer" data-id="${c.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-customer" data-id="${c.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
+        }); 
+    }
+    
+    function renderInvoicesTable() {
+        const invoices = getData('invoices'); 
+        const customers = getData('customers'); 
+        const tableBody = $('#invoices-table-body').empty();
+        
+        // Ordina per numero decrescente
+        invoices.sort((a, b) => {
+            const numA = a.number || ''; const numB = b.number || '';
+            return numB.localeCompare(numA);
+        });
+
+        invoices.forEach(inv => {
+            const customer = customers.find(c => c.id == inv.customerId) || { name: 'Sconosciuto' }; 
+            const isPaid = inv.status === 'Pagata' || inv.status === 'Emessa';
+            
+            let statusBadge = `<span class="badge bg-warning text-dark">Da Incassare</span>`;
+            if (inv.type === 'Nota di Credito') {
+                statusBadge = isPaid ? `<span class="badge bg-info text-dark">Emessa</span>` : `<span class="badge bg-secondary">Bozza</span>`;
+            } else {
+                statusBadge = isPaid ? `<span class="badge bg-success">Pagata</span>` : `<span class="badge bg-warning text-dark">Da Incassare</span>`;
+            }
+            
+            const docTypeBadge = inv.type === 'Nota di Credito' 
+                ? `<span class="badge bg-warning text-dark">NdC</span>` 
+                : `<span class="badge bg-primary">Fatt.</span>`;
+
+            // Azioni Incolonnate
+            const btnDetails = `<button class="btn btn-sm btn-info btn-view-invoice" data-id="${inv.id}" data-bs-toggle="modal" data-bs-target="#invoiceDetailModal" title="Dettagli"><i class="fas fa-eye"></i></button>`;
+            const btnEdit = `<button class="btn btn-sm btn-secondary btn-edit-invoice" data-id="${inv.id}" title="Modifica" ${isPaid ? 'disabled' : ''}><i class="fas fa-edit"></i></button>`;
+            const btnXml = `<button class="btn btn-sm btn-warning btn-export-xml-row" data-id="${inv.id}" title="Esporta XML"><i class="fas fa-file-code"></i></button>`;
+            
+            const payLabel = inv.type === 'Nota di Credito' ? 'Segna come Emessa' : 'Segna come Pagata';
+            const payClass = isPaid ? 'btn-secondary' : 'btn-success';
+            const payAttr = isPaid ? 'disabled' : '';
+            const btnPay = `<button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="${payLabel}" ${payAttr}><i class="fas fa-check"></i></button>`;
+            
+            let btnDelete = `<button class="btn btn-sm btn-danger btn-delete-invoice" data-id="${inv.id}" title="Elimina"><i class="fas fa-trash"></i></button>`;
+
+            const actions = `<div class="d-flex justify-content-end gap-1">${btnDetails}${btnEdit}${btnXml}${btnPay}${btnDelete}</div>`;
+            const rowClass = isPaid ? 'class="invoice-paid"' : '';
+            tableBody.append(`<tr ${rowClass}><td>${docTypeBadge}</td><td>${inv.number}</td><td>${formatDateForDisplay(inv.date)}</td><td>${customer.name}</td><td class="text-end-numbers pe-5">€ ${inv.total.toFixed(2)}</td><td class="text-end-numbers">${formatDateForDisplay(inv.dataScadenza)}</td><td>${statusBadge}</td><td class="text-end">${actions}</td></tr>`);
+        });
+    }
+
     function populateDropdowns() {
         $('#invoice-customer-select').empty().append('<option selected disabled value="">Seleziona...</option>').append(getData('customers').map(c => `<option value="${c.id}">${c.name}</option>`));
         $('#invoice-product-select').empty().append('<option selected value="">Seleziona...</option><option value="manual">Manuale</option>').append(getData('products').map(p => `<option value="${p.id}">${p.code}</option>`));
@@ -310,7 +310,7 @@ $(document).ready(function() {
         renderCustomersTable(); 
         renderInvoicesTable();
         populateDropdowns(); 
-        renderStatisticsPage(); // ORA è DEFINITA SICURAMENTE PRIMA DI ESSERE CHIAMATA
+        renderStatisticsPage(); 
         renderHomePage();
     }
 
@@ -336,6 +336,7 @@ $(document).ready(function() {
             } catch (error) {
                 console.error("Errore caricamento:", error);
                 alert("Errore DB: " + error.message);
+                $('#loading-screen').addClass('d-none');
             }
         } else {
             currentUser = null;
@@ -532,7 +533,6 @@ $(document).ready(function() {
          if (invoiceId) generateInvoiceXML(invoiceId); 
     });
 
-    // Funzione XML (Semplificata per brevità - assicurarsi che sia completa se serve la generazione reale)
     function generateInvoiceXML(invoiceId) {
         const invoice = getData('invoices').find(inv => inv.id == invoiceId); if (!invoice) { alert("Errore!"); return; }
         const company = getData('companyInfo'); const customer = getData('customers').find(c => c.id == invoice.customerId);
@@ -555,8 +555,8 @@ $(document).ready(function() {
         const fileNameProgressive = (Math.random().toString(36) + '00000').slice(2, 7);
         const a = document.createElement('a'); a.download = `IT${company.piva}_${fileNameProgressive}.xml`; const blob = new Blob([xml], { type: 'application/xml' }); a.href = URL.createObjectURL(blob); a.click(); URL.revokeObjectURL(a.href);
     }
-
-    // --- DETTAGLIO FATTURA (AGGIUNTO) ---
+    
+    // DETTAGLIO FATTURA (MODALE)
     $('#invoices-table-body').on('click', '.btn-view-invoice', function() {
         const invoiceId = $(this).data('id'); const invoice = getData('invoices').find(inv => inv.id == invoiceId); if (!invoice) return;
         $('#export-xml-btn').data('invoiceId', invoiceId); const customer = getData('customers').find(c => c.id == invoice.customerId) || {}; const company = getData('companyInfo'); const customerAddress = `${customer.address || ''}<br>${customer.cap || ''} ${customer.comune || ''} (${customer.provincia || ''}) - ${customer.nazione || ''}`; const companyAddress = `${company.address || ''} ${company.numeroCivico || ''}<br>${company.zip || ''} ${company.city || ''} (${company.province || ''})`; $('#invoiceDetailModalTitle').text(`Dettaglio ${invoice.type} N° ${invoice.number}`);
