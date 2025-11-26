@@ -97,12 +97,12 @@ $(document).ready(function() {
         console.log("Dati caricati dal cloud:", globalData);
     }
 
-    // Funzioni Helper per accedere ai dati (compatibili col vecchio codice)
+    // Funzioni Helper per accedere ai dati
     function getData(key) {
         return globalData[key] || [];
     }
     
-    // Funzione di salvataggio CLOUD (sostituisce localStorage)
+    // Funzione di salvataggio CLOUD
     async function saveDataToCloud(collection, dataObj, id = null) {
         try {
             if (collection === 'companyInfo') {
@@ -121,7 +121,6 @@ $(document).ready(function() {
                          globalData[collection].push({ id: id, ...dataObj });
                     }
                 } else {
-                    // Create nuovo (lasciamo generare ID a Firebase se non specificato, ma qui usiamo i nostri ID)
                     console.error("ID mancante per il salvataggio");
                 }
             }
@@ -160,7 +159,6 @@ $(document).ready(function() {
 
     function getNextId(items) { 
         if (!items || items.length === 0) return 1;
-        // Filtra solo ID numerici se ci sono stringhe strane
         const numericIds = items.map(i => parseInt(i.id)).filter(id => !isNaN(id));
         return numericIds.length > 0 ? Math.max(...numericIds) + 1 : 1; 
     }
@@ -168,7 +166,6 @@ $(document).ready(function() {
     // --- UI RENDERING E LOGICA APPLICAZIONE ---
 
     function initializeApp() { 
-        // Navigazione iniziale
         $('.content-section').addClass('d-none'); 
         $('#home').removeClass('d-none'); 
         $('.sidebar .nav-link').removeClass('active'); 
@@ -181,15 +178,10 @@ $(document).ready(function() {
         updateCompanyUI(); 
         renderProductsTable(); 
         renderCustomersTable(); 
-        // Users table rimossa (gestita da Firebase Auth)
         renderInvoicesTable();
         populateDropdowns(); 
         renderStatisticsPage();
         renderHomePage();
-        // Menu visibility: ora basata sull'email
-        if(currentUser && currentUser.email !== 'admin@gestionale.it') {
-             // Esempio: nascondi menu per utenti non admin se necessario
-        }
     }
 
     function updateCompanyUI() { 
@@ -208,7 +200,7 @@ $(document).ready(function() {
     function renderInvoicesTable() {
         const invoices = getData('invoices'); const customers = getData('customers'); const tableBody = $('#invoices-table-body').empty();
         
-        // Ordinamento per Numero (Decrescente)
+        // Ordinamento per Numero Decrescente
         invoices.sort((a, b) => {
             const numA = a.number || ''; const numB = b.number || '';
             return numB.localeCompare(numA);
@@ -224,16 +216,21 @@ $(document).ready(function() {
             } else {
                 statusBadge = isPaid ? `<span class="badge bg-success">Pagata</span>` : `<span class="badge bg-warning text-dark">Da Incassare</span>`;
             }
+            
+            // Badge Tipo Documento
             const docTypeBadge = inv.type === 'Nota di Credito' ? `<span class="badge bg-warning text-dark">NdC</span>` : `<span class="badge bg-primary">Fatt.</span>`;
 
-            // Azioni
+            // Azioni Incolonnate
             const btnDetails = `<button class="btn btn-sm btn-info btn-view-invoice" data-id="${inv.id}" data-bs-toggle="modal" data-bs-target="#invoiceDetailModal" title="Dettagli"><i class="fas fa-eye"></i></button>`;
             const btnEdit = `<button class="btn btn-sm btn-secondary btn-edit-invoice" data-id="${inv.id}" title="Modifica" ${isPaid ? 'disabled' : ''}><i class="fas fa-edit"></i></button>`;
             const btnXml = `<button class="btn btn-sm btn-warning btn-export-xml-row" data-id="${inv.id}" title="Esporta XML"><i class="fas fa-file-code"></i></button>`;
+            
             const payLabel = inv.type === 'Nota di Credito' ? 'Segna come Emessa' : 'Segna come Pagata';
             const payClass = isPaid ? 'btn-secondary' : 'btn-success';
-            const btnPay = `<button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="${payLabel}" ${isPaid ? 'disabled' : ''}><i class="fas fa-check"></i></button>`;
-            const btnDelete = `<button class="btn btn-sm btn-danger btn-delete-invoice" data-id="${inv.id}" title="Elimina"><i class="fas fa-trash"></i></button>`;
+            const payAttr = isPaid ? 'disabled' : '';
+            const btnPay = `<button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="${payLabel}" ${payAttr}><i class="fas fa-check"></i></button>`;
+            
+            let btnDelete = `<button class="btn btn-sm btn-danger btn-delete-invoice" data-id="${inv.id}" title="Elimina"><i class="fas fa-trash"></i></button>`;
 
             const actions = `<div class="d-flex justify-content-end gap-1">${btnDetails}${btnEdit}${btnXml}${btnPay}${btnDelete}</div>`;
             const rowClass = isPaid ? 'class="invoice-paid"' : '';
@@ -411,12 +408,48 @@ $(document).ready(function() {
         }
     });
 
-    // --- HOME & NOTES ---
-    function renderHomePage() { if(currentUser) $('#welcome-message').text(`Benvenuto, ${currentUser.email}`); loadUserNotes(); }
-    function loadUserNotes() { const notes = getData('notes').find(n => n.userId === currentUser.uid); if(notes) $('#notes-textarea').val(notes.text); }
+    // --- HOME & NOTES & CALENDAR ---
+    function renderHomePage() { 
+        if(currentUser) $('#welcome-message').text(`Benvenuto, ${currentUser.email}`); 
+        loadUserNotes(); 
+        renderCalendar();
+        
+        // Avvia orologio
+        if (dateTimeInterval) clearInterval(dateTimeInterval);
+        const updateDateTime = () => $('#current-datetime').text(new Date().toLocaleDateString('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        updateDateTime();
+        dateTimeInterval = setInterval(updateDateTime, 1000);
+    }
+
+    function renderCalendar() {
+        const c = $('#calendar-widget');
+        const n = new Date();
+        const m = n.getMonth();
+        const y = n.getFullYear();
+        const t = n.getDate();
+        const f = new Date(y, m, 1);
+        const l = new Date(y, m + 1, 0);
+        let h = `<h5 class="text-center">${f.toLocaleDateString('it-IT',{month:'long',year:'numeric'})}</h5><table class="table table-bordered"><thead><tr><th>Dom</th><th>Lun</th><th>Mar</th><th>Mer</th><th>Gio</th><th>Ven</th><th>Sab</th></tr></thead><tbody><tr>`;
+        let d=f.getDay();
+        for(let i=0;i<d;i++){h+='<td></td>'}
+        for(let day=1;day<=l.getDate();day++){
+            if(d===7){d=0;h+='</tr><tr>'}
+            h+=`<td${(day===t)?' class="today"':''}>${day}</td>`;
+            d++
+        }
+        for(let i=d;i<7;i++){h+='<td></td>'}
+        h+='</tr></tbody></table>';
+        c.html(h);
+    }
+
+    function loadUserNotes() { 
+        const notes = getData('notes').find(n => n.userId === currentUser.uid); 
+        if(notes) $('#notes-textarea').val(notes.text); 
+    }
+    
     $('#save-notes-btn').on('click', async function() { 
         const text = $('#notes-textarea').val(); 
-        await saveDataToCloud('notes', { userId: currentUser.uid, text: text }, currentUser.uid); // Usa UID utente come ID nota
+        await saveDataToCloud('notes', { userId: currentUser.uid, text: text }, currentUser.uid); 
         alert("Note salvate!");
     });
 
@@ -444,7 +477,6 @@ $(document).ready(function() {
     });
     
     // --- XML EXPORT ---
-    // (Mantenuta identica alla v6.7, usa generateInvoiceXML)
      $('#invoices-table-body, #invoiceDetailModal').on('click', '.btn-export-xml, #export-xml-btn, .btn-export-xml-row', function() { 
          let invoiceId; 
          if ($(this).attr('id') === 'export-xml-btn') { invoiceId = $('#export-xml-btn').data('invoiceId'); } 
@@ -453,15 +485,9 @@ $(document).ready(function() {
     });
 
     function generateInvoiceXML(invoiceId) {
-        // ... (Codice XML identico alla v6.7, copiato per brevità o incluso qui se necessario)
         const invoice = getData('invoices').find(inv => inv.id == invoiceId); if (!invoice) { alert("Errore!"); return; }
         const company = getData('companyInfo'); const customer = getData('customers').find(c => c.id == invoice.customerId);
-        // ... Logica XML standard ...
-        let xml = `<?xml version="1.0" encoding="UTF-8"?><p:FatturaElettronica ...>`; // Placeholder per la funzione completa
-        // (Nota: Se serve, reincollo la funzione XML completa qui, ma è lunga 50 righe)
-        // Per ora la funzione reale deve essere presente nel codice finale.
         
-        // REINSERIMENTO FUNZIONE XML COMPLETA PER SICUREZZA
         const generateProgressivo = () => (Math.random().toString(36) + '00000').slice(2, 7);
         let progressivoInvio = generateProgressivo();
         let anagraficaCedente = `<Anagrafica><Denominazione>${escapeXML(company.name)}</Denominazione></Anagrafica>`;
@@ -474,7 +500,7 @@ $(document).ready(function() {
         const tipoDocumento = invoice.type === 'Nota di Credito' ? 'TD04' : 'TD01';
         let datiFattureCollegate = ''; if (invoice.type === 'Nota di Credito' && invoice.linkedInvoice) { datiFattureCollegate = `<DatiFattureCollegate><IdDocumento>${escapeXML(invoice.linkedInvoice)}</IdDocumento></DatiFattureCollegate>`; }
         let causale = invoice.reason ? `<Causale>${escapeXML(invoice.reason)}</Causale>` : '';
-        xml = `<?xml version="1.0" encoding="UTF-8"?><p:FatturaElettronica versione="FPR12" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><FatturaElettronicaHeader><DatiTrasmissione><IdTrasmittente><IdPaese>IT</IdPaese><IdCodice>${escapeXML(company.codiceFiscale)}</IdCodice></IdTrasmittente><ProgressivoInvio>${progressivoInvio}</ProgressivoInvio><FormatoTrasmissione>FPR12</FormatoTrasmissione><CodiceDestinatario>${escapeXML(customer.sdi || '0000000')}</CodiceDestinatario></DatiTrasmissione><CedentePrestatore><DatiAnagrafici><IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${escapeXML(company.piva)}</IdCodice></IdFiscaleIVA><CodiceFiscale>${escapeXML(company.codiceFiscale)}</CodiceFiscale>${anagraficaCedente}<RegimeFiscale>${escapeXML(company.codiceRegimeFiscale)}</RegimeFiscale></DatiAnagrafici><Sede><Indirizzo>${escapeXML(company.address)}</Indirizzo>${company.numeroCivico ? `<NumeroCivico>${escapeXML(company.numeroCivico)}</NumeroCivico>` : ''}<CAP>${escapeXML(company.zip)}</CAP><Comune>${escapeXML(company.city)}</Comune><Provincia>${escapeXML(company.province.toUpperCase())}</Provincia><Nazione>IT</Nazione></Sede></CedentePrestatore><CessionarioCommittente><DatiAnagrafici>${customer.piva ? `<IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${escapeXML(customer.piva)}</IdCodice></IdFiscaleIVA>` : ''}${customer.codiceFiscale ? `<CodiceFiscale>${escapeXML(customer.codiceFiscale)}</CodiceFiscale>` : ''}<Anagrafica><Denominazione>${escapeXML(customer.name)}</Denominazione></Anagrafica></DatiAnagrafici><Sede><Indirizzo>${escapeXML(customer.address)}</Indirizzo><CAP>${escapeXML(customer.cap)}</CAP><Comune>${escapeXML(customer.comune)}</Comune><Provincia>${escapeXML(customer.provincia.toUpperCase())}</Provincia><Nazione>IT</Nazione></Sede></CessionarioCommittente></FatturaElettronicaHeader><FatturaElettronicaBody><DatiGenerali><DatiGeneraliDocumento><TipoDocumento>${tipoDocumento}</TipoDocumento><Divisa>EUR</Divisa><Data>${invoice.date}</Data><Numero>${escapeXML(invoice.number)}</Numero>${invoice.importoBollo > 0 ? `<DatiBollo><BolloVirtuale>SI</BolloVirtuale><ImportoBollo>${invoice.importoBollo.toFixed(2)}</ImportoBollo></DatiBollo>` : ''}<ImportoTotaleDocumento>${invoice.total.toFixed(2)}</ImportoTotaleDocumento>${invoice.rivalsa && invoice.rivalsa.importo > 0 ? `<DatiCassaPrevidenziale><TipoCassa>TC22</TipoCassa><AlCassa>${invoice.rivalsa.aliquota.toFixed(2)}</AlCassa><ImportoContributoCassa>${invoice.rivalsa.importo.toFixed(2)}</ImportoContributoCassa><ImponibileCassa>${invoice.totalePrestazioni.toFixed(2)}</ImponibileCassa><AliquotaIVA>0.00</AliquotaIVA><Natura>N4</Natura></DatiCassaPrevidenziale>` : ''}${causale}</DatiGeneraliDocumento>${datiFattureCollegate}</DatiGenerali><DatiBeniServizi>`;
+        let xml = `<?xml version="1.0" encoding="UTF-8"?><p:FatturaElettronica versione="FPR12" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><FatturaElettronicaHeader><DatiTrasmissione><IdTrasmittente><IdPaese>IT</IdPaese><IdCodice>${escapeXML(company.codiceFiscale)}</IdCodice></IdTrasmittente><ProgressivoInvio>${progressivoInvio}</ProgressivoInvio><FormatoTrasmissione>FPR12</FormatoTrasmissione><CodiceDestinatario>${escapeXML(customer.sdi || '0000000')}</CodiceDestinatario></DatiTrasmissione><CedentePrestatore><DatiAnagrafici><IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${escapeXML(company.piva)}</IdCodice></IdFiscaleIVA><CodiceFiscale>${escapeXML(company.codiceFiscale)}</CodiceFiscale>${anagraficaCedente}<RegimeFiscale>${escapeXML(company.codiceRegimeFiscale)}</RegimeFiscale></DatiAnagrafici><Sede><Indirizzo>${escapeXML(company.address)}</Indirizzo>${company.numeroCivico ? `<NumeroCivico>${escapeXML(company.numeroCivico)}</NumeroCivico>` : ''}<CAP>${escapeXML(company.zip)}</CAP><Comune>${escapeXML(company.city)}</Comune><Provincia>${escapeXML(company.province.toUpperCase())}</Provincia><Nazione>IT</Nazione></Sede></CedentePrestatore><CessionarioCommittente><DatiAnagrafici>${customer.piva ? `<IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${escapeXML(customer.piva)}</IdCodice></IdFiscaleIVA>` : ''}${customer.codiceFiscale ? `<CodiceFiscale>${escapeXML(customer.codiceFiscale)}</CodiceFiscale>` : ''}<Anagrafica><Denominazione>${escapeXML(customer.name)}</Denominazione></Anagrafica></DatiAnagrafici><Sede><Indirizzo>${escapeXML(customer.address)}</Indirizzo><CAP>${escapeXML(customer.cap)}</CAP><Comune>${escapeXML(customer.comune)}</Comune><Provincia>${escapeXML(customer.provincia.toUpperCase())}</Provincia><Nazione>IT</Nazione></Sede></CessionarioCommittente></FatturaElettronicaHeader><FatturaElettronicaBody><DatiGenerali><DatiGeneraliDocumento><TipoDocumento>${tipoDocumento}</TipoDocumento><Divisa>EUR</Divisa><Data>${invoice.date}</Data><Numero>${escapeXML(invoice.number)}</Numero>${invoice.importoBollo > 0 ? `<DatiBollo><BolloVirtuale>SI</BolloVirtuale><ImportoBollo>${invoice.importoBollo.toFixed(2)}</ImportoBollo></DatiBollo>` : ''}<ImportoTotaleDocumento>${invoice.total.toFixed(2)}</ImportoTotaleDocumento>${invoice.rivalsa && invoice.rivalsa.importo > 0 ? `<DatiCassaPrevidenziale><TipoCassa>TC22</TipoCassa><AlCassa>${invoice.rivalsa.aliquota.toFixed(2)}</AlCassa><ImportoContributoCassa>${invoice.rivalsa.importo.toFixed(2)}</ImportoContributoCassa><ImponibileCassa>${invoice.totalePrestazioni.toFixed(2)}</ImponibileCassa><AliquotaIVA>0.00</AliquotaIVA><Natura>N4</Natura></DatiCassaPrevidenziale>` : ''}${causale}</DatiGeneraliDocumento>${datiFattureCollegate}</DatiGenerali><DatiBeniServizi>`;
         let lineNumber = 1; invoice.lines.forEach(line => { xml += `<DettaglioLinee><NumeroLinea>${lineNumber++}</NumeroLinea><Descrizione>${escapeXML(line.productName)}</Descrizione>${line.qty ? `<Quantita>${line.qty.toFixed(2)}</Quantita>`: ''}<PrezzoUnitario>${line.price.toFixed(2)}</PrezzoUnitario><PrezzoTotale>${line.subtotal.toFixed(2)}</PrezzoTotale><AliquotaIVA>${parseFloat(line.iva).toFixed(2)}</AliquotaIVA>${line.iva == "0" && line.esenzioneIva ? `<Natura>${escapeXML(line.esenzioneIva)}</Natura>` : ''}</DettaglioLinee>`; });
         xml += `${riepilogoXml}</DatiBeniServizi><DatiPagamento><CondizioniPagamento>TP02</CondizioniPagamento><DettaglioPagamento>${(company.nome && company.cognome) ? `<Beneficiario>${escapeXML(company.nome + ' ' + company.cognome)}</Beneficiario>` : ''}<ModalitaPagamento>MP05</ModalitaPagamento>${invoice.dataScadenza ? `<DataScadenzaPagamento>${invoice.dataScadenza}</DataScadenzaPagamento>`: ''}<ImportoPagamento>${invoice.total.toFixed(2)}</ImportoPagamento>${company.banca ? `<IstitutoFinanziario>${escapeXML(company.banca)}</IstitutoFinanziario>`: ''}${company.iban ? `<IBAN>${escapeXML(company.iban)}</IBAN>`: ''}</DettaglioPagamento></DatiPagamento></FatturaElettronicaBody></p:FatturaElettronica>`;
         const fileNameProgressive = (Math.random().toString(36) + '00000').slice(2, 7);
