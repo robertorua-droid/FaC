@@ -1,4 +1,4 @@
-// FILE: main.js - Logica Principale ed Eventi (v8.7 - Fix CRUD Completo)
+// FILE: main.js - Logica Principale ed Eventi (v8.8 - Fix Modifica Anagrafiche)
 
 $(document).ready(function() {
 
@@ -8,10 +8,13 @@ $(document).ready(function() {
             currentUser = user;
             $('#login-container').addClass('d-none');
             $('#loading-screen').removeClass('d-none');
-            await loadAllDataFromCloud(); 
+            
+            await loadAllDataFromCloud(); // Funzione in data.js
+            
             $('#loading-screen').addClass('d-none');
             $('#main-app').removeClass('d-none');
-            renderAll();
+            
+            renderAll(); // Funzione in ui.js
         } else {
             currentUser = null;
             $('#main-app').addClass('d-none');
@@ -68,13 +71,16 @@ $(document).ready(function() {
     
     function editItem(type, id) { 
         const items = getData(`${type}s`); 
-        // Importante: conversione in stringa per confronto sicuro
         const item = items.find(i => String(i.id) === String(id)); 
         
         if (!item) { alert("Elemento non trovato (ID: " + id + ")"); return; }
         
         $(`#${type}Form`)[0].reset();
         $(`#${type}ModalTitle`).text(`Modifica ${type === 'product' ? 'Servizio' : 'Cliente'}`); 
+        
+        // Imposta l'ID nel campo nascosto PRIMA di mostrare il modale
+        // Questo è fondamentale per dire al tasto "Salva" che è una modifica
+        $(`#${type}-id`).val(String(item.id)); 
         
         // Popola campi
         for (const key in item) { 
@@ -88,20 +94,18 @@ $(document).ready(function() {
             if(item.iva == '0') $('#product-esenzioneIva').val(item.esenzioneIva);
         } 
         
-        // Imposta l'ID nel campo nascosto (CRUCIALE PER L'UPDATE)
-        $(`#${type}-id`).val(String(item.id)); 
         $(`#${type}Modal`).modal('show'); 
     }
 
     // --- 4. GESTIONE CLIENTI ---
     $('#newCustomerBtn').click(() => { 
         $('#customerForm')[0].reset(); 
-        $('#customer-id').val(''); // Pulisce l'ID per indicare "Nuovo"
+        $('#customer-id').val(''); // IMPORTANTE: Svuota ID per indicare "Nuovo"
         $('#customerModal').modal('show'); 
     });
 
     $('#saveCustomerBtn').click(async () => {
-        const idInput = $('#customer-id').val(); // Legge l'ID nascosto
+        const idInput = $('#customer-id').val(); 
         const data = {
             name: $('#customer-name').val(), 
             piva: $('#customer-piva').val(), 
@@ -115,15 +119,18 @@ $(document).ready(function() {
             rivalsaInps: $('#customer-rivalsaInps').is(':checked')
         };
         
-        // Se c'è un ID input, usa quello (Update), altrimenti crea nuovo ID
-        let id = (idInput && idInput !== "") ? idInput : String(getNextId(getData('customers')));
+        // Logica ID corretta:
+        // Se idInput esiste (non è vuoto), usiamo quello (MODIFICA).
+        // Se idInput è vuoto, ne generiamo uno nuovo (CREAZIONE).
+        let id = (idInput && idInput.trim() !== "") ? idInput : String(getNextId(getData('customers')));
         
+        console.log("Salvataggio Cliente. ID:", id, "Modalità:", (idInput ? "Update" : "Create"));
+
         await saveDataToCloud('customers', data, id); 
         $('#customerModal').modal('hide'); 
         renderAll();
     });
 
-    // Usa .attr('data-id') per sicurezza assoluta
     $('#customers-table-body').on('click', '.btn-edit-customer', function() {
         editItem('customer', $(this).attr('data-id'));
     });
@@ -137,7 +144,7 @@ $(document).ready(function() {
     // --- 5. GESTIONE PRODOTTI ---
     $('#newProductBtn').click(() => { 
         $('#productForm')[0].reset(); 
-        $('#product-id').val(''); // Pulisce ID
+        $('#product-id').val(''); // Svuota ID
         $('#product-iva').val('0').change(); 
         $('#productModal').modal('show'); 
     });
@@ -152,9 +159,10 @@ $(document).ready(function() {
             esenzioneIva: $('#product-esenzioneIva').val()
         };
         
-        // Logica ID Prodotto
-        let id = (idInput && idInput !== "") ? idInput : 'PRD' + new Date().getTime();
+        let id = (idInput && idInput.trim() !== "") ? idInput : 'PRD' + new Date().getTime();
         
+        console.log("Salvataggio Prodotto. ID:", id, "Modalità:", (idInput ? "Update" : "Create"));
+
         await saveDataToCloud('products', data, id); 
         $('#productModal').modal('hide'); 
         renderAll();
@@ -239,18 +247,14 @@ $(document).ready(function() {
         const type = $('#document-type').val();
         const total = parseFloat($('#invoice-total').text());
 
-        // Recupera dati per calcoli completi (rivalsa)
-        const customer = getData('customers').find(c => String(c.id) === String(customerId));
+        const customer = getData('customers').find(c => String(c.id) === String(customerId)); 
         const company = getData('companyInfo');
         
-        // Calcoli Rivalasa (semplificati per brevità, ma presenti)
         let rivalsa = {};
         if (customer && customer.rivalsaInps) {
              const aliq = parseFloat(company.aliquotaInps || 0);
              rivalsa = { aliquota: aliq, importo: total * (aliq / 100) };
         }
-        // Nota: Il totale visualizzato in tabella è quello calcolato dalle righe. 
-        // Se serve aggiungere la rivalsa al totale finale del documento, va fatto qui.
         const finalTotal = total + (rivalsa.importo || 0);
 
         const data = {
@@ -259,7 +263,7 @@ $(document).ready(function() {
             customerId: customerId,
             type: type,
             lines: window.tempInvoiceLines, 
-            total: finalTotal, // Totale con rivalsa
+            total: finalTotal,
             totaleImponibile: total, 
             rivalsa: rivalsa,
             status: (type === 'Fattura' ? 'Da Incassare' : 'Emessa'),
@@ -270,10 +274,9 @@ $(document).ready(function() {
             reason: $('#reason').val()
         };
         
-        // Update vs Create
         if(idInput) {
             const old = getData('invoices').find(i => String(i.id) === String(idInput));
-            if(old) data.status = old.status; // Mantieni stato
+            if(old) data.status = old.status; 
         }
 
         let id = (idInput && idInput !== "") ? idInput : String(getNextId(getData('invoices')));
@@ -283,7 +286,6 @@ $(document).ready(function() {
         $('.sidebar .nav-link[data-target="elenco-fatture"]').click();
     });
 
-    // Azioni Fatture
     $('#invoices-table-body').on('click', '.btn-edit-invoice', function() { 
         const id = $(this).attr('data-id'); 
         const inv = getData('invoices').find(i => String(i.id) === String(id));
@@ -315,7 +317,7 @@ $(document).ready(function() {
         const inv = getData('invoices').find(i => String(i.id) === String(id));
         if(confirm("Confermi il cambio stato?")) {
             await saveDataToCloud('invoices', { status: inv.type === 'Nota di Credito' ? 'Emessa' : 'Pagata' }, id);
-            renderInvoicesTable(); // ui.js
+            renderInvoicesTable(); 
         }
     });
 
