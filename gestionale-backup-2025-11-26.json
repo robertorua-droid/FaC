@@ -1,0 +1,1129 @@
+{
+  "companyInfo": {
+    "name": "Roberto Rua",
+    "cognome": "Roberto",
+    "nome": "Rua",
+    "address": "Strada Val San Martino Superiore 24/3",
+    "numeroCivico": "",
+    "city": "Torino",
+    "zip": "10131",
+    "province": "TO",
+    "nazione": "Italia",
+    "piva": "12442600016",
+    "codiceFiscale": "RUARRT68B25L219T",
+    "regimeFiscale": "Regime Forfettario",
+    "codiceRegimeFiscale": "RF19",
+    "coefficienteRedditivita": "67",
+    "aliquotaSostitutiva": "15",
+    "aliquotaContributi": "25.72",
+    "aliquotaInps": "4",
+    "contributiVersati": "0",
+    "banca": "Credit Agricole Ag. Torino 15",
+    "iban": "IT23D0623001126000047048912"
+  },
+  "products": [
+    {
+      "description": "Rivalsa Bollo",
+      "code": "",
+      "salePrice": "2.00",
+      "iva": "0",
+      "esenzioneIva": "N2.1",
+      "id": "PRD1763235599053"
+    },
+    {
+      "id": "PRD1763327836784",
+      "description": "Assistenza ticket mese di gennaio",
+      "code": "",
+      "salePrice": "840.00",
+      "iva": "0",
+      "esenzioneIva": "N2.2"
+    },
+    {
+      "id": "PRD1763327855510",
+      "description": "Assistenza ticket mese di febbraio",
+      "code": "",
+      "salePrice": "840.00",
+      "iva": "0",
+      "esenzioneIva": "N2.2"
+    },
+    {
+      "id": "PRD1763327881388",
+      "description": "Assistenza ticket mese di marzo",
+      "code": "",
+      "salePrice": "840.00",
+      "iva": "0",
+      "esenzioneIva": "N2.2"
+    },
+    {
+      "id": "PRD1763327897869",
+      "description": "Assistenza ticket mese di aprile",
+      "code": "",
+      "salePrice": "840",
+      "iva": "0",
+      "esenzioneIva": "N2.2"
+    },
+    {
+      "id": "PRD1763327917402",
+      "description": "Assistenza ticket mese di maggio",
+      "code": "",
+      "salePrice": "840",
+      "iva": "0",
+      "esenzioneIva": "N2.2"
+    },
+    {
+      "id": "PRD1763327936392",
+      "description": "Assistenza ticket mese di giugno",
+      "code": "",
+      "salePrice": "840",
+      "iva": "0",
+      "esenzioneIva": "N2.2"
+    },
+    {
+      "id": "PRD1763327951497",
+      "description": "Assistenza ticket mese di luglio",
+      "code": "",
+      "salePrice": "840",
+      "iva": "0",
+      "esenzioneIva": "N2.2"
+    },
+    {
+      "id": "PRD1763327966201",
+      "description": "Assistenza ticket mese di agosto",
+      "code": "",
+      "salePrice": "840",
+      "iva": "0",
+      "esenzioneIva": "N2.2"
+    },
+    {
+      "id": "PRD1763327980670",
+      "description": "Assistenza ticket mese di settembre",
+      "code": "",
+      "salePrice": "840",
+      "iva": "0",
+      "esenzioneIva": "N2.2"
+    },
+    {
+      "id": "PRD1763328026874",
+      "description": "Assistenza ticket mese di ottobre",
+      "code": "",
+      "salePrice": "840",
+      "iva": "0",
+      "esenzioneIva": "N2.2"
+    },
+    {
+      "id": "PRD1763328054223",
+      "description": "Assistenza ticket mese di novembre",
+      "code": "",
+      "salePrice": "840",
+      "iva": "0",
+      "esenzioneIva": "N2.2"
+    },
+    {
+      "id": "PRD1763328067250",
+      "description": "Assistenza ticket mese di dicembre",
+      "code": "",
+      "salePrice": "840",
+      "iva": "0",
+      "esenzioneIva": "N2.2"
+    },
+    {
+      "id": "PRD1763328105233",
+      "description": "Ore per configurazione istanze APM per Tesi",
+      "code": "",
+      "salePrice": "30",
+      "iva": "0",
+      "esenzioneIva": "N2.2"
+    }
+  ],
+  "customers": [
+    {
+      "name": "C.I.O.F.S. - FORMAZIONE PROFESSIONALE PIEMONTE ETS",
+      "piva": "06611290013",
+      "sdi": "USAL8PV",
+      "address": "PIAZZA MARIA AUSILIATRICE 27",
+      "nazione": "IT",
+      "id": 7,
+      "codiceFiscale": "",
+      "comune": "Torino",
+      "provincia": "TO",
+      "cap": "10152",
+      "rivalsaInps": false
+    },
+    {
+      "name": "M2 Sistemi",
+      "piva": "04087390045",
+      "codiceFiscale": "",
+      "sdi": "KGVVJ2H",
+      "address": "Piazza Annibale Galateri, 9",
+      "comune": "Savigliano",
+      "provincia": "CN",
+      "cap": "12038",
+      "nazione": "IT",
+      "rivalsaInps": true,
+      "id": 8
+    },
+    {
+      "id": "9",
+      "name": "Ansel Technology S.r.l.",
+      "piva": "08663450016",
+      "codiceFiscale": "",
+      "sdi": "KGVVJ2H",
+      "address": "Via Pavia 11/b",
+      "comune": "Rivoli",
+      "provincia": "To",
+      "cap": "10098",
+      "nazione": "Italia",
+      "rivalsaInps": true
+    },
+    {
+      "id": "10",
+      "name": "Toys Garden S.r.l.",
+      "piva": "06213880013",
+      "codiceFiscale": "",
+      "sdi": "KGVVJ2H",
+      "address": "Via del Mare, 18",
+      "comune": "Piobesi Torinese",
+      "provincia": "TO",
+      "cap": "10040",
+      "nazione": "Italia",
+      "rivalsaInps": false
+    }
+  ],
+  "users": [
+    {
+      "id": 1,
+      "surname": "admin",
+      "name": "Amministratore",
+      "password": "gestionale",
+      "role": "Admin"
+    },
+    {
+      "id": 2,
+      "surname": "Rua",
+      "name": "Roberto",
+      "password": "admin",
+      "role": "Supervisor"
+    }
+  ],
+  "invoices": [
+    {
+      "number": "FATT-2025-01",
+      "date": "2025-01-31",
+      "customerId": "9",
+      "lines": [
+        {
+          "productName": "Assistenza ticket mese di gennaio",
+          "qty": 1,
+          "price": 840,
+          "subtotal": 840,
+          "productId": "PRD1763327836784",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Ore per Tesi SQL Tuning",
+          "qty": 4,
+          "price": 30,
+          "subtotal": 120,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Ore per configurazione istanze APM per Tesi",
+          "qty": 9,
+          "price": 25,
+          "subtotal": 225,
+          "productId": "PRD1763328105233",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Rivalsa Bollo",
+          "qty": 1,
+          "price": 2,
+          "subtotal": 2,
+          "productId": "PRD1763235599053",
+          "iva": "0",
+          "esenzioneIva": "N2.1"
+        }
+      ],
+      "summary": {
+        "0": {
+          "imponibile": 1232.4,
+          "imposta": 0
+        }
+      },
+      "rivalsa": {
+        "aliquota": 4,
+        "importo": 47.4
+      },
+      "importoBollo": 2,
+      "totalePrestazioni": 1185,
+      "totaleImponibile": 1232.4,
+      "totaleIva": 0,
+      "condizioniPagamento": "Pagamento completo",
+      "modalitaPagamento": "Bonifico",
+      "dataScadenza": "2025-03-31",
+      "total": 1234.4,
+      "id": 1,
+      "status": "Pagata"
+    },
+    {
+      "number": "FATT-2025-02",
+      "date": "2025-02-28",
+      "customerId": "9",
+      "lines": [
+        {
+          "productName": "Assistenza ticket mese di febbraio",
+          "qty": 1,
+          "price": 840,
+          "subtotal": 840,
+          "productId": "PRD1763327855510",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Rivalsa Bollo",
+          "qty": 1,
+          "price": 2,
+          "subtotal": 2,
+          "productId": "PRD1763235599053",
+          "iva": "0",
+          "esenzioneIva": "N2.1"
+        }
+      ],
+      "summary": {
+        "0": {
+          "imponibile": 873.6,
+          "imposta": 0
+        }
+      },
+      "rivalsa": {
+        "aliquota": 4,
+        "importo": 33.6
+      },
+      "importoBollo": 2,
+      "totalePrestazioni": 840,
+      "totaleImponibile": 873.6,
+      "totaleIva": 0,
+      "condizioniPagamento": "Pagamento completo",
+      "modalitaPagamento": "Bonifico",
+      "dataScadenza": "2025-04-28",
+      "total": 875.6,
+      "id": 2,
+      "status": "Pagata"
+    },
+    {
+      "number": "FATT-2025-03",
+      "date": "2025-03-31",
+      "customerId": "9",
+      "lines": [
+        {
+          "productName": "Assistenza ticket mese di marzo",
+          "qty": 1,
+          "price": 840,
+          "subtotal": 840,
+          "productId": "PRD1763327881388",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Ore per SQL Tuning febbraio per Tesi",
+          "qty": 4,
+          "price": 30,
+          "subtotal": 120,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Ore per SQL Tuning marzo per Tesi",
+          "qty": 5,
+          "price": 30,
+          "subtotal": 150,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Rivalsa Bollo",
+          "qty": 1,
+          "price": 2,
+          "subtotal": 2,
+          "productId": "PRD1763235599053",
+          "iva": "0",
+          "esenzioneIva": "N2.1"
+        }
+      ],
+      "summary": {
+        "0": {
+          "imponibile": 1154.4,
+          "imposta": 0
+        }
+      },
+      "rivalsa": {
+        "aliquota": 4,
+        "importo": 44.4
+      },
+      "importoBollo": 2,
+      "totalePrestazioni": 1110,
+      "totaleImponibile": 1154.4,
+      "totaleIva": 0,
+      "condizioniPagamento": "Pagamento completo",
+      "modalitaPagamento": "Bonifico",
+      "dataScadenza": "2025-05-30",
+      "total": 1156.4,
+      "id": 3,
+      "status": "Pagata"
+    },
+    {
+      "number": "FATT-2025-04",
+      "date": "2025-04-30",
+      "customerId": "9",
+      "lines": [
+        {
+          "productName": "Assistenza ticket mese di aprile",
+          "qty": 1,
+          "price": 840,
+          "subtotal": 840,
+          "productId": "PRD1763327897869",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Ore per SQL Tuning Tesi di aprile",
+          "qty": 2,
+          "price": 30,
+          "subtotal": 60,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Rivalsa Bollo",
+          "qty": 1,
+          "price": 2,
+          "subtotal": 2,
+          "productId": "PRD1763235599053",
+          "iva": "0",
+          "esenzioneIva": "N2.1"
+        }
+      ],
+      "summary": {
+        "0": {
+          "imponibile": 936,
+          "imposta": 0
+        }
+      },
+      "rivalsa": {
+        "aliquota": 4,
+        "importo": 36
+      },
+      "importoBollo": 2,
+      "totalePrestazioni": 900,
+      "totaleImponibile": 936,
+      "totaleIva": 0,
+      "condizioniPagamento": "Pagamento completo",
+      "modalitaPagamento": "Bonifico",
+      "dataScadenza": "2025-06-29",
+      "total": 938,
+      "id": 4,
+      "status": "Pagata"
+    },
+    {
+      "number": "FATT-2025-05",
+      "date": "2025-04-30",
+      "customerId": "7",
+      "lines": [
+        {
+          "productName": "CIOFS Corso Inglese per il digitale e Aiutante magazziniere",
+          "qty": 1,
+          "price": 3000,
+          "subtotal": 3000,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        }
+      ],
+      "summary": {
+        "0": {
+          "imponibile": 3000,
+          "imposta": 0
+        }
+      },
+      "rivalsa": {},
+      "importoBollo": 0,
+      "totalePrestazioni": 3000,
+      "totaleImponibile": 3000,
+      "totaleIva": 0,
+      "condizioniPagamento": "Pagamento completo",
+      "modalitaPagamento": "Bonifico",
+      "dataScadenza": "2025-06-29",
+      "total": 3000,
+      "id": 5,
+      "status": "Pagata"
+    },
+    {
+      "number": "FATT-2025-06",
+      "date": "2025-05-31",
+      "customerId": "9",
+      "lines": [
+        {
+          "productName": "Assistenza ticket mese di maggio",
+          "qty": 1,
+          "price": 840,
+          "subtotal": 840,
+          "productId": "PRD1763327917402",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Rivalsa Bollo",
+          "qty": 1,
+          "price": 2,
+          "subtotal": 2,
+          "productId": "PRD1763235599053",
+          "iva": "0",
+          "esenzioneIva": "N2.1"
+        }
+      ],
+      "summary": {
+        "0": {
+          "imponibile": 873.6,
+          "imposta": 0
+        }
+      },
+      "rivalsa": {
+        "aliquota": 4,
+        "importo": 33.6
+      },
+      "importoBollo": 2,
+      "totalePrestazioni": 840,
+      "totaleImponibile": 873.6,
+      "totaleIva": 0,
+      "condizioniPagamento": "Pagamento completo",
+      "modalitaPagamento": "Bonifico",
+      "dataScadenza": "2025-07-30",
+      "total": 875.6,
+      "id": 6,
+      "status": "Pagata"
+    },
+    {
+      "number": "FATT-2025-07",
+      "date": "2025-06-30",
+      "customerId": "9",
+      "lines": [
+        {
+          "productName": "Assistenza ticket mese di giugno",
+          "qty": 1,
+          "price": 840,
+          "subtotal": 840,
+          "productId": "PRD1763327936392",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Rivalsa Bollo",
+          "qty": 1,
+          "price": 2,
+          "subtotal": 2,
+          "productId": "PRD1763235599053",
+          "iva": "0",
+          "esenzioneIva": "N2.1"
+        }
+      ],
+      "summary": {
+        "0": {
+          "imponibile": 873.6,
+          "imposta": 0
+        }
+      },
+      "rivalsa": {
+        "aliquota": 4,
+        "importo": 33.6
+      },
+      "importoBollo": 2,
+      "totalePrestazioni": 840,
+      "totaleImponibile": 873.6,
+      "totaleIva": 0,
+      "condizioniPagamento": "Pagamento completo",
+      "modalitaPagamento": "Bonifico",
+      "dataScadenza": "2025-08-29",
+      "total": 875.6,
+      "id": 7,
+      "status": "Pagata"
+    },
+    {
+      "number": "FATT-2025-08",
+      "date": "2025-06-30",
+      "customerId": "8",
+      "lines": [
+        {
+          "productName": "assistenza Vs. helpdesk 26/6/24 - 30/6/25",
+          "qty": 8,
+          "price": 30,
+          "subtotal": 240,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Rivalsa Bollo",
+          "qty": 1,
+          "price": 2,
+          "subtotal": 2,
+          "productId": "PRD1763235599053",
+          "iva": "0",
+          "esenzioneIva": "N2.1"
+        }
+      ],
+      "summary": {
+        "0": {
+          "imponibile": 249.6,
+          "imposta": 0
+        }
+      },
+      "rivalsa": {
+        "aliquota": 4,
+        "importo": 9.6
+      },
+      "importoBollo": 2,
+      "totalePrestazioni": 240,
+      "totaleImponibile": 249.6,
+      "totaleIva": 0,
+      "condizioniPagamento": "Pagamento completo",
+      "modalitaPagamento": "Bonifico",
+      "dataScadenza": "2025-08-29",
+      "total": 251.6,
+      "id": 8,
+      "status": "Pagata"
+    },
+    {
+      "number": "FATT-2025-09",
+      "date": "2025-07-18",
+      "customerId": "7",
+      "lines": [
+        {
+          "productName": "Ore per corsi AIUTANTE MAGAZZINIERE AMMINISTRATIVO e INGLESE PER IL DIGITALE",
+          "qty": 1,
+          "price": 2280,
+          "subtotal": 2280,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        }
+      ],
+      "summary": {
+        "0": {
+          "imponibile": 2280,
+          "imposta": 0
+        }
+      },
+      "rivalsa": {},
+      "importoBollo": 0,
+      "totalePrestazioni": 2280,
+      "totaleImponibile": 2280,
+      "totaleIva": 0,
+      "condizioniPagamento": "Pagamento completo",
+      "modalitaPagamento": "Bonifico",
+      "dataScadenza": "2025-09-16",
+      "total": 2280,
+      "id": 9,
+      "status": "Pagata"
+    },
+    {
+      "number": "FATT-2025-10",
+      "date": "2025-07-31",
+      "customerId": "9",
+      "lines": [
+        {
+          "productName": "Assistenza ticket mese di luglio",
+          "qty": 1,
+          "price": 840,
+          "subtotal": 840,
+          "productId": "PRD1763327951497",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Rivalsa Bollo",
+          "qty": 1,
+          "price": 2,
+          "subtotal": 2,
+          "productId": "PRD1763235599053",
+          "iva": "0",
+          "esenzioneIva": "N2.1"
+        }
+      ],
+      "summary": {
+        "0": {
+          "imponibile": 873.6,
+          "imposta": 0
+        }
+      },
+      "rivalsa": {
+        "aliquota": 4,
+        "importo": 33.6
+      },
+      "importoBollo": 2,
+      "totalePrestazioni": 840,
+      "totaleImponibile": 873.6,
+      "totaleIva": 0,
+      "condizioniPagamento": "Pagamento completo",
+      "modalitaPagamento": "Bonifico",
+      "dataScadenza": "2025-09-29",
+      "total": 875.6,
+      "id": 10,
+      "status": "Pagata"
+    },
+    {
+      "number": "FATT-2025-11",
+      "date": "2025-08-31",
+      "customerId": "9",
+      "lines": [
+        {
+          "productName": "Assistenza ticket mese di agosto",
+          "qty": 1,
+          "price": 840,
+          "subtotal": 840,
+          "productId": "PRD1763327966201",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Ore per configurazione istanze APM per Tesi",
+          "qty": 5,
+          "price": 30,
+          "subtotal": 150,
+          "productId": "PRD1763328105233",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Rivalsa Bollo",
+          "qty": 1,
+          "price": 2,
+          "subtotal": 2,
+          "productId": "PRD1763235599053",
+          "iva": "0",
+          "esenzioneIva": "N2.1"
+        }
+      ],
+      "summary": {
+        "0": {
+          "imponibile": 1029.6,
+          "imposta": 0
+        }
+      },
+      "rivalsa": {
+        "aliquota": 4,
+        "importo": 39.6
+      },
+      "importoBollo": 2,
+      "totalePrestazioni": 990,
+      "totaleImponibile": 1029.6,
+      "totaleIva": 0,
+      "condizioniPagamento": "Pagamento completo",
+      "modalitaPagamento": "Bonifico",
+      "dataScadenza": "2025-10-30",
+      "total": 1031.6,
+      "id": 11,
+      "status": "Pagata"
+    },
+    {
+      "number": "FATT-2025-12",
+      "date": "2025-09-30",
+      "customerId": "9",
+      "lines": [
+        {
+          "productName": "Assistenza ticket mese di settembre",
+          "qty": 1,
+          "price": 840,
+          "subtotal": 840,
+          "productId": "PRD1763327980670",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Ore per configurazione istanze APM per Tesi",
+          "qty": 3,
+          "price": 30,
+          "subtotal": 90,
+          "productId": "PRD1763328105233",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Rivalsa Bollo",
+          "qty": 1,
+          "price": 2,
+          "subtotal": 2,
+          "productId": "PRD1763235599053",
+          "iva": "0",
+          "esenzioneIva": "N2.1"
+        }
+      ],
+      "summary": {},
+      "rivalsa": {
+        "aliquota": 4,
+        "importo": 37.2
+      },
+      "importoBollo": 2,
+      "totalePrestazioni": 930,
+      "totaleImponibile": 967.2,
+      "totaleIva": 0,
+      "condizioniPagamento": "Pagamento completo",
+      "modalitaPagamento": "Bonifico",
+      "dataScadenza": "2025-12-15",
+      "total": 969.2,
+      "id": 12,
+      "status": "Da Incassare",
+      "type": ""
+    },
+    {
+      "number": "FATT-2025-13",
+      "date": "2025-10-08",
+      "customerId": "8",
+      "lines": [
+        {
+          "productName": "Ore di assistenza Vs. Clienti per gestionale Bee.p",
+          "qty": 23,
+          "price": 30,
+          "subtotal": 690,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Mezze di assistenza Vs. Clienti per gestionale Bee.p",
+          "qty": 1,
+          "price": 15,
+          "subtotal": 15,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Rivalsa Bollo",
+          "qty": 1,
+          "price": 2,
+          "subtotal": 2,
+          "productId": "PRD1763235599053",
+          "iva": "0",
+          "esenzioneIva": "N2.1"
+        }
+      ],
+      "summary": {
+        "0": {
+          "imponibile": 733.2,
+          "imposta": 0
+        }
+      },
+      "rivalsa": {
+        "aliquota": 4,
+        "importo": 28.2
+      },
+      "importoBollo": 2,
+      "totalePrestazioni": 705,
+      "totaleImponibile": 733.2,
+      "totaleIva": 0,
+      "condizioniPagamento": "Pagamento completo",
+      "modalitaPagamento": "Bonifico",
+      "dataScadenza": "2025-12-07",
+      "total": 735.2,
+      "id": 13,
+      "status": "Pagata"
+    },
+    {
+      "number": "FATT-2025-14",
+      "date": "2025-10-31",
+      "customerId": "9",
+      "lines": [
+        {
+          "productName": "Assistenza ticket mese di ottobre",
+          "qty": 1,
+          "price": 840,
+          "subtotal": 840,
+          "productId": "PRD1763328026874",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Ore per configurazione istanze APM per Tesi",
+          "qty": 3,
+          "price": 30,
+          "subtotal": 90,
+          "productId": "PRD1763328105233",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Rivalsa Bollo",
+          "qty": 1,
+          "price": 2,
+          "subtotal": 2,
+          "productId": "PRD1763235599053",
+          "iva": "0",
+          "esenzioneIva": "N2.1"
+        }
+      ],
+      "summary": {},
+      "rivalsa": {
+        "aliquota": 4,
+        "importo": 37.2
+      },
+      "importoBollo": 2,
+      "totalePrestazioni": 930,
+      "totaleImponibile": 967.2,
+      "totaleIva": 0,
+      "condizioniPagamento": "Pagamento completo",
+      "modalitaPagamento": "Bonifico",
+      "dataScadenza": "2026-01-15",
+      "total": 969.2,
+      "id": 14,
+      "status": "Da Incassare",
+      "type": ""
+    },
+    {
+      "number": "FATT-2025-15",
+      "date": "2025-11-14",
+      "customerId": "7",
+      "lines": [
+        {
+          "productName": "Prestazioni e onorario come da contratto n. 0984/2025 del 26/09/2025",
+          "qty": 1,
+          "price": 0,
+          "subtotal": 0,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Corso: MAGAZZINIERE CON USO DEL CARRELLO ELEVATORE Id: 2593256",
+          "qty": 1,
+          "price": 0,
+          "subtotal": 0,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Area di docenza: TECNICHE DI GESTIONE DEL MAGAZZINO",
+          "qty": 44,
+          "price": 30,
+          "subtotal": 1320,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Area di docenza: ore di SICUREZZA GENERALE",
+          "qty": 4,
+          "price": 30,
+          "subtotal": 120,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Area di docenza: ore di SICUREZZA SPECIFICA",
+          "qty": 8,
+          "price": 30,
+          "subtotal": 240,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Area di docenza: ore di INFORMATICA E DIGITALE",
+          "qty": 5,
+          "price": 30,
+          "subtotal": 150,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Area di docenza: ESAME FINALE",
+          "qty": 3,
+          "price": 30,
+          "subtotal": 90,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Prestazioni riferite al periodo ottobrenovembre 2025 presso il C.I.O.F.S. FP Piemonte - C.F.P. Santa Teresa di Chieri (To)",
+          "qty": 1,
+          "price": 0,
+          "subtotal": 0,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        }
+      ],
+      "summary": {},
+      "rivalsa": {},
+      "importoBollo": 0,
+      "totalePrestazioni": 1920,
+      "totaleImponibile": 1920,
+      "totaleIva": 0,
+      "condizioniPagamento": "Pagamento completo",
+      "modalitaPagamento": "Bonifico",
+      "dataScadenza": "2026-01-15",
+      "total": 1920,
+      "id": 15,
+      "status": "Da Incassare",
+      "type": ""
+    },
+    {
+      "type": "Fattura",
+      "number": "FATT-2025-16",
+      "date": "2025-11-30",
+      "customerId": "9",
+      "lines": [
+        {
+          "productName": "Assistenza ticket mese di novembre",
+          "qty": 1,
+          "price": 840,
+          "subtotal": 840,
+          "productId": "PRD1763328054223",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Ore per configurazione istanze APM per Tesi",
+          "qty": 1,
+          "price": 30,
+          "subtotal": 30,
+          "productId": "PRD1763328105233",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Rivalsa Bollo",
+          "qty": 1,
+          "price": 2,
+          "subtotal": 2,
+          "productId": "PRD1763235599053",
+          "iva": "0",
+          "esenzioneIva": "N2.1"
+        }
+      ],
+      "summary": {},
+      "rivalsa": {
+        "aliquota": 4,
+        "importo": 34.800000000000004
+      },
+      "importoBollo": 2,
+      "totalePrestazioni": 870,
+      "totaleImponibile": 904.8,
+      "totaleIva": 0,
+      "condizioniPagamento": "Pagamento completo",
+      "modalitaPagamento": "Bonifico",
+      "dataScadenza": "2026-02-15",
+      "total": 906.8,
+      "id": 16,
+      "status": "Da Incassare"
+    },
+    {
+      "type": "Fattura",
+      "number": "FATT-2025-17",
+      "date": "2025-12-12",
+      "customerId": "7",
+      "lines": [
+        {
+          "productName": "Prestazioni e onorario come da contratto n. 1191/2025 del 23/10/2025",
+          "qty": 1,
+          "price": 0,
+          "subtotal": 0,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Corso: MAGAZZINIERE CON USO DEL CARRELLO ELEVATORE Id: 2594943",
+          "qty": 1,
+          "price": 0,
+          "subtotal": 0,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Area di docenza: TECNICHE DI GESTIONE DEL MAGAZZINO",
+          "qty": 44,
+          "price": 30,
+          "subtotal": 1320,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Area di docenza: ore di SICUREZZA GENERALE",
+          "qty": 4,
+          "price": 30,
+          "subtotal": 120,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Area di docenza: ore di SICUREZZA SPECIFICA",
+          "qty": 8,
+          "price": 30,
+          "subtotal": 240,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Area di docenza: ore di INFORMATICA E DIGITALE",
+          "qty": 5,
+          "price": 30,
+          "subtotal": 150,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Area di docenza: ESAME FINALE",
+          "qty": 3,
+          "price": 30,
+          "subtotal": 90,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        },
+        {
+          "productName": "Prestazioni riferite al periodo 27 ottobre - 12 dicembre 2025 presso il C.I.O.F.S. FP Piemonte - C.F.P. Santa Teresa di Chieri (To)",
+          "qty": 1,
+          "price": 0,
+          "subtotal": 0,
+          "productId": "manual",
+          "iva": "0",
+          "esenzioneIva": "N2.2"
+        }
+      ],
+      "summary": {},
+      "rivalsa": {},
+      "importoBollo": 0,
+      "totalePrestazioni": 1920,
+      "totaleImponibile": 1920,
+      "totaleIva": 0,
+      "condizioniPagamento": "Pagamento completo",
+      "modalitaPagamento": "Bonifico",
+      "dataScadenza": "2026-02-12",
+      "total": 1920,
+      "id": 17,
+      "status": "Da Incassare"
+    }
+  ],
+  "notes": [
+    {
+      "userId": 1,
+      "text": "6tu5756765"
+    }
+  ]
+}

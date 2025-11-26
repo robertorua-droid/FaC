@@ -89,7 +89,7 @@ body {
     color: #333;
 }
 
-/* Classe di utilità per allineare i numeri a destra */
+/* Classe di utilitï¿½ per allineare i numeri a destra */
 .text-end-numbers {
     text-align: right;
 }
@@ -98,7 +98,7 @@ body {
     text-align: right;
 }
 
-/* MODIFICATO: Nuove classi per larghezza colonne più aggressive */
+/* MODIFICATO: Nuove classi per larghezza colonne piï¿½ aggressive */
 .col-description { width: 35%; }
 .col-customer   { width: 30%; }
 .col-price      { width: 220px; } /* Aumentato molto */
