@@ -8,7 +8,7 @@ const firebaseConfig = {
   appId: "1:406236428222:web:3be6b3b8530ab20ba36bef"
 };
 
-// Inizializza Firebase
+// Inizializza Firebase (Sintassi Compatibilità Corretta)
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
@@ -61,16 +61,18 @@ $(document).ready(function() {
 
     async function loadAllDataFromCloud() {
         try {
+            // Carica Azienda
             const companyDoc = await db.collection('settings').doc('companyInfo').get();
             if (companyDoc.exists) globalData.companyInfo = companyDoc.data();
 
+            // Carica Collezioni
             const collections = ['products', 'customers', 'invoices', 'notes'];
             for (const col of collections) {
                 const snapshot = await db.collection(col).get();
                 globalData[col] = snapshot.docs.map(doc => ({ id: String(doc.id), ...doc.data() }));
             }
             console.log("Dati sincronizzati:", globalData);
-        } catch (e) { console.error("Errore Load Cloud:", e); }
+        } catch (e) { console.error("Errore Load Cloud:", e); throw e; } // Rilancia errore per gestirlo nel catch principale
     }
 
     async function saveDataToCloud(collection, dataObj, id = null) {
@@ -82,6 +84,7 @@ $(document).ready(function() {
                 if (id) {
                     const strId = String(id);
                     await db.collection(collection).doc(strId).set(dataObj, { merge: true });
+                    // Aggiorna cache locale
                     const index = globalData[collection].findIndex(item => String(item.id) === strId);
                     if (index > -1) globalData[collection][index] = { ...globalData[collection][index], ...dataObj };
                     else globalData[collection].push({ id: strId, ...dataObj });
@@ -270,26 +273,12 @@ $(document).ready(function() {
         });
     }
 
-    // 4.5 - FIX POPOLAMENTO DROPDOWN
     function populateDropdowns() {
-        // Popola Clienti
-        const custSelect = $('#invoice-customer-select').empty().append('<option selected disabled value="">Seleziona Cliente...</option>');
-        getData('customers').forEach(c => {
-            custSelect.append(`<option value="${c.id}">${c.name}</option>`);
-        });
-    
-        // Popola Prodotti (Con Codice e Descrizione)
-        const prodSelect = $('#invoice-product-select').empty().append('<option selected value="">Seleziona Servizio...</option><option value="manual">--- Inserimento Manuale ---</option>');
-        getData('products').forEach(p => {
-            const label = (p.code ? p.code + ' - ' : '') + p.description;
-            prodSelect.append(`<option value="${p.id}">${label}</option>`);
-        });
-
-        // Aggiorna data e numero se è una nuova fattura
-        if(!$('#editing-invoice-id').val()) { 
-            $('#invoice-date').val(new Date().toISOString().slice(0, 10)); 
-            // updateInvoiceNumber viene chiamata quando si apre il modale o si clicca il pulsante
-        }
+        $('#invoice-customer-select').empty().append('<option selected disabled value="">Seleziona Cliente...</option>').append(getData('customers').map(c => `<option value="${c.id}">${c.name}</option>`));
+        // Fix dropdown Servizi con Descrizione
+        $('#invoice-product-select').empty().append('<option selected value="">Seleziona Servizio...</option><option value="manual">Manuale</option>').append(getData('products').map(p => `<option value="${p.id}">${p.code} - ${p.description}</option>`));
+        
+        if(!$('#editing-invoice-id').val()) { $('#invoice-date').val(new Date().toISOString().slice(0, 10)); updateInvoiceNumber(); }
     }
 
     // =========================================================
@@ -325,7 +314,7 @@ $(document).ready(function() {
         const target = $(this).data('target');
         if (target === 'nuova-fattura-accompagnatoria') {
             if ($(this).attr('id') === 'menu-nuova-nota-credito') prepareDocumentForm('Nota di Credito'); 
-            else if ($(this).attr('id') === 'menu-nuova-fattura') return; // Aspetta modale
+            else if ($(this).attr('id') === 'menu-nuova-fattura') return; 
             else prepareDocumentForm('Fattura');
         }
         if (target === 'statistiche') renderStatisticsPage(); 
@@ -470,7 +459,7 @@ $(document).ready(function() {
 
     function renderLocalInvoiceLines() {
         const t = $('#invoice-lines-tbody').empty(); 
-        window.tempInvoiceLines.forEach((l, i) => { t.append(`<tr><td>${l.productName}</td><td class="text-end">${l.qty}</td><td class="text-end">€ ${l.price.toFixed(2)}</td><td class="text-end">€ ${l.subtotal.toFixed(2)}</td><td class="text-center"><button type="button" class="btn btn-sm btn-danger del-line" data-i="${i}"><i class="fas fa-times"></i></button></td></tr>`); });
+        window.tempInvoiceLines.forEach((l, i) => { t.append(`<tr><td>${l.productName}</td><td class="text-end">${l.qty}</td><td class="text-end">€ ${l.price.toFixed(2)}</td><td class="text-end">€ ${l.subtotal.toFixed(2)}</td><td class="text-center"><button type="button" class="btn btn-sm btn-danger del-line" data-i="${i}">x</button></td></tr>`); });
     }
     $('#invoice-lines-tbody').on('click', '.del-line', function() { window.tempInvoiceLines.splice($(this).data('i'), 1); renderLocalInvoiceLines(); updateTotalsDisplay(); });
 
