@@ -15,64 +15,6 @@ window.tempInvoiceLines = [];
 
 $(document).ready(function() {
 
- // =========================================================
-    // TIMEOUT DI INATTIVITÀ (5 minuti)
-    // =========================================================
-    const INACTIVITY_LIMIT_MS = 5 * 60 * 1000; // 5 minuti
-    let inactivityTimer = null;
-    let inactivityHandlersBound = false;
-
-    function handleInactivityLogout() {
-        if (!currentUser) return; // già disconnesso
-
-        // Piccolo messaggio all'utente
-        alert("Sessione scaduta per inattività. Verrai disconnesso.");
-
-        // Sign-out Firebase + reload pulito
-        auth.signOut().then(() => {
-            // location.reload() per essere sicuri di resettare lo stato dell'app
-            location.reload();
-        }).catch(err => {
-            console.error("Errore nel logout per inattività:", err);
-            location.reload();
-        });
-    }
-
-    function resetInactivityTimer() {
-        if (!currentUser) return; // timer attivo solo se loggato
-        if (inactivityTimer) clearTimeout(inactivityTimer);
-        inactivityTimer = setTimeout(handleInactivityLogout, INACTIVITY_LIMIT_MS);
-    }
-
-    function startInactivityWatch() {
-        if (inactivityHandlersBound) {
-            // Già agganciati, basta resettare il timer
-            resetInactivityTimer();
-            return;
-        }
-
-        inactivityHandlersBound = true;
-
-        // Qualsiasi interazione “normale” resetta il timer
-        $(document).on(
-            'mousemove.inactivity keydown.inactivity click.inactivity scroll.inactivity touchstart.inactivity',
-            resetInactivityTimer
-        );
-
-        resetInactivityTimer();
-    }
-
-    function stopInactivityWatch() {
-        if (inactivityTimer) {
-            clearTimeout(inactivityTimer);
-            inactivityTimer = null;
-        }
-        if (inactivityHandlersBound) {
-            $(document).off('.inactivity');
-            inactivityHandlersBound = false;
-        }
-    }
-
     // =========================================================
     // 0. INIZIALIZZAZIONE FIREBASE (AVVIO SICURO)
     // =========================================================
@@ -243,12 +185,6 @@ $(document).ready(function() {
 // =========================================================
     // 3. FUNZIONI DI RENDER UI
     // =========================================================
-
-    // Punto d'ingresso dell'app dopo il login
-    function initializeApp() {
-        // Per ora basta inizializzare tutta la UI
-        renderAll();
-    }
 
     function renderAll() {
         renderCompanyInfoForm(); 
@@ -499,30 +435,15 @@ const btns = `<div class="d-flex justify-content-end gap-1">
     auth.onAuthStateChanged(async (user) => {
         if (user) {
             currentUser = user;
-            $('#login-container').addClass('d-none');
-            $('#loading-screen').removeClass('d-none'); 
-
+            $('#login-container').addClass('d-none'); $('#loading-screen').removeClass('d-none'); 
             try {
                 await loadAllDataFromCloud(); 
-                $('#loading-screen').addClass('d-none');
-                $('#main-app').removeClass('d-none');
-
-                // Avvio/Reset del controllo di inattività
-                startInactivityWatch();
-
-                initializeApp();
-            } catch (error) {
-                alert("Errore DB: " + error.message);
-                $('#loading-screen').addClass('d-none');
-            }
+                $('#loading-screen').addClass('d-none'); $('#main-app').removeClass('d-none');
+                renderAll();
+            } catch (error) { alert("Errore DB: " + error.message); $('#loading-screen').addClass('d-none'); }
         } else {
-            // Utente non loggato: stop al controllo di inattività
             currentUser = null;
-            stopInactivityWatch();
-
-            $('#main-app').addClass('d-none');
-            $('#loading-screen').addClass('d-none');
-            $('#login-container').removeClass('d-none');
+            $('#main-app').addClass('d-none'); $('#loading-screen').addClass('d-none'); $('#login-container').removeClass('d-none');
         }
     });
 
@@ -694,43 +615,16 @@ const btns = `<div class="d-flex justify-content-end gap-1">
     $('#invoice-lines-tbody').on('click', '.del-line', function() { window.tempInvoiceLines.splice($(this).data('i'), 1); renderLocalInvoiceLines(); updateTotalsDisplay(); });
 
     function updateTotalsDisplay() {
-    const cid = $('#invoice-customer-select').val();
-    const cust = getData('customers').find(c => String(c.id) === String(cid));
-    const comp = getData('companyInfo');
-
-    // 1) Righe di prestazione = tutte tranne "Rivalsa Bollo"
-    const rows = window.tempInvoiceLines.filter(
-        l => (l.productName || '').toLowerCase() !== 'rivalsa bollo'
-    );
-
-    // 2) Riga di bollo (se presente)
-    const bollo = window.tempInvoiceLines.find(
-        l => (l.productName || '').toLowerCase() === 'rivalsa bollo'
-    );
-    const impBollo = bollo ? (parseFloat(bollo.subtotal) || 0) : 0;
-
-    // 3) Totale prestazioni
-    const totPrest = rows.reduce((s, l) => s + (parseFloat(l.subtotal) || 0), 0);
-
-    // 4) Rivalsa INPS se il cliente ha la spunta
-    let riv = 0;
-    const aliqRiv = parseFloat(comp.aliquotaInps || 0);   // campo "Rivalsa INPS %" in Anagrafica Azienda
-    if (cust && cust.rivalsaInps && aliqRiv > 0) {
-        riv = totPrest * (aliqRiv / 100);
-    }
-
-    // 5) Totale Imponibile e Totale Documento
-    const totImp = totPrest + riv;           // Totale Imponibile
-    const totDoc = totImp + impBollo;        // Totale Documento
-
-    // 6) Aggiornamento UI
-    $('#invoice-total').text(`€ ${totDoc.toFixed(2)}`);
-    $('#invoice-tax-details').text(
-        `(Imp: € ${totImp.toFixed(2)} - Bollo: € ${impBollo.toFixed(2)})`
-    );
-
-    return { totPrest, riv, impBollo, totImp, totDoc };
-}
+        const cid = $('#invoice-customer-select').val(); const cust = getData('customers').find(c => String(c.id) === String(cid)); const comp = getData('companyInfo');
+        const rows = window.tempInvoiceLines.filter(l => l.productName.toLowerCase() !== 'rivalsa bollo');
+        const bollo = window.tempInvoiceLines.find(l => l.productName.toLowerCase() === 'rivalsa bollo');
+        const impBollo = bollo ? bollo.subtotal : 0;
+        const totPrest = rows.reduce((s, l) => s + l.subtotal, 0);
+        let riv = 0; if (cust && cust.rivalsaInps) riv = totPrest * (parseFloat(comp.aliquotaInps||0) / 100);
+        const totDoc = totPrest + riv + impBollo;
+        $('#invoice-total').text(`€ ${totDoc.toFixed(2)}`);
+        $('#invoice-tax-details').text(`(Imp: € ${(totPrest+riv).toFixed(2)} - Bollo: € ${impBollo.toFixed(2)})`);
+        return { totPrest, riv, impBollo, totImp: totPrest+riv, totDoc };
     }
     $('#invoice-customer-select').change(updateTotalsDisplay);
 
@@ -826,22 +720,18 @@ $('#invoice-year-filter').on('change', function() { renderInvoicesTable(); });
     }
 
     const type = $('#document-type').val();
-    const calcs = updateTotalsDisplay(); // <-- usa la funzione sistemata sopra
-
+    const calcs = updateTotalsDisplay();
     const data = {
         number: $('#invoice-number').val(),
         date: $('#invoice-date').val(),
         customerId: cid,
         type: type,
         lines: window.tempInvoiceLines,
-
-        // numeri chiave che finiscono anche nell’XML
         totalePrestazioni: calcs.totPrest,
         importoBollo: calcs.impBollo,
         rivalsa: { importo: calcs.riv },
         totaleImponibile: calcs.totImp,
-        total: calcs.totDoc,   // <--- IMPORTO TOTALE DOCUMENTO
-
+        total: calcs.totDoc,
         status: (type === 'Fattura' ? 'Da Incassare' : 'Emessa'),
         dataScadenza: $('#invoice-dataScadenza').val(),
         condizioniPagamento: $('#invoice-condizioniPagamento').val(),
