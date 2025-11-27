@@ -15,6 +15,64 @@ window.tempInvoiceLines = [];
 
 $(document).ready(function() {
 
+ // =========================================================
+    // TIMEOUT DI INATTIVITÀ (5 minuti)
+    // =========================================================
+    const INACTIVITY_LIMIT_MS = 5 * 60 * 1000; // 5 minuti
+    let inactivityTimer = null;
+    let inactivityHandlersBound = false;
+
+    function handleInactivityLogout() {
+        if (!currentUser) return; // già disconnesso
+
+        // Piccolo messaggio all'utente
+        alert("Sessione scaduta per inattività. Verrai disconnesso.");
+
+        // Sign-out Firebase + reload pulito
+        auth.signOut().then(() => {
+            // location.reload() per essere sicuri di resettare lo stato dell'app
+            location.reload();
+        }).catch(err => {
+            console.error("Errore nel logout per inattività:", err);
+            location.reload();
+        });
+    }
+
+    function resetInactivityTimer() {
+        if (!currentUser) return; // timer attivo solo se loggato
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(handleInactivityLogout, INACTIVITY_LIMIT_MS);
+    }
+
+    function startInactivityWatch() {
+        if (inactivityHandlersBound) {
+            // Già agganciati, basta resettare il timer
+            resetInactivityTimer();
+            return;
+        }
+
+        inactivityHandlersBound = true;
+
+        // Qualsiasi interazione “normale” resetta il timer
+        $(document).on(
+            'mousemove.inactivity keydown.inactivity click.inactivity scroll.inactivity touchstart.inactivity',
+            resetInactivityTimer
+        );
+
+        resetInactivityTimer();
+    }
+
+    function stopInactivityWatch() {
+        if (inactivityTimer) {
+            clearTimeout(inactivityTimer);
+            inactivityTimer = null;
+        }
+        if (inactivityHandlersBound) {
+            $(document).off('.inactivity');
+            inactivityHandlersBound = false;
+        }
+    }
+
     // =========================================================
     // 0. INIZIALIZZAZIONE FIREBASE (AVVIO SICURO)
     // =========================================================
@@ -185,6 +243,12 @@ $(document).ready(function() {
 // =========================================================
     // 3. FUNZIONI DI RENDER UI
     // =========================================================
+
+    // Punto d'ingresso dell'app dopo il login
+    function initializeApp() {
+        // Per ora basta inizializzare tutta la UI
+        renderAll();
+    }
 
     function renderAll() {
         renderCompanyInfoForm(); 
@@ -370,24 +434,30 @@ function renderInvoicesTable() {
         else statusBadge = isPaid ? '<span class="badge bg-success">Pagata</span>' : '<span class="badge bg-warning text-dark">Da Incassare</span>';
 
         const payClass = isPaid ? 'btn-secondary disabled' : 'btn-success';
-        const editClass = isPaid ? 'btn-secondary disabled' : 'btn-outline-secondary';
-        const btnDelete = `<button class="btn btn-sm btn-danger btn-delete-invoice" data-id="${inv.id}" title="Elimina"><i class="fas fa-trash"></i></button>`;
+const editClass = isPaid ? 'btn-secondary disabled' : 'btn-outline-secondary';
 
-        const btns = `<div class="d-flex justify-content-end gap-1">
-            <button class="btn btn-sm btn-info btn-view-invoice text-white" data-id="${inv.id}" data-bs-toggle="modal" data-bs-target="#invoiceDetailModal" title="Vedi">
-                <i class="fas fa-eye"></i>
-            </button>
-            <button class="btn btn-sm ${editClass} btn-edit-invoice" data-id="${inv.id}" title="Modifica" ${isPaid?'disabled':''}>
-                <i class="fas fa-edit"></i>
-            </button>
-            <button class="btn btn-sm btn-warning btn-export-xml-row" data-id="${inv.id}" title="XML">
-                <i class="fas fa-file-code"></i>
-            </button>
-            <button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="Stato" ${isPaid?'disabled':''}>
-                <i class="fas fa-check"></i>
-            </button>
-            ${btnDelete}
-        </div>`;
+// NUOVO: pulsante elimina disabilitato se la fattura è pagata/emessa
+const deleteClass = isPaid ? 'btn-secondary disabled' : 'btn-danger';
+const deleteDisabledAttr = isPaid ? 'disabled' : '';
+const btnDelete = `<button class="btn btn-sm ${deleteClass} btn-delete-invoice" data-id="${inv.id}" title="Elimina" ${deleteDisabledAttr}>
+    <i class="fas fa-trash"></i>
+</button>`;
+
+const btns = `<div class="d-flex justify-content-end gap-1">
+    <button class="btn btn-sm btn-info btn-view-invoice text-white" data-id="${inv.id}" data-bs-toggle="modal" data-bs-target="#invoiceDetailModal" title="Vedi">
+        <i class="fas fa-eye"></i>
+    </button>
+    <button class="btn btn-sm ${editClass} btn-edit-invoice" data-id="${inv.id}" title="Modifica" ${isPaid ? 'disabled' : ''}>
+        <i class="fas fa-edit"></i>
+    </button>
+    <button class="btn btn-sm btn-warning btn-export-xml-row" data-id="${inv.id}" title="XML">
+        <i class="fas fa-file-code"></i>
+    </button>
+    <button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="Stato" ${isPaid ? 'disabled' : ''}>
+        <i class="fas fa-check"></i>
+    </button>
+    ${btnDelete}
+</div>`;
 
         const total = (parseFloat(inv.total) || 0).toFixed(2);
         table.append(`<tr class="${isPaid?'table-light text-muted':''}">
@@ -429,15 +499,30 @@ function renderInvoicesTable() {
     auth.onAuthStateChanged(async (user) => {
         if (user) {
             currentUser = user;
-            $('#login-container').addClass('d-none'); $('#loading-screen').removeClass('d-none'); 
+            $('#login-container').addClass('d-none');
+            $('#loading-screen').removeClass('d-none'); 
+
             try {
                 await loadAllDataFromCloud(); 
-                $('#loading-screen').addClass('d-none'); $('#main-app').removeClass('d-none');
-                renderAll();
-            } catch (error) { alert("Errore DB: " + error.message); $('#loading-screen').addClass('d-none'); }
+                $('#loading-screen').addClass('d-none');
+                $('#main-app').removeClass('d-none');
+
+                // Avvio/Reset del controllo di inattività
+                startInactivityWatch();
+
+                initializeApp();
+            } catch (error) {
+                alert("Errore DB: " + error.message);
+                $('#loading-screen').addClass('d-none');
+            }
         } else {
+            // Utente non loggato: stop al controllo di inattività
             currentUser = null;
-            $('#main-app').addClass('d-none'); $('#loading-screen').addClass('d-none'); $('#login-container').removeClass('d-none');
+            stopInactivityWatch();
+
+            $('#main-app').addClass('d-none');
+            $('#loading-screen').addClass('d-none');
+            $('#login-container').removeClass('d-none');
         }
     });
 
@@ -609,16 +694,43 @@ function renderInvoicesTable() {
     $('#invoice-lines-tbody').on('click', '.del-line', function() { window.tempInvoiceLines.splice($(this).data('i'), 1); renderLocalInvoiceLines(); updateTotalsDisplay(); });
 
     function updateTotalsDisplay() {
-        const cid = $('#invoice-customer-select').val(); const cust = getData('customers').find(c => String(c.id) === String(cid)); const comp = getData('companyInfo');
-        const rows = window.tempInvoiceLines.filter(l => l.productName.toLowerCase() !== 'rivalsa bollo');
-        const bollo = window.tempInvoiceLines.find(l => l.productName.toLowerCase() === 'rivalsa bollo');
-        const impBollo = bollo ? bollo.subtotal : 0;
-        const totPrest = rows.reduce((s, l) => s + l.subtotal, 0);
-        let riv = 0; if (cust && cust.rivalsaInps) riv = totPrest * (parseFloat(comp.aliquotaInps||0) / 100);
-        const totDoc = totPrest + riv + impBollo;
-        $('#invoice-total').text(`€ ${totDoc.toFixed(2)}`);
-        $('#invoice-tax-details').text(`(Imp: € ${(totPrest+riv).toFixed(2)} - Bollo: € ${impBollo.toFixed(2)})`);
-        return { totPrest, riv, impBollo, totImp: totPrest+riv, totDoc };
+    const cid = $('#invoice-customer-select').val();
+    const cust = getData('customers').find(c => String(c.id) === String(cid));
+    const comp = getData('companyInfo');
+
+    // 1) Righe di prestazione = tutte tranne "Rivalsa Bollo"
+    const rows = window.tempInvoiceLines.filter(
+        l => (l.productName || '').toLowerCase() !== 'rivalsa bollo'
+    );
+
+    // 2) Riga di bollo (se presente)
+    const bollo = window.tempInvoiceLines.find(
+        l => (l.productName || '').toLowerCase() === 'rivalsa bollo'
+    );
+    const impBollo = bollo ? (parseFloat(bollo.subtotal) || 0) : 0;
+
+    // 3) Totale prestazioni
+    const totPrest = rows.reduce((s, l) => s + (parseFloat(l.subtotal) || 0), 0);
+
+    // 4) Rivalsa INPS se il cliente ha la spunta
+    let riv = 0;
+    const aliqRiv = parseFloat(comp.aliquotaInps || 0);   // campo "Rivalsa INPS %" in Anagrafica Azienda
+    if (cust && cust.rivalsaInps && aliqRiv > 0) {
+        riv = totPrest * (aliqRiv / 100);
+    }
+
+    // 5) Totale Imponibile e Totale Documento
+    const totImp = totPrest + riv;           // Totale Imponibile
+    const totDoc = totImp + impBollo;        // Totale Documento
+
+    // 6) Aggiornamento UI
+    $('#invoice-total').text(`€ ${totDoc.toFixed(2)}`);
+    $('#invoice-tax-details').text(
+        `(Imp: € ${totImp.toFixed(2)} - Bollo: € ${impBollo.toFixed(2)})`
+    );
+
+    return { totPrest, riv, impBollo, totImp, totDoc };
+}
     }
     $('#invoice-customer-select').change(updateTotalsDisplay);
 
@@ -706,22 +818,85 @@ $('#invoice-year-filter').on('change', function() { renderInvoicesTable(); });
     $('#invoice-dataRiferimento, #invoice-giorniTermini').on('input', function() { const d = $('#invoice-dataRiferimento').val(); const g = parseInt($('#invoice-giorniTermini').val()); if(d && !isNaN(g)) { const dt = new Date(d); dt.setDate(dt.getDate() + g); $('#invoice-dataScadenza').val(dt.toISOString().split('T')[0]); } });
 
     $('#new-invoice-form').submit(async function(e) {
-        e.preventDefault();
-        const cid = $('#invoice-customer-select').val(); if (!cid || window.tempInvoiceLines.length === 0) { alert("Dati mancanti."); return; }
-        const type = $('#document-type').val(); const calcs = updateTotalsDisplay();
-        const data = {
-            number: $('#invoice-number').val(), date: $('#invoice-date').val(), customerId: cid, type: type, lines: window.tempInvoiceLines,
-            totalePrestazioni: calcs.totPrest, importoBollo: calcs.impBollo, rivalsa: { importo: calcs.riv }, totaleImponibile: calcs.totImp, total: calcs.totDoc,
-            status: (type === 'Fattura' ? 'Da Incassare' : 'Emessa'), dataScadenza: $('#invoice-dataScadenza').val(),
-            condizioniPagamento: $('#invoice-condizioniPagamento').val(), modalitaPagamento: $('#invoice-modalitaPagamento').val(),
-            linkedInvoice: $('#linked-invoice').val(), reason: $('#reason').val()
-        };
-        if (CURRENT_EDITING_INVOICE_ID) { const old = getData('invoices').find(i => String(i.id) === CURRENT_EDITING_INVOICE_ID); if(old) data.status = old.status; }
-        let id = CURRENT_EDITING_INVOICE_ID ? CURRENT_EDITING_INVOICE_ID : String(getNextId(getData('invoices')));
-        await saveDataToCloud('invoices', data, id); alert("Salvato!"); $('.sidebar .nav-link[data-target="elenco-fatture"]').click();
-    });
+    e.preventDefault();
+    const cid = $('#invoice-customer-select').val();
+    if (!cid || window.tempInvoiceLines.length === 0) {
+        alert("Dati incompleti.");
+        return;
+    }
 
-    $('#invoices-table-body').on('click', '.btn-edit-invoice', function() { loadInvoiceForEditing($(this).attr('data-id'), false); });
+    const type = $('#document-type').val();
+    const calcs = updateTotalsDisplay(); // <-- usa la funzione sistemata sopra
+
+    const data = {
+        number: $('#invoice-number').val(),
+        date: $('#invoice-date').val(),
+        customerId: cid,
+        type: type,
+        lines: window.tempInvoiceLines,
+
+        // numeri chiave che finiscono anche nell’XML
+        totalePrestazioni: calcs.totPrest,
+        importoBollo: calcs.impBollo,
+        rivalsa: { importo: calcs.riv },
+        totaleImponibile: calcs.totImp,
+        total: calcs.totDoc,   // <--- IMPORTO TOTALE DOCUMENTO
+
+        status: (type === 'Fattura' ? 'Da Incassare' : 'Emessa'),
+        dataScadenza: $('#invoice-dataScadenza').val(),
+        condizioniPagamento: $('#invoice-condizioniPagamento').val(),
+        modalitaPagamento: $('#invoice-modalitaPagamento').val(),
+        linkedInvoice: $('#linked-invoice').val(),
+        reason: $('#reason').val()
+    };
+
+    if (CURRENT_EDITING_INVOICE_ID) {
+        const old = getData('invoices').find(i => String(i.id) === CURRENT_EDITING_INVOICE_ID);
+        if (old) data.status = old.status;
+    }
+
+    let id = CURRENT_EDITING_INVOICE_ID
+        ? CURRENT_EDITING_INVOICE_ID
+        : String(getNextId(getData('invoices')));
+
+    await saveDataToCloud('invoices', data, id);
+
+    // 👇 AGGIUNGI QUESTA RIGA
+    renderInvoicesTable();
+
+    alert("Salvato!");
+
+    // e poi vai all’elenco
+    $('.sidebar .nav-link[data-target="elenco-fatture"]').click();
+});
+
+    $('#invoices-table-body').on('click', '.btn-edit-invoice', function () {
+    const id = $(this).attr('data-id');
+    const inv = getData('invoices').find(i => String(i.id) === String(id));
+    if (!inv) return;
+
+    // 🔒 Blocca modifiche se FATTURA PAGATA 
+    //    o NOTA DI CREDITO già EMESSA
+    if (inv.status === 'Pagata' || (inv.type === 'Nota di Credito' && inv.status === 'Emessa')) {
+        alert('Non è possibile modificare un documento già saldato/emesso.');
+        return;
+    }
+
+    // Mostra la pagina "Nuova Fattura / Nota di Credito" in modalità modifica
+    $('.content-section').addClass('d-none');
+    $('#nuova-fattura-accompagnatoria').removeClass('d-none');
+
+    // Aggiorna il menu laterale
+    $('.sidebar .nav-link').removeClass('active');
+    if (inv.type === 'Nota di Credito') {
+        $('#menu-nuova-nota-credito').addClass('active');
+    } else {
+        $('#menu-nuova-fattura').addClass('active');
+    }
+
+    // Carica i dati della fattura nel form
+    loadInvoiceForEditing(id, false);
+});
     $('#invoices-table-body').on('click', '.btn-delete-invoice', function() { deleteDataFromCloud('invoices', $(this).attr('data-id')); });
     $('#invoices-table-body').on('click', '.btn-mark-paid', async function() { 
         const id = $(this).attr('data-id'); const inv = getData('invoices').find(i => String(i.id) === String(id));
@@ -744,7 +919,18 @@ $('#invoice-year-filter').on('change', function() { renderInvoicesTable(); });
         let xml = `<?xml version="1.0" encoding="UTF-8"?><p:FatturaElettronica versione="FPR12" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><FatturaElettronicaHeader><DatiTrasmissione><IdTrasmittente><IdPaese>IT</IdPaese><IdCodice>${escapeXML(company.codiceFiscale)}</IdCodice></IdTrasmittente><ProgressivoInvio>${(Math.random().toString(36)+'00000').slice(2,7)}</ProgressivoInvio><FormatoTrasmissione>FPR12</FormatoTrasmissione><CodiceDestinatario>${escapeXML(customer.sdi||'0000000')}</CodiceDestinatario></DatiTrasmissione><CedentePrestatore><DatiAnagrafici><IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${escapeXML(company.piva)}</IdCodice></IdFiscaleIVA><CodiceFiscale>${escapeXML(company.codiceFiscale)}</CodiceFiscale>${anagraficaCedente}<RegimeFiscale>${escapeXML(company.codiceRegimeFiscale)}</RegimeFiscale></DatiAnagrafici><Sede><Indirizzo>${escapeXML(company.address)}</Indirizzo><NumeroCivico>${escapeXML(company.numeroCivico)}</NumeroCivico><CAP>${escapeXML(company.zip)}</CAP><Comune>${escapeXML(company.city)}</Comune><Provincia>${escapeXML(company.province)}</Provincia><Nazione>IT</Nazione></Sede></CedentePrestatore><CessionarioCommittente><DatiAnagrafici><IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${escapeXML(customer.piva)}</IdCodice></IdFiscaleIVA><CodiceFiscale>${escapeXML(customer.codiceFiscale)}</CodiceFiscale><Anagrafica><Denominazione>${escapeXML(customer.name)}</Denominazione></Anagrafica></DatiAnagrafici><Sede><Indirizzo>${escapeXML(customer.address)}</Indirizzo><CAP>${escapeXML(customer.cap)}</CAP><Comune>${escapeXML(customer.comune)}</Comune><Provincia>${escapeXML(customer.provincia)}</Provincia><Nazione>IT</Nazione></Sede></CessionarioCommittente></FatturaElettronicaHeader><FatturaElettronicaBody><DatiGenerali><DatiGeneraliDocumento><TipoDocumento>${invoice.type==='Nota di Credito'?'TD04':'TD01'}</TipoDocumento><Divisa>EUR</Divisa><Data>${invoice.date}</Data><Numero>${escapeXML(invoice.number)}</Numero><ImportoTotaleDocumento>${invoice.total.toFixed(2)}</ImportoTotaleDocumento>${invoice.type==='Nota di Credito'?`<Causale>${escapeXML(invoice.reason)}</Causale>`:''}</DatiGeneraliDocumento></DatiGenerali><DatiBeniServizi>`;
         let ln = 1; invoice.lines.forEach(l => { xml += `<DettaglioLinee><NumeroLinea>${ln++}</NumeroLinea><Descrizione>${escapeXML(l.productName)}</Descrizione><Quantita>${l.qty.toFixed(2)}</Quantita><PrezzoUnitario>${l.price.toFixed(2)}</PrezzoUnitario><PrezzoTotale>${l.subtotal.toFixed(2)}</PrezzoTotale><AliquotaIVA>${parseFloat(l.iva).toFixed(2)}</AliquotaIVA><Natura>${escapeXML(l.esenzioneIva)}</Natura></DettaglioLinee>`; });
         xml += `${riepilogoXml}</DatiBeniServizi><DatiPagamento><CondizioniPagamento>TP02</CondizioniPagamento><DettaglioPagamento><ModalitaPagamento>MP05</ModalitaPagamento><DataScadenzaPagamento>${invoice.dataScadenza}</DataScadenzaPagamento><ImportoPagamento>${invoice.total.toFixed(2)}</ImportoPagamento><IBAN>${escapeXML(company.iban)}</IBAN></DettaglioPagamento></DatiPagamento></FatturaElettronicaBody></p:FatturaElettronica>`;
-        const a = document.createElement('a'); a.download = `IT${company.piva}_XML.xml`; const b = new Blob([xml], { type: 'application/xml' }); a.href = URL.createObjectURL(b); a.click();
+        const a = document.createElement('a');
+
+// 5 caratteri alfanumerici random (A–Z, 0–9)
+const randomSuffix = (Math.random().toString(36) + '00000')
+  .slice(2, 7)          // prende 5 caratteri
+//  .toUpperCase();       // li rende maiuscoli (niente simboli strani)
+
+a.download = `IT${company.piva}_${randomSuffix}.xml`;
+
+const b = new Blob([xml], { type: 'application/xml' });
+a.href = URL.createObjectURL(b);
+a.click();
     }
     // VIEW
     $('#invoices-table-body').on('click', '.btn-view-invoice', function() {
