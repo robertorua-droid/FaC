@@ -96,83 +96,92 @@ $(document).ready(function() {
     // 2. GESTIONE DATI CLOUD
     // =========================================================
 
-    async function loadAllDataFromCloud() {
-        try {
-            // Azienda (scoped per utente)
-            const companyDoc = await getCompanyInfoDocRef().get();
-            if (companyDoc.exists) {
-                const data = companyDoc.data() || {};
-                // opzionale: non teniamo ownerUid in cache
-                if ('ownerUid' in data) delete data.ownerUid;
-                globalData.companyInfo = data;
-            } else {
-                globalData.companyInfo = {};
-            }
+    
+    function getUserDocRef() {
+        if (!currentUser || !currentUser.uid) {
+            throw new Error("Utente non autenticato (userDocRef).");
+        }
+        return db.collection('userData').doc(currentUser.uid);
+    }
 
-            // Collezioni (scoped per utente)
+    async function loadAllDataFromCloud() {
+        if (!auth || !db) throw new Error("Firebase non inizializzato.");
+        if (!currentUser) throw new Error("Utente non autenticato.");
+        try {
+            const userRef = getUserDocRef();
+
+            // Azienda (impostazioni per utente)
+            const companyDoc = await userRef.collection('settings').doc('companyInfo').get();
+            globalData.companyInfo = companyDoc.exists ? companyDoc.data() : {};
+
+            // Collezioni per utente
             const collections = ['products', 'customers', 'invoices', 'notes'];
             for (const col of collections) {
-                const snapshot = await getUserCollectionRef(col).get();
+                const snapshot = await userRef.collection(col).get();
                 globalData[col] = snapshot.docs.map(doc => ({ id: String(doc.id), ...doc.data() }));
             }
-            console.log("Dati sincronizzati:", globalData);
+            console.log("Dati sincronizzati per utente:", currentUser.uid, globalData);
         } catch (e) {
             console.error("Errore Load Cloud:", e);
             throw e;
         }
     }
 
-    
-async function saveDataToCloud(collection, dataObj, id = null) {
+    async function saveDataToCloud(collection, dataObj, id = null) {
+        if (!currentUser) {
+            alert("Utente non autenticato.");
+            return;
+        }
         try {
+            const userRef = getUserDocRef();
+
             if (collection === 'companyInfo') {
-                if (!currentUser || !currentUser.uid) {
-                    throw new Error("Utente non autenticato");
-                }
-                const payload = { ...dataObj, ownerUid: currentUser.uid };
-                await getCompanyInfoDocRef().set(payload);
-                // in memoria teniamo solo i dati "puliti"
-                globalData.companyInfo = dataObj;
+                await userRef.collection('settings').doc('companyInfo').set(dataObj, { merge: true });
+                globalData.companyInfo = { ...(globalData.companyInfo || {}), ...dataObj };
             } else {
-                if (!currentUser || !currentUser.uid) {
-                    throw new Error("Utente non autenticato");
+                if (!id) {
+                    console.error("ID mancante per salvataggio in", collection);
+                    return;
                 }
-                if (id) {
-                    const strId = String(id);
-                    const colRef = getUserCollectionRef(collection);
-                    const payload = { ...dataObj, ownerUid: currentUser.uid };
-                    await colRef.doc(strId).set(payload, { merge: true });
-                    // Aggiorna Cache
-                    const index = globalData[collection].findIndex(item => String(item.id) === strId);
-                    if (index > -1) {
-                        globalData[collection][index] = { ...globalData[collection][index], ...dataObj };
-                    } else {
-                        globalData[collection].push({ id: strId, ...dataObj });
-                    }
+                const strId = String(id);
+                await userRef.collection(collection).doc(strId).set(dataObj, { merge: true });
+
+                if (!globalData[collection]) globalData[collection] = [];
+                const index = globalData[collection].findIndex(item => String(item.id) === strId);
+                if (index > -1) {
+                    globalData[collection][index] = { ...globalData[collection][index], ...dataObj };
                 } else {
-                    console.error("ID mancante");
+                    globalData[collection].push({ id: strId, ...dataObj });
                 }
             }
         } catch (e) {
+            console.error("Errore Cloud:", e);
             alert("Errore Cloud: " + e.message);
         }
     }
 
     async function deleteDataFromCloud(collection, id) {
-        if (confirm("Sei sicuro di voler eliminare questo elemento?")) {
-            try {
-                const strId = String(id);
-                const colRef = getUserCollectionRef(collection);
-                await colRef.doc(strId).delete();
+        if (!currentUser) {
+            alert("Utente non autenticato.");
+            return;
+        }
+        if (!confirm("Sei sicuro di voler eliminare questo elemento?")) return;
+
+        try {
+            const userRef = getUserDocRef();
+            const strId = String(id);
+            await userRef.collection(collection).doc(strId).delete();
+
+            if (globalData[collection]) {
                 globalData[collection] = globalData[collection].filter(item => String(item.id) !== strId);
-                renderAll();
-            } catch (e) {
-                alert("Errore eliminazione: " + e.message);
             }
+            renderAll();
+        } catch (e) {
+            console.error("Errore eliminazione:", e);
+            alert("Errore eliminazione: " + e.message);
         }
     }
 
-    
 // =========================================================
     // 3. FUNZIONI DI RENDER UI
     // =========================================================
@@ -627,16 +636,98 @@ async function saveDataToCloud(collection, dataObj, id = null) {
     $('#print-invoice-btn').click(()=>window.print());
     $('#company-info-form').on('submit', async function(e) { e.preventDefault(); const d={}; $(this).find('input').each(function(){if(this.id)d[this.id.replace('company-','')] = $(this).val()}); await saveDataToCloud('companyInfo', d); alert("Salvato!"); });
     $('#save-notes-btn').click(async()=>{ await saveDataToCloud('notes', {userId:currentUser.uid, text:$('#notes-textarea').val()}, currentUser.uid); alert("Salvato!"); });
+    
     $('#import-file-input').change(function(e) {
         const file = e.target.files[0];
+        if (!file) return;
+
+        if (!currentUser) {
+            alert("Devi prima effettuare il login per importare un backup.");
+            return;
+        }
+
         const reader = new FileReader();
         reader.onload = async (ev) => {
-            const d = JSON.parse(ev.target.result);
-            if(d.companyInfo) await saveDataToCloud('companyInfo', d.companyInfo);
-            if(d.customers) for(let c of d.customers) await saveDataToCloud('customers', c, String(c.id));
-            if(d.products) for(let p of d.products) await saveDataToCloud('products', p, String(p.id));
-            if(d.invoices) for(let i of d.invoices) await saveDataToCloud('invoices', i, String(i.id));
-            alert("Import completato"); location.reload();
+            try {
+                const d = JSON.parse(ev.target.result);
+                if (!d || typeof d !== 'object') {
+                    alert("File JSON non valido.");
+                    return;
+                }
+
+                if (!confirm("ATTENZIONE:\n\nL'import sovrascriver\u00e0 i dati esistenti (clienti, servizi, documenti, note) per questo utente.\n\nVuoi continuare?")) {
+                    return;
+                }
+
+                const userRef = getUserDocRef();
+
+                // 1. Svuota le sottocollezioni attuali dell'utente
+                const collectionsToClear = ['products', 'customers', 'invoices', 'notes'];
+                for (const col of collectionsToClear) {
+                    const snap = await userRef.collection(col).get();
+                    if (!snap.empty) {
+                        const batch = db.batch();
+                        snap.forEach(doc => batch.delete(doc.ref));
+                        await batch.commit();
+                    }
+                    globalData[col] = [];
+                }
+
+                // 2. Importa anagrafica azienda
+                if (d.companyInfo) {
+                    await saveDataToCloud('companyInfo', d.companyInfo);
+                }
+
+                // 3. Importa clienti
+                if (Array.isArray(d.customers)) {
+                    for (const c of d.customers) {
+                        const id = (c.id !== undefined && c.id !== null)
+                            ? String(c.id)
+                            : String(getNextId(globalData.customers || []));
+                        const { id: _oldId, ...customerData } = c;
+                        await saveDataToCloud('customers', customerData, id);
+                    }
+                }
+
+                // 4. Importa prodotti
+                if (Array.isArray(d.products)) {
+                    for (const p of d.products) {
+                        const id = (p.id !== undefined && p.id !== null)
+                            ? String(p.id)
+                            : 'PRD' + new Date().getTime();
+                        const { id: _oldId, ...productData } = p;
+                        await saveDataToCloud('products', productData, id);
+                    }
+                }
+
+                // 5. Importa documenti
+                if (Array.isArray(d.invoices)) {
+                    for (const i of d.invoices) {
+                        const id = (i.id !== undefined && i.id !== null)
+                            ? String(i.id)
+                            : String(getNextId(globalData.invoices || []));
+                        const { id: _oldId, ...invoiceData } = i;
+                        await saveDataToCloud('invoices', invoiceData, id);
+                    }
+                }
+
+                // 6. Importa note (vecchio formato)
+                if (Array.isArray(d.notes) && d.notes.length > 0) {
+                    const mergedText = d.notes.map(n => n.text).join("\n----------------------\n");
+                    const noteDoc = {
+                        userId: currentUser.uid,
+                        text: mergedText
+                    };
+                    await saveDataToCloud('notes', noteDoc, currentUser.uid);
+                }
+
+                alert("Import completato per l'utente " + (currentUser.email || currentUser.uid) + ".");
+                await loadAllDataFromCloud();
+                renderAll();
+            } catch (err) {
+                console.error("Errore durante l'import JSON:", err);
+                alert("Errore durante l'import: " + err.message);
+            }
         };
         reader.readAsText(file);
     });
