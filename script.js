@@ -421,59 +421,6 @@ function renderInvoicesTable() {
         }
     }
 
-
-    // Eventi riga fattura: selezione servizio e IVA
-    $('#invoice-product-select').on('change', function () {
-        const id = $(this).val();
-
-        // Reset quantità sempre a 1 per ogni nuova selezione
-        $('#invoice-product-qty').val(1);
-
-        if (!id) {
-            $('#invoice-product-description').val('');
-            $('#invoice-product-price').val('');
-            $('#invoice-product-iva').val('0');
-            $('#invoice-product-esenzioneIva').val('N2.2');
-            toggleEsenzioneIvaField('invoice', '0');
-            return;
-        }
-
-        // Inserimento manuale: lascio descrizione e prezzo vuoti
-        if (id === 'manual') {
-            $('#invoice-product-description').val('');
-            $('#invoice-product-price').val('');
-            $('#invoice-product-iva').val('0');
-            $('#invoice-product-esenzioneIva').val('N2.2');
-            toggleEsenzioneIvaField('invoice', '0');
-            return;
-        }
-
-        // Carico i dati dal catalogo prodotti
-        const p = getData('products').find(prod => String(prod.id) === String(id));
-        if (!p) return;
-
-        $('#invoice-product-description').val(p.description || '');
-        $('#invoice-product-price').val(p.salePrice || '');
-        $('#invoice-product-iva').val(p.iva || '0');
-
-        if (String(p.iva) === '0') {
-            $('#invoice-product-esenzioneIva').val(p.esenzioneIva || 'N2.2');
-        } else {
-            $('#invoice-product-esenzioneIva').val('');
-        }
-
-        toggleEsenzioneIvaField('invoice', $('#invoice-product-iva').val());
-    });
-
-    $('#invoice-product-iva').on('change', function () {
-        const ivaVal = $(this).val();
-        toggleEsenzioneIvaField('invoice', ivaVal);
-        if (ivaVal !== '0') {
-            $('#invoice-product-esenzioneIva').val('');
-        }
-    });
-
-
     // =========================================================
     // 4. EVENTI (AUTH, NAV, FORM)
     // =========================================================
@@ -650,31 +597,10 @@ function renderInvoicesTable() {
     }
 
     $('#add-product-to-invoice-btn').click(() => {
-        const desc = $('#invoice-product-description').val();
-        if (!desc) return;
-
-        const qty   = parseFloat($('#invoice-product-qty').val())   || 1;
-        const price = parseFloat($('#invoice-product-price').val()) || 0;
-        const subtotal = qty * price;
-
-        const iva = $('#invoice-product-iva').val();
-        const esenzioneIva = $('#invoice-product-esenzioneIva').val();
-        const selectedId = $('#invoice-product-select').val() || 'manual';
-
-        window.tempInvoiceLines.push({
-            productId: selectedId,
-            productName: desc,
-            qty,
-            price,
-            subtotal,
-            iva,
-            esenzioneIva
-        });
-
-        renderLocalInvoiceLines();
-        updateTotalsDisplay();
+        const d = $('#invoice-product-description').val(); if(!d) return;
+        window.tempInvoiceLines.push({ productName: d, qty: parseFloat($('#invoice-product-qty').val())||1, price: parseFloat($('#invoice-product-price').val())||0, subtotal: (parseFloat($('#invoice-product-qty').val())||1)*(parseFloat($('#invoice-product-price').val())||0), iva: $('#invoice-product-iva').val(), esenzioneIva: $('#invoice-product-esenzioneIva').val() });
+        renderLocalInvoiceLines(); updateTotalsDisplay();
     });
-
 
     function renderLocalInvoiceLines() {
         const t = $('#invoice-lines-tbody').empty(); 
@@ -695,7 +621,87 @@ function renderInvoicesTable() {
         return { totPrest, riv, impBollo, totImp: totPrest+riv, totDoc };
     }
     $('#invoice-customer-select').change(updateTotalsDisplay);
-    $('#invoice-year-filter').on('change', function() { renderInvoicesTable(); });
+
+// Quando seleziono un servizio dalla tendina, compilo automaticamente la riga
+$('#invoice-product-select').on('change', function() {
+    const selectedId = $(this).val();
+    const descInput = $('#invoice-product-description');
+    const qtyInput = $('#invoice-product-qty');
+    const priceInput = $('#invoice-product-price');
+    const ivaSelect = $('#invoice-product-iva');
+    const esenzioneSelect = $('#invoice-product-esenzioneIva');
+
+    if (!selectedId) {
+        // Nessuna scelta: reset campi
+        descInput.val('');
+        priceInput.val('');
+        qtyInput.val(1);
+        ivaSelect.val('0');
+        esenzioneSelect.val('N2.1');
+        descInput.prop('readonly', true);
+        ivaSelect.prop('disabled', true);
+        esenzioneSelect.prop('disabled', true);
+        toggleEsenzioneIvaField('invoice', ivaSelect.val());
+        return;
+    }
+
+    if (selectedId === 'manual') {
+        // Inserimento manuale
+        descInput.val('');
+        priceInput.val('');
+        qtyInput.val(1);
+        ivaSelect.val('0');
+        esenzioneSelect.val('N2.1');
+        descInput.prop('readonly', false);
+        ivaSelect.prop('disabled', false);
+        esenzioneSelect.prop('disabled', false);
+        toggleEsenzioneIvaField('invoice', ivaSelect.val());
+        return;
+    }
+
+    const p = getData('products').find(prod => String(prod.id) === String(selectedId));
+    if (!p) {
+        // Fallback: passo in manuale se non trovo il prodotto
+        descInput.val('');
+        priceInput.val('');
+        qtyInput.val(1);
+        ivaSelect.val('0');
+        esenzioneSelect.val('N2.1');
+        descInput.prop('readonly', false);
+        ivaSelect.prop('disabled', false);
+        esenzioneSelect.prop('disabled', false);
+        toggleEsenzioneIvaField('invoice', ivaSelect.val());
+        return;
+    }
+
+    // Prodotto selezionato: uso i dati dell'anagrafica
+    descInput.val(p.description || '');
+    priceInput.val(p.salePrice || 0);
+    qtyInput.val(1);
+    ivaSelect.val(p.iva != null ? String(p.iva) : '0');
+    esenzioneSelect.val(p.esenzioneIva || 'N2.1');
+
+    // Di default blocco la descrizione (proviene dal listino)
+    descInput.prop('readonly', true);
+    // L'aliquota la lascio modificabile se vuoi correggere manualmente
+    ivaSelect.prop('disabled', false);
+    esenzioneSelect.prop('disabled', ivaSelect.val() !== '0');
+
+    toggleEsenzioneIvaField('invoice', ivaSelect.val());
+});
+
+// Se cambio l'aliquota IVA a mano, gestisco il campo Esenzione
+$('#invoice-product-iva').on('change', function() {
+    const ivaVal = $(this).val();
+    toggleEsenzioneIvaField('invoice', ivaVal);
+    if (ivaVal === '0') {
+        $('#invoice-product-esenzioneIva').prop('disabled', false);
+    } else {
+        $('#invoice-product-esenzioneIva').prop('disabled', true).val('');
+    }
+});
+
+$('#invoice-year-filter').on('change', function() { renderInvoicesTable(); });
     $('#invoice-date').change(function() { $('#invoice-dataRiferimento').val($(this).val()); updateInvoiceNumber($('#document-type').val(), $(this).val().substring(0, 4)); });
     $('#invoice-dataRiferimento, #invoice-giorniTermini').on('input', function() { const d = $('#invoice-dataRiferimento').val(); const g = parseInt($('#invoice-giorniTermini').val()); if(d && !isNaN(g)) { const dt = new Date(d); dt.setDate(dt.getDate() + g); $('#invoice-dataScadenza').val(dt.toISOString().split('T')[0]); } });
 
