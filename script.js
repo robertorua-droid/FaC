@@ -648,144 +648,187 @@ function renderInvoicesTable() {
         if(confirm("Confermi cambio stato?")) { await saveDataToCloud('invoices', { status: inv.type === 'Nota di Credito' ? 'Emessa' : 'Pagata' }, id); renderInvoicesTable(); }
     });
 
-    // XML
-    $('#invoices-table-body, #invoiceDetailModal').on('click', '.btn-export-xml, #export-xml-btn, .btn-export-xml-row', function() { 
-         let id = $(this).attr('id') === 'export-xml-btn' ? $('#export-xml-btn').data('invoiceId') : $(this).attr('data-id');
-         if (id) generateInvoiceXML(id); 
-    });
-    function generateInvoiceXML(invoiceId) {
-    const invoice = getData('invoices').find(inv => String(inv.id) === String(invoiceId));
-    if (!invoice) { 
-        alert("Errore!"); 
-        return; 
+// XML
+$('#invoices-table-body, #invoiceDetailModal').on(
+  'click',
+  '.btn-export-xml, #export-xml-btn, .btn-export-xml-row',
+  function () {
+    const id = $(this).attr('id') === 'export-xml-btn'
+      ? $('#export-xml-btn').data('invoiceId')
+      : $(this).attr('data-id');
+
+    if (id) generateInvoiceXML(id);
+  }
+);
+
+function generateInvoiceXML(invoiceId) {
+  const invoice = getData('invoices').find(
+    inv => String(inv.id) === String(invoiceId)
+  );
+  if (!invoice) {
+    alert("Errore!");
+    return;
+  }
+
+  const company  = getData('companyInfo');
+  const customer = getData('customers').find(
+    c => String(c.id) === String(invoice.customerId)
+  );
+
+  // Cedente / prestatore
+  let anagraficaCedente =
+    `<Anagrafica><Denominazione>${escapeXML(company.name)}</Denominazione></Anagrafica>`;
+  if (company.nome && company.cognome) {
+    anagraficaCedente =
+      `<Anagrafica><Nome>${escapeXML(company.nome)}</Nome>` +
+      `<Cognome>${escapeXML(company.cognome)}</Cognome></Anagrafica>`;
+  }
+
+  // Riepilogo per Natura IVA (esenzioni + rivalsa)
+  const summaryByNature = {};
+  invoice.lines.forEach(l => {
+    if (l.iva == "0" && l.esenzioneIva) {
+      const k = l.esenzioneIva;
+      if (!summaryByNature[k]) {
+        summaryByNature[k] = {
+          aliquota: l.iva,
+          natura:   k,
+          imponibile: 0
+        };
+      }
+      summaryByNature[k].imponibile += l.subtotal;
     }
+  });
 
-    const company  = getData('companyInfo');
-    const customer = getData('customers').find(c => String(c.id) === String(invoice.customerId));
-
-    let anagraficaCedente = `<Anagrafica><Denominazione>${escapeXML(company.name)}</Denominazione></Anagrafica>`;
-    if (company.nome && company.cognome) {
-        anagraficaCedente = `<Anagrafica><Nome>${escapeXML(company.nome)}</Nome><Cognome>${escapeXML(company.cognome)}</Cognome></Anagrafica>`;
+  // Rivalsa INPS come N4
+  if (invoice.rivalsa && invoice.rivalsa.importo > 0) {
+    const k = "N4";
+    if (!summaryByNature[k]) {
+      summaryByNature[k] = {
+        aliquota: "0.00",
+        natura:   k,
+        imponibile: 0
+      };
     }
+    summaryByNature[k].imponibile += invoice.rivalsa.importo;
+  }
 
-    // riepilogo per natura IVA
-    const summaryByNature = {};
-    invoice.lines.forEach(l => {
-        if (l.iva == "0" && l.esenzioneIva) {
-            const k = l.esenzioneIva;
-            if (!summaryByNature[k]) {
-                summaryByNature[k] = { aliquota: l.iva, natura: k, imponibile: 0 };
-            }
-            summaryByNature[k].imponibile += l.subtotal;
-        }
-    });
+  let riepilogoXml = '';
+  Object.values(summaryByNature).forEach(s => {
+    riepilogoXml +=
+      `<DatiRiepilogo>` +
+        `<AliquotaIVA>${parseFloat(s.aliquota).toFixed(2)}</AliquotaIVA>` +
+        `<Natura>${escapeXML(s.natura)}</Natura>` +
+        `<ImponibileImporto>${s.imponibile.toFixed(2)}</ImponibileImporto>` +
+        `<Imposta>0.00</Imposta>` +
+      `</DatiRiepilogo>`;
+  });
 
-    if (invoice.rivalsa && invoice.rivalsa.importo > 0) {
-        const k = "N4";
-        if (!summaryByNature[k]) {
-            summaryByNature[k] = { aliquota: "0.00", natura: k, imponibile: 0 };
-        }
-        summaryByNature[k].imponibile += invoice.rivalsa.importo;
-    }
+  // Progressivo Invio riutilizzato anche per il nome file
+  const progressivoInvio = (Math.random().toString(36) + '00000').slice(2, 7);
 
-    let riepilogoXml = '';
-    Object.values(summaryByNature).forEach(s => {
-        riepilogoXml += `<DatiRiepilogo><AliquotaIVA>${parseFloat(s.aliquota).toFixed(2)}</AliquotaIVA><Natura>${escapeXML(s.natura)}</Natura><ImponibileImporto>${s.imponibile.toFixed(2)}</ImponibileImporto><Imposta>0.00</Imposta></DatiRiepilogo>`;
-    });
-
-    // 👉 Progressivo invio generato UNA volta e riusato
-    const progressivoInvio = (Math.random().toString(36) + '00000').slice(2, 7);
-
-    let xml = `<?xml version="1.0" encoding="UTF-8"?>` +
-        `<p:FatturaElettronica versione="FPR12" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" ` +
-        `xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" ` +
-        `xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">` +
-        `<FatturaElettronicaHeader>` +
-          `<DatiTrasmissione>` +
-            `<IdTrasmittente>` +
+  let xml =
+    `<?xml version="1.0" encoding="UTF-8"?>` +
+    `<p:FatturaElettronica versione="FPR12" ` +
+      `xmlns:ds="http://www.w3.org/2000/09/xmldsig#" ` +
+      `xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" ` +
+      `xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">` +
+      `<FatturaElettronicaHeader>` +
+        `<DatiTrasmissione>` +
+          `<IdTrasmittente>` +
+            `<IdPaese>IT</IdPaese>` +
+            `<IdCodice>${escapeXML(company.codiceFiscale)}</IdCodice>` +
+          `</IdTrasmittente>` +
+          `<ProgressivoInvio>${progressivoInvio}</ProgressivoInvio>` +
+          `<FormatoTrasmissione>FPR12</FormatoTrasmissione>` +
+          `<CodiceDestinatario>${escapeXML(customer.sdi || '0000000')}</CodiceDestinatario>` +
+        `</DatiTrasmissione>` +
+        `<CedentePrestatore>` +
+          `<DatiAnagrafici>` +
+            `<IdFiscaleIVA>` +
               `<IdPaese>IT</IdPaese>` +
-              `<IdCodice>${escapeXML(company.codiceFiscale)}</IdCodice>` +
-            `</IdTrasmittente>` +
-            `<ProgressivoInvio>${progressivoInvio}</ProgressivoInvio>` +
-            `<FormatoTrasmissione>FPR12</FormatoTrasmissione>` +
-            `<CodiceDestinatario>${escapeXML(customer.sdi || '0000000')}</CodiceDestinatario>` +
-          `</DatiTrasmissione>` +
-          `<CedentePrestatore>` +
-            `<DatiAnagrafici>` +
-              `<IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${escapeXML(company.piva)}</IdCodice></IdFiscaleIVA>` +
-              `<CodiceFiscale>${escapeXML(company.codiceFiscale)}</CodiceFiscale>` +
-              `${anagraficaCedente}` +
-              `<RegimeFiscale>${escapeXML(company.codiceRegimeFiscale)}</RegimeFiscale>` +
-            `</DatiAnagrafici>` +
-            `<Sede>` +
-              `<Indirizzo>${escapeXML(company.address)}</Indirizzo>` +
-              `<NumeroCivico>${escapeXML(company.numeroCivico)}</NumeroCivico>` +
-              `<CAP>${escapeXML(company.zip)}</CAP>` +
-              `<Comune>${escapeXML(company.city)}</Comune>` +
-              `<Provincia>${escapeXML(company.province)}</Provincia>` +
-              `<Nazione>IT</Nazione>` +
-            `</Sede>` +
-          `</CedentePrestatore>` +
-          `<CessionarioCommittente>` +
-            `<DatiAnagrafici>` +
-              `<IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${escapeXML(customer.piva)}</IdCodice></IdFiscaleIVA>` +
-              `<CodiceFiscale>${escapeXML(customer.codiceFiscale)}</CodiceFiscale>` +
-              `<Anagrafica><Denominazione>${escapeXML(customer.name)}</Denominazione></Anagrafica>` +
-            `</DatiAnagrafici>` +
-            `<Sede>` +
-              `<Indirizzo>${escapeXML(customer.address)}</Indirizzo>` +
-              `<CAP>${escapeXML(customer.cap)}</CAP>` +
-              `<Comune>${escapeXML(customer.comune)}</Comune>` +
-              `<Provincia>${escapeXML(customer.provincia)}</Provincia>` +
-              `<Nazione>IT</Nazione>` +
-            `</Sede>` +
-          `</CessionarioCommittente>` +
-        `</FatturaElettronicaHeader>` +
-        `<FatturaElettronicaBody>` +
-          `<DatiGenerali>` +
-            `<DatiGeneraliDocumento>` +
-              `<TipoDocumento>${invoice.type === 'Nota di Credito' ? 'TD04' : 'TD01'}</TipoDocumento>` +
-              `<Divisa>EUR</Divisa>` +
-              `<Data>${invoice.date}</Data>` +
-              `<Numero>${escapeXML(invoice.number)}</Numero>` +
-              `<ImportoTotaleDocumento>${invoice.total.toFixed(2)}</ImportoTotaleDocumento>` +
-              `${invoice.type === 'Nota di Credito' ? `<Causale>${escapeXML(invoice.reason)}</Causale>` : ''}` +
-            `</DatiGeneraliDocumento>` +
-          `</DatiGenerali>` +
-          `<DatiBeniServizi>`;
+              `<IdCodice>${escapeXML(company.piva)}</IdCodice>` +
+            `</IdFiscaleIVA>` +
+            `<CodiceFiscale>${escapeXML(company.codiceFiscale)}</CodiceFiscale>` +
+            `${anagraficaCedente}` +
+            `<RegimeFiscale>${escapeXML(company.codiceRegimeFiscale)}</RegimeFiscale>` +
+          `</DatiAnagrafici>` +
+          `<Sede>` +
+            `<Indirizzo>${escapeXML(company.address)}</Indirizzo>` +
+            `<NumeroCivico>${escapeXML(company.numeroCivico)}</NumeroCivico>` +
+            `<CAP>${escapeXML(company.zip)}</CAP>` +
+            `<Comune>${escapeXML(company.city)}</Comune>` +
+            `<Provincia>${escapeXML(company.province)}</Provincia>` +
+            `<Nazione>IT</Nazione>` +
+          `</Sede>` +
+        `</CedentePrestatore>` +
+        `<CessionarioCommittente>` +
+          `<DatiAnagrafici>` +
+            `<IdFiscaleIVA>` +
+              `<IdPaese>IT</IdPaese>` +
+              `<IdCodice>${escapeXML(customer.piva)}</IdCodice>` +
+            `</IdFiscaleIVA>` +
+            `<CodiceFiscale>${escapeXML(customer.codiceFiscale)}</CodiceFiscale>` +
+            `<Anagrafica>` +
+              `<Denominazione>${escapeXML(customer.name)}</Denominazione>` +
+            `</Anagrafica>` +
+          `</DatiAnagrafici>` +
+          `<Sede>` +
+            `<Indirizzo>${escapeXML(customer.address)}</Indirizzo>` +
+            `<CAP>${escapeXML(customer.cap)}</CAP>` +
+            `<Comune>${escapeXML(customer.comune)}</Comune>` +
+            `<Provincia>${escapeXML(customer.provincia)}</Provincia>` +
+            `<Nazione>IT</Nazione>` +
+          `</Sede>` +
+        `</CessionarioCommittente>` +
+      `</FatturaElettronicaHeader>` +
+      `<FatturaElettronicaBody>` +
+        `<DatiGenerali>` +
+          `<DatiGeneraliDocumento>` +
+            `<TipoDocumento>${invoice.type === 'Nota di Credito' ? 'TD04' : 'TD01'}</TipoDocumento>` +
+            `<Divisa>EUR</Divisa>` +
+            `<Data>${invoice.date}</Data>` +
+            `<Numero>${escapeXML(invoice.number)}</Numero>` +
+            `<ImportoTotaleDocumento>${invoice.total.toFixed(2)}</ImportoTotaleDocumento>` +
+            `${invoice.type === 'Nota di Credito' ? `<Causale>${escapeXML(invoice.reason)}</Causale>` : ''}` +
+          `</DatiGeneraliDocumento>` +
+        `</DatiGenerali>` +
+        `<DatiBeniServizi>`;
 
-    let ln = 1;
-    invoice.lines.forEach(l => {
-        xml += `<DettaglioLinee>` +
-                 `<NumeroLinea>${ln++}</NumeroLinea>` +
-                 `<Descrizione>${escapeXML(l.productName)}</Descrizione>` +
-                 `<Quantita>${l.qty.toFixed(2)}</Quantita>` +
-                 `<PrezzoUnitario>${l.price.toFixed(2)}</PrezzoUnitario>` +
-                 `<PrezzoTotale>${l.subtotal.toFixed(2)}</PrezzoTotale>` +
-                 `<AliquotaIVA>${parseFloat(l.iva).toFixed(2)}</AliquotaIVA>` +
-                 `<Natura>${escapeXML(l.esenzioneIva)}</Natura>` +
-               `</DettaglioLinee>`;
-    });
+  let ln = 1;
+  invoice.lines.forEach(l => {
+    xml +=
+      `<DettaglioLinee>` +
+        `<NumeroLinea>${ln++}</NumeroLinea>` +
+        `<Descrizione>${escapeXML(l.productName)}</Descrizione>` +
+        `<Quantita>${l.qty.toFixed(2)}</Quantita>` +
+        `<PrezzoUnitario>${l.price.toFixed(2)}</PrezzoUnitario>` +
+        `<PrezzoTotale>${l.subtotal.toFixed(2)}</PrezzoTotale>` +
+        `<AliquotaIVA>${parseFloat(l.iva).toFixed(2)}</AliquotaIVA>` +
+        `<Natura>${escapeXML(l.esenzioneIva)}</Natura>` +
+      `</DettaglioLinee>`;
+  });
 
-    xml += `${riepilogoXml}</DatiBeniServizi>` +
-           `<DatiPagamento>` +
-             `<CondizioniPagamento>TP02</CondizioniPagamento>` +
-             `<DettaglioPagamento>` +
-               `<ModalitaPagamento>MP05</ModalitaPagamento>` +
-               `<DataScadenzaPagamento>${invoice.dataScadenza}</DataScadenzaPagamento>` +
-               `<ImportoPagamento>${invoice.total.toFixed(2)}</ImportoPagamento>` +
-               `<IBAN>${escapeXML(company.iban)}</IBAN>` +
-             `</DettaglioPagamento>` +
-           `</DatiPagamento>` +
-        `</FatturaElettronicaBody>` +
-      `</p:FatturaElettronica>`;
+  xml +=
+    `${riepilogoXml}</DatiBeniServizi>` +
+    `<DatiPagamento>` +
+      `<CondizioniPagamento>TP02</CondizioniPagamento>` +
+      `<DettaglioPagamento>` +
+        `<ModalitaPagamento>MP05</ModalitaPagamento>` +
+        `<DataScadenzaPagamento>${invoice.dataScadenza}</DataScadenzaPagamento>` +
+        `<ImportoPagamento>${invoice.total.toFixed(2)}</ImportoPagamento>` +
+        `<IBAN>${escapeXML(company.iban)}</IBAN>` +
+      `</DettaglioPagamento>` +
+    `</DatiPagamento>` +
+  `</FatturaElettronicaBody>` +
+  `</p:FatturaElettronica>`;
 
-    // 👉 Nome file allineato allo stile AE: IT<PIVA>_<progressivo>.xml
-    const a = document.createElement('a');
-    a.download = `IT${company.piva}_${progressivoInvio}.xml`;
-    const b = new Blob([xml], { type: 'application/xml' });
-    a.href = URL.createObjectURL(b);
-    a.click();
+  // Nome file: IT + P.IVA + "_" + progressivoInvio (stile AdE)
+  const a = document.createElement('a');
+  a.download = `IT${company.piva}_${progressivoInvio}.xml`;
+  const b = new Blob([xml], { type: 'application/xml' });
+  a.href = URL.createObjectURL(b);
+  a.click();
 }
     // VIEW
     $('#invoices-table-body').on('click', '.btn-view-invoice', function() {
