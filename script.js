@@ -758,7 +758,7 @@ function generateInvoiceXML(invoiceId) {
             `<NumeroCivico>${escapeXML(company.numeroCivico)}</NumeroCivico>` +
             `<CAP>${escapeXML(company.zip)}</CAP>` +
             `<Comune>${escapeXML(company.city)}</Comune>` +
-            `<Provincia>${escapeXML(company.province)}</Provincia>` +
+            `<Provincia>${escapeXML((company.province || '').toUpperCase().slice(0,2))}</Provincia>` +
             `<Nazione>IT</Nazione>` +
           `</Sede>` +
         `</CedentePrestatore>` +
@@ -777,7 +777,7 @@ function generateInvoiceXML(invoiceId) {
             `<Indirizzo>${escapeXML(customer.address)}</Indirizzo>` +
             `<CAP>${escapeXML(customer.cap)}</CAP>` +
             `<Comune>${escapeXML(customer.comune)}</Comune>` +
-            `<Provincia>${escapeXML(customer.provincia)}</Provincia>` +
+            `<Provincia>${escapeXML((customer.provincia || '').toUpperCase().slice(0,2))}</Provincia>` +
             `<Nazione>IT</Nazione>` +
           `</Sede>` +
         `</CessionarioCommittente>` +
