@@ -754,7 +754,33 @@ $('#invoice-year-filter').on('change', function() { renderInvoicesTable(); });
     $('.sidebar .nav-link[data-target="elenco-fatture"]').click();
 });
 
-    $('#invoices-table-body').on('click', '.btn-edit-invoice', function() { loadInvoiceForEditing($(this).attr('data-id'), false); });
+    $('#invoices-table-body').on('click', '.btn-edit-invoice', function () {
+    const id = $(this).attr('data-id');
+    const inv = getData('invoices').find(i => String(i.id) === String(id));
+    if (!inv) return;
+
+    // 🔒 Blocca modifiche se FATTURA PAGATA 
+    //    o NOTA DI CREDITO già EMESSA
+    if (inv.status === 'Pagata' || (inv.type === 'Nota di Credito' && inv.status === 'Emessa')) {
+        alert('Non è possibile modificare un documento già saldato/emesso.');
+        return;
+    }
+
+    // Mostra la pagina "Nuova Fattura / Nota di Credito" in modalità modifica
+    $('.content-section').addClass('d-none');
+    $('#nuova-fattura-accompagnatoria').removeClass('d-none');
+
+    // Aggiorna il menu laterale
+    $('.sidebar .nav-link').removeClass('active');
+    if (inv.type === 'Nota di Credito') {
+        $('#menu-nuova-nota-credito').addClass('active');
+    } else {
+        $('#menu-nuova-fattura').addClass('active');
+    }
+
+    // Carica i dati della fattura nel form
+    loadInvoiceForEditing(id, false);
+});
     $('#invoices-table-body').on('click', '.btn-delete-invoice', function() { deleteDataFromCloud('invoices', $(this).attr('data-id')); });
     $('#invoices-table-body').on('click', '.btn-mark-paid', async function() { 
         const id = $(this).attr('data-id'); const inv = getData('invoices').find(i => String(i.id) === String(id));
