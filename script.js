@@ -18,7 +18,7 @@ $(document).ready(function() {
  // =========================================================
     // TIMEOUT DI INATTIVITÀ (5 minuti)
     // =========================================================
-    const INACTIVITY_LIMIT_MS = 5 * 60 * 1000; // 10 minuti
+    const INACTIVITY_LIMIT_MS = 5 * 60 * 1000; // 5 minuti
     let inactivityTimer = null;
     let inactivityHandlersBound = false;
 
@@ -243,6 +243,12 @@ $(document).ready(function() {
 // =========================================================
     // 3. FUNZIONI DI RENDER UI
     // =========================================================
+
+    // Punto d'ingresso dell'app dopo il login
+    function initializeApp() {
+        // Per ora basta inizializzare tutta la UI
+        renderAll();
+    }
 
     function renderAll() {
         renderCompanyInfoForm(); 
