@@ -370,24 +370,30 @@ function renderInvoicesTable() {
         else statusBadge = isPaid ? '<span class="badge bg-success">Pagata</span>' : '<span class="badge bg-warning text-dark">Da Incassare</span>';
 
         const payClass = isPaid ? 'btn-secondary disabled' : 'btn-success';
-        const editClass = isPaid ? 'btn-secondary disabled' : 'btn-outline-secondary';
-        const btnDelete = `<button class="btn btn-sm btn-danger btn-delete-invoice" data-id="${inv.id}" title="Elimina"><i class="fas fa-trash"></i></button>`;
+const editClass = isPaid ? 'btn-secondary disabled' : 'btn-outline-secondary';
 
-        const btns = `<div class="d-flex justify-content-end gap-1">
-            <button class="btn btn-sm btn-info btn-view-invoice text-white" data-id="${inv.id}" data-bs-toggle="modal" data-bs-target="#invoiceDetailModal" title="Vedi">
-                <i class="fas fa-eye"></i>
-            </button>
-            <button class="btn btn-sm ${editClass} btn-edit-invoice" data-id="${inv.id}" title="Modifica" ${isPaid?'disabled':''}>
-                <i class="fas fa-edit"></i>
-            </button>
-            <button class="btn btn-sm btn-warning btn-export-xml-row" data-id="${inv.id}" title="XML">
-                <i class="fas fa-file-code"></i>
-            </button>
-            <button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="Stato" ${isPaid?'disabled':''}>
-                <i class="fas fa-check"></i>
-            </button>
-            ${btnDelete}
-        </div>`;
+// NUOVO: pulsante elimina disabilitato se la fattura è pagata/emessa
+const deleteClass = isPaid ? 'btn-secondary disabled' : 'btn-danger';
+const deleteDisabledAttr = isPaid ? 'disabled' : '';
+const btnDelete = `<button class="btn btn-sm ${deleteClass} btn-delete-invoice" data-id="${inv.id}" title="Elimina" ${deleteDisabledAttr}>
+    <i class="fas fa-trash"></i>
+</button>`;
+
+const btns = `<div class="d-flex justify-content-end gap-1">
+    <button class="btn btn-sm btn-info btn-view-invoice text-white" data-id="${inv.id}" data-bs-toggle="modal" data-bs-target="#invoiceDetailModal" title="Vedi">
+        <i class="fas fa-eye"></i>
+    </button>
+    <button class="btn btn-sm ${editClass} btn-edit-invoice" data-id="${inv.id}" title="Modifica" ${isPaid ? 'disabled' : ''}>
+        <i class="fas fa-edit"></i>
+    </button>
+    <button class="btn btn-sm btn-warning btn-export-xml-row" data-id="${inv.id}" title="XML">
+        <i class="fas fa-file-code"></i>
+    </button>
+    <button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="Stato" ${isPaid ? 'disabled' : ''}>
+        <i class="fas fa-check"></i>
+    </button>
+    ${btnDelete}
+</div>`;
 
         const total = (parseFloat(inv.total) || 0).toFixed(2);
         table.append(`<tr class="${isPaid?'table-light text-muted':''}">
