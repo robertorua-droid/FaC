@@ -706,20 +706,53 @@ $('#invoice-year-filter').on('change', function() { renderInvoicesTable(); });
     $('#invoice-dataRiferimento, #invoice-giorniTermini').on('input', function() { const d = $('#invoice-dataRiferimento').val(); const g = parseInt($('#invoice-giorniTermini').val()); if(d && !isNaN(g)) { const dt = new Date(d); dt.setDate(dt.getDate() + g); $('#invoice-dataScadenza').val(dt.toISOString().split('T')[0]); } });
 
     $('#new-invoice-form').submit(async function(e) {
-        e.preventDefault();
-        const cid = $('#invoice-customer-select').val(); if (!cid || window.tempInvoiceLines.length === 0) { alert("Dati mancanti."); return; }
-        const type = $('#document-type').val(); const calcs = updateTotalsDisplay();
-        const data = {
-            number: $('#invoice-number').val(), date: $('#invoice-date').val(), customerId: cid, type: type, lines: window.tempInvoiceLines,
-            totalePrestazioni: calcs.totPrest, importoBollo: calcs.impBollo, rivalsa: { importo: calcs.riv }, totaleImponibile: calcs.totImp, total: calcs.totDoc,
-            status: (type === 'Fattura' ? 'Da Incassare' : 'Emessa'), dataScadenza: $('#invoice-dataScadenza').val(),
-            condizioniPagamento: $('#invoice-condizioniPagamento').val(), modalitaPagamento: $('#invoice-modalitaPagamento').val(),
-            linkedInvoice: $('#linked-invoice').val(), reason: $('#reason').val()
-        };
-        if (CURRENT_EDITING_INVOICE_ID) { const old = getData('invoices').find(i => String(i.id) === CURRENT_EDITING_INVOICE_ID); if(old) data.status = old.status; }
-        let id = CURRENT_EDITING_INVOICE_ID ? CURRENT_EDITING_INVOICE_ID : String(getNextId(getData('invoices')));
-        await saveDataToCloud('invoices', data, id); alert("Salvato!"); $('.sidebar .nav-link[data-target="elenco-fatture"]').click();
-    });
+    e.preventDefault();
+    const cid = $('#invoice-customer-select').val();
+    if (!cid || window.tempInvoiceLines.length === 0) {
+        alert("Dati incompleti.");
+        return;
+    }
+
+    const type = $('#document-type').val();
+    const calcs = updateTotalsDisplay();
+    const data = {
+        number: $('#invoice-number').val(),
+        date: $('#invoice-date').val(),
+        customerId: cid,
+        type: type,
+        lines: window.tempInvoiceLines,
+        totalePrestazioni: calcs.totPrest,
+        importoBollo: calcs.impBollo,
+        rivalsa: { importo: calcs.riv },
+        totaleImponibile: calcs.totImp,
+        total: calcs.totDoc,
+        status: (type === 'Fattura' ? 'Da Incassare' : 'Emessa'),
+        dataScadenza: $('#invoice-dataScadenza').val(),
+        condizioniPagamento: $('#invoice-condizioniPagamento').val(),
+        modalitaPagamento: $('#invoice-modalitaPagamento').val(),
+        linkedInvoice: $('#linked-invoice').val(),
+        reason: $('#reason').val()
+    };
+
+    if (CURRENT_EDITING_INVOICE_ID) {
+        const old = getData('invoices').find(i => String(i.id) === CURRENT_EDITING_INVOICE_ID);
+        if (old) data.status = old.status;
+    }
+
+    let id = CURRENT_EDITING_INVOICE_ID
+        ? CURRENT_EDITING_INVOICE_ID
+        : String(getNextId(getData('invoices')));
+
+    await saveDataToCloud('invoices', data, id);
+
+    // 👇 AGGIUNGI QUESTA RIGA
+    renderInvoicesTable();
+
+    alert("Salvato!");
+
+    // e poi vai all’elenco
+    $('.sidebar .nav-link[data-target="elenco-fatture"]').click();
+});
 
     $('#invoices-table-body').on('click', '.btn-edit-invoice', function() { loadInvoiceForEditing($(this).attr('data-id'), false); });
     $('#invoices-table-body').on('click', '.btn-delete-invoice', function() { deleteDataFromCloud('invoices', $(this).attr('data-id')); });
