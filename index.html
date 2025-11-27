@@ -121,6 +121,13 @@
             <!-- ELENCO FATTURE -->
             <div id="elenco-fatture" class="content-section d-none">
                 <h2>Documenti Emessi</h2>
+                
+<div class="mb-3 d-flex align-items-center gap-2">
+    <label for="invoice-year-filter" class="form-label mb-0 me-2">Anno:</label>
+    <select id="invoice-year-filter" class="form-select form-select-sm" style="width:auto; max-width:150px;">
+        <option value="all">Tutti</option>
+    </select>
+</div>
                 <table class="table table-hover"><thead><tr><th>Tipo</th><th>Numero</th><th>Data</th><th>Cliente</th><th class="text-end-numbers">Totale</th><th class="text-end-numbers">Scadenza</th><th>Stato</th><th class="text-end col-actions">Azioni</th></tr></thead><tbody id="invoices-table-body"></tbody></table>
             </div>
             
@@ -221,6 +228,13 @@
                         <div class="col-md-3 mb-3"><label class="form-label">INPS %</label><input type="number" class="form-control" id="company-aliquotaContributi"></div>
                         <div class="col-md-3 mb-3"><label class="form-label">Rivalsa INPS %</label><input type="number" class="form-control" id="company-aliquotaInps"></div>
                     </div>
+                    
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label class="form-label">PEC (opzionale)</label>
+        <input type="email" class="form-control" id="company-pec" placeholder="nomeazienda@pec.it">
+    </div>
+</div>
                     <div class="row">
                         <div class="col-md-6 mb-3"><label class="form-label">Contributi Versati (€)</label><input type="number" class="form-control" id="company-contributiVersati"></div>
                     </div>
@@ -242,6 +256,16 @@
                         <p class="card-text">Carica qui il file <code>.json</code> della vecchia versione per inviare i dati al Cloud.</p>
                         <label for="import-file-input" class="btn btn-warning"><i class="fas fa-cloud-upload-alt"></i> Carica Backup JSON</label>
                         <input type="file" id="import-file-input" class="d-none" accept=".json">
+                    
+<hr class="my-4">
+<h5 class="card-title mt-3">Backup dal Cloud (utente corrente)</h5>
+<p class="card-text">
+    Scarica un file <code>.json</code> con i dati attuali salvati nel Cloud
+    (azienda, clienti, servizi, documenti e note) per l'utente connesso.
+</p>
+<button type="button" class="btn btn-success" id="export-cloud-json-btn">
+    <i class="fas fa-cloud-download-alt"></i> Scarica Backup JSON
+</button>
                     </div>
                 </div>
             </div>
@@ -269,6 +293,12 @@
                             <div class="col-md-6 mb-3"><label class="form-label">Codice Fiscale</label><input type="text" class="form-control" id="customer-codiceFiscale"></div>
                         </div>
                         <div class="mb-3"><label class="form-label">Codice S.d.I.</label><input type="text" class="form-control" id="customer-sdi"></div>
+                        
+<div class="mb-3">
+    <label class="form-label">PEC (opzionale)</label>
+    <input type="email" class="form-control" id="customer-pec" placeholder="cliente@pec.it">
+</div>
+                        
                         <div class="mb-3"><label class="form-label">Indirizzo</label><input type="text" class="form-control" id="customer-address"></div>
                         <div class="row">
                             <div class="col-md-5 mb-3"><label class="form-label">Città</label><input type="text" class="form-control" id="customer-comune"></div>

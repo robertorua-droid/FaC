@@ -324,38 +324,84 @@ $(document).ready(function() {
         }); 
     }
     
-    function renderInvoicesTable() {
-        const table = $('#invoices-table-body').empty();
-        const invoices = getData('invoices').sort((a, b) => (b.number || '').localeCompare(a.number || ''));
-        
-        invoices.forEach(inv => {
-            const c = getData('customers').find(cust => String(cust.id) === String(inv.customerId)) || { name: 'Sconosciuto' }; 
-            const isPaid = inv.status === 'Pagata' || inv.status === 'Emessa';
-            
-            let statusBadge = `<span class="badge bg-warning text-dark">Da Incassare</span>`;
-            if (inv.type === 'Nota di Credito') statusBadge = isPaid ? `<span class="badge bg-info text-dark">Emessa</span>` : `<span class="badge bg-secondary">Bozza</span>`;
-            else statusBadge = isPaid ? `<span class="badge bg-success">Pagata</span>` : `<span class="badge bg-warning text-dark">Da Incassare</span>`;
-            
-            const docTypeBadge = inv.type === 'Nota di Credito' ? `<span class="badge bg-warning text-dark">NdC</span>` : `<span class="badge bg-primary">Fatt.</span>`;
-
-            // Bottoni allineati
-            const payClass = isPaid ? 'btn-secondary disabled' : 'btn-success';
-            const editClass = isPaid ? 'btn-secondary disabled' : 'btn-secondary';
-            
-            const btns = `
-                <div class="d-flex justify-content-end gap-1">
-                    <button class="btn btn-sm btn-info btn-view-invoice text-white" data-id="${inv.id}" data-bs-toggle="modal" data-bs-target="#invoiceDetailModal" title="Dettagli"><i class="fas fa-eye"></i></button>
-                    <button class="btn btn-sm ${editClass} btn-edit-invoice" data-id="${inv.id}" title="Modifica" ${isPaid ? 'disabled' : ''}><i class="fas fa-edit"></i></button>
-                    <button class="btn btn-sm btn-warning btn-export-xml-row" data-id="${inv.id}" title="XML"><i class="fas fa-file-code"></i></button>
-                    <button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="Stato" ${isPaid ? 'disabled' : ''}><i class="fas fa-check"></i></button>
-                    <button class="btn btn-sm btn-danger btn-delete-invoice" data-id="${inv.id}" title="Elimina"><i class="fas fa-trash"></i></button>
-                </div>
-            `;
-            
-            const total = safeFloat(inv.total).toFixed(2);
-            table.append(`<tr class="${isPaid?'table-light text-muted':''}"><td>${docTypeBadge}</td><td class="fw-bold">${inv.number}</td><td>${formatDateForDisplay(inv.date)}</td><td>${c.name}</td><td class="text-end pe-4">€ ${total}</td><td class="text-end">${formatDateForDisplay(inv.dataScadenza)}</td><td>${statusBadge}</td><td class="text-end">${btns}</td></tr>`);
-        });
+    function populateInvoiceYearFilter() {
+    const select = $('#invoice-year-filter');
+    if (!select.length) return;
+    const invoices = getData('invoices');
+    const yearsSet = new Set();
+    invoices.forEach(inv => {
+        if (inv.date && typeof inv.date === 'string' && inv.date.length >= 4) {
+            yearsSet.add(inv.date.substring(0, 4));
+        }
+    });
+    const years = Array.from(yearsSet).sort().reverse();
+    const current = select.val() || 'all';
+    select.empty();
+    select.append('<option value="all">Tutti</option>');
+    years.forEach(year => {
+        select.append(`<option value="${year}">${year}</option>`);
+    });
+    if (years.includes(current)) {
+        select.val(current);
     }
+}
+
+function renderInvoicesTable() {
+    populateInvoiceYearFilter();
+
+    const table = $('#invoices-table-body').empty();
+    const select = $('#invoice-year-filter');
+    const yearFilter = select.length ? select.val() : 'all';
+
+    let invoices = getData('invoices').slice();
+    if (yearFilter && yearFilter !== 'all') {
+        invoices = invoices.filter(inv => inv.date && String(inv.date).substring(0, 4) === String(yearFilter));
+    }
+
+    invoices.sort((a, b) => (b.number || '').localeCompare(a.number || ''));
+
+    invoices.forEach(inv => {
+        const c = getData('customers').find(cust => String(cust.id) === String(inv.customerId)) || { name: 'Sconosciuto' }; 
+        const isPaid = inv.status === 'Pagata' || inv.status === 'Emessa';
+
+        const badge = inv.type === 'Nota di Credito' ? '<span class="badge bg-warning text-dark border border-dark">NdC</span>' : '<span class="badge bg-primary">Fatt.</span>';
+        let statusBadge = '<span class="badge bg-warning text-dark">Da Incassare</span>';
+        if (inv.type === 'Nota di Credito') statusBadge = isPaid ? '<span class="badge bg-info text-dark">Emessa</span>' : '<span class="badge bg-secondary">Bozza</span>';
+        else statusBadge = isPaid ? '<span class="badge bg-success">Pagata</span>' : '<span class="badge bg-warning text-dark">Da Incassare</span>';
+
+        const payClass = isPaid ? 'btn-secondary disabled' : 'btn-success';
+        const editClass = isPaid ? 'btn-secondary disabled' : 'btn-outline-secondary';
+        const btnDelete = `<button class="btn btn-sm btn-danger btn-delete-invoice" data-id="${inv.id}" title="Elimina"><i class="fas fa-trash"></i></button>`;
+
+        const btns = `<div class="d-flex justify-content-end gap-1">
+            <button class="btn btn-sm btn-info btn-view-invoice text-white" data-id="${inv.id}" data-bs-toggle="modal" data-bs-target="#invoiceDetailModal" title="Vedi">
+                <i class="fas fa-eye"></i>
+            </button>
+            <button class="btn btn-sm ${editClass} btn-edit-invoice" data-id="${inv.id}" title="Modifica" ${isPaid?'disabled':''}>
+                <i class="fas fa-edit"></i>
+            </button>
+            <button class="btn btn-sm btn-warning btn-export-xml-row" data-id="${inv.id}" title="XML">
+                <i class="fas fa-file-code"></i>
+            </button>
+            <button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="Stato" ${isPaid?'disabled':''}>
+                <i class="fas fa-check"></i>
+            </button>
+            ${btnDelete}
+        </div>`;
+
+        const total = (parseFloat(inv.total) || 0).toFixed(2);
+        table.append(`<tr class="${isPaid?'table-light text-muted':''}">
+            <td>${badge}</td>
+            <td class="fw-bold">${inv.number}</td>
+            <td>${formatDateForDisplay(inv.date)}</td>
+            <td>${c.name}</td>
+            <td class="text-end">€ ${total}</td>
+            <td class="text-end small">${formatDateForDisplay(inv.dataScadenza)}</td>
+            <td>${statusBadge}</td>
+            <td class="text-end">${btns}</td>
+        </tr>`);
+    });
+}
 
     function populateDropdowns() {
         // Clienti
@@ -482,7 +528,7 @@ $(document).ready(function() {
         const editId = $(this).data('edit-id');
         const data = {
             name: $('#customer-name').val(), piva: $('#customer-piva').val(), codiceFiscale: $('#customer-codiceFiscale').val(),
-            sdi: $('#customer-sdi').val(), address: $('#customer-address').val(), comune: $('#customer-comune').val(),
+            sdi: $('#customer-sdi').val(), pec: $('#customer-pec').val(), address: $('#customer-address').val(), comune: $('#customer-comune').val(),
             provincia: $('#customer-provincia').val(), cap: $('#customer-cap').val(), nazione: $('#customer-nazione').val(),
             rivalsaInps: $('#customer-rivalsaInps').is(':checked')
         };
@@ -575,6 +621,7 @@ $(document).ready(function() {
         return { totPrest, riv, impBollo, totImp: totPrest+riv, totDoc };
     }
     $('#invoice-customer-select').change(updateTotalsDisplay);
+    $('#invoice-year-filter').on('change', function() { renderInvoicesTable(); });
     $('#invoice-date').change(function() { $('#invoice-dataRiferimento').val($(this).val()); updateInvoiceNumber($('#document-type').val(), $(this).val().substring(0, 4)); });
     $('#invoice-dataRiferimento, #invoice-giorniTermini').on('input', function() { const d = $('#invoice-dataRiferimento').val(); const g = parseInt($('#invoice-giorniTermini').val()); if(d && !isNaN(g)) { const dt = new Date(d); dt.setDate(dt.getDate() + g); $('#invoice-dataScadenza').val(dt.toISOString().split('T')[0]); } });
 
@@ -635,6 +682,38 @@ $(document).ready(function() {
     });
     $('#print-invoice-btn').click(()=>window.print());
     $('#company-info-form').on('submit', async function(e) { e.preventDefault(); const d={}; $(this).find('input').each(function(){if(this.id)d[this.id.replace('company-','')] = $(this).val()}); await saveDataToCloud('companyInfo', d); alert("Salvato!"); });
+    
+$('#export-cloud-json-btn').on('click', function() {
+    if (!currentUser) {
+        alert('Devi essere loggato per esportare il backup dal Cloud.');
+        return;
+    }
+    const backup = {
+        meta: {
+            version: 2,
+            exportedAt: new Date().toISOString(),
+            userId: currentUser.uid || null,
+            userEmail: currentUser.email || null
+        },
+        data: {
+            companyInfo: globalData.companyInfo || {},
+            products: globalData.products || [],
+            customers: globalData.customers || [],
+            invoices: globalData.invoices || [],
+            notes: globalData.notes || []
+        }
+    };
+    const jsonStr = JSON.stringify(backup, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const a = document.createElement('a');
+    const dateStr = new Date().toISOString().slice(0,10);
+    a.href = URL.createObjectURL(blob);
+    a.download = `gestionale-backup-cloud-${dateStr}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+});
     $('#save-notes-btn').click(async()=>{ await saveDataToCloud('notes', {userId:currentUser.uid, text:$('#notes-textarea').val()}, currentUser.uid); alert("Salvato!"); });
     
     $('#import-file-input').change(function(e) {
