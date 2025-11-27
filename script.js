@@ -15,6 +15,64 @@ window.tempInvoiceLines = [];
 
 $(document).ready(function() {
 
+ // =========================================================
+    // TIMEOUT DI INATTIVITÀ (5 minuti)
+    // =========================================================
+    const INACTIVITY_LIMIT_MS = 5 * 60 * 1000; // 10 minuti
+    let inactivityTimer = null;
+    let inactivityHandlersBound = false;
+
+    function handleInactivityLogout() {
+        if (!currentUser) return; // già disconnesso
+
+        // Piccolo messaggio all'utente
+        alert("Sessione scaduta per inattività. Verrai disconnesso.");
+
+        // Sign-out Firebase + reload pulito
+        auth.signOut().then(() => {
+            // location.reload() per essere sicuri di resettare lo stato dell'app
+            location.reload();
+        }).catch(err => {
+            console.error("Errore nel logout per inattività:", err);
+            location.reload();
+        });
+    }
+
+    function resetInactivityTimer() {
+        if (!currentUser) return; // timer attivo solo se loggato
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(handleInactivityLogout, INACTIVITY_LIMIT_MS);
+    }
+
+    function startInactivityWatch() {
+        if (inactivityHandlersBound) {
+            // Già agganciati, basta resettare il timer
+            resetInactivityTimer();
+            return;
+        }
+
+        inactivityHandlersBound = true;
+
+        // Qualsiasi interazione “normale” resetta il timer
+        $(document).on(
+            'mousemove.inactivity keydown.inactivity click.inactivity scroll.inactivity touchstart.inactivity',
+            resetInactivityTimer
+        );
+
+        resetInactivityTimer();
+    }
+
+    function stopInactivityWatch() {
+        if (inactivityTimer) {
+            clearTimeout(inactivityTimer);
+            inactivityTimer = null;
+        }
+        if (inactivityHandlersBound) {
+            $(document).off('.inactivity');
+            inactivityHandlersBound = false;
+        }
+    }
+
     // =========================================================
     // 0. INIZIALIZZAZIONE FIREBASE (AVVIO SICURO)
     // =========================================================
@@ -435,15 +493,30 @@ const btns = `<div class="d-flex justify-content-end gap-1">
     auth.onAuthStateChanged(async (user) => {
         if (user) {
             currentUser = user;
-            $('#login-container').addClass('d-none'); $('#loading-screen').removeClass('d-none'); 
+            $('#login-container').addClass('d-none');
+            $('#loading-screen').removeClass('d-none'); 
+
             try {
                 await loadAllDataFromCloud(); 
-                $('#loading-screen').addClass('d-none'); $('#main-app').removeClass('d-none');
-                renderAll();
-            } catch (error) { alert("Errore DB: " + error.message); $('#loading-screen').addClass('d-none'); }
+                $('#loading-screen').addClass('d-none');
+                $('#main-app').removeClass('d-none');
+
+                // Avvio/Reset del controllo di inattività
+                startInactivityWatch();
+
+                initializeApp();
+            } catch (error) {
+                alert("Errore DB: " + error.message);
+                $('#loading-screen').addClass('d-none');
+            }
         } else {
+            // Utente non loggato: stop al controllo di inattività
             currentUser = null;
-            $('#main-app').addClass('d-none'); $('#loading-screen').addClass('d-none'); $('#login-container').removeClass('d-none');
+            stopInactivityWatch();
+
+            $('#main-app').addClass('d-none');
+            $('#loading-screen').addClass('d-none');
+            $('#login-container').removeClass('d-none');
         }
     });
 
