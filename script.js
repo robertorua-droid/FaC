@@ -15,64 +15,6 @@ window.tempInvoiceLines = [];
 
 $(document).ready(function() {
 
- // =========================================================
-    // TIMEOUT DI INATTIVITÀ (5 minuti)
-    // =========================================================
-    const INACTIVITY_LIMIT_MS = 5 * 60 * 1000; // 5 minuti
-    let inactivityTimer = null;
-    let inactivityHandlersBound = false;
-
-    function handleInactivityLogout() {
-        if (!currentUser) return; // già disconnesso
-
-        // Piccolo messaggio all'utente
-        alert("Sessione scaduta per inattività. Verrai disconnesso.");
-
-        // Sign-out Firebase + reload pulito
-        auth.signOut().then(() => {
-            // location.reload() per essere sicuri di resettare lo stato dell'app
-            location.reload();
-        }).catch(err => {
-            console.error("Errore nel logout per inattività:", err);
-            location.reload();
-        });
-    }
-
-    function resetInactivityTimer() {
-        if (!currentUser) return; // timer attivo solo se loggato
-        if (inactivityTimer) clearTimeout(inactivityTimer);
-        inactivityTimer = setTimeout(handleInactivityLogout, INACTIVITY_LIMIT_MS);
-    }
-
-    function startInactivityWatch() {
-        if (inactivityHandlersBound) {
-            // Già agganciati, basta resettare il timer
-            resetInactivityTimer();
-            return;
-        }
-
-        inactivityHandlersBound = true;
-
-        // Qualsiasi interazione “normale” resetta il timer
-        $(document).on(
-            'mousemove.inactivity keydown.inactivity click.inactivity scroll.inactivity touchstart.inactivity',
-            resetInactivityTimer
-        );
-
-        resetInactivityTimer();
-    }
-
-    function stopInactivityWatch() {
-        if (inactivityTimer) {
-            clearTimeout(inactivityTimer);
-            inactivityTimer = null;
-        }
-        if (inactivityHandlersBound) {
-            $(document).off('.inactivity');
-            inactivityHandlersBound = false;
-        }
-    }
-
     // =========================================================
     // 0. INIZIALIZZAZIONE FIREBASE (AVVIO SICURO)
     // =========================================================
@@ -100,8 +42,9 @@ $(document).ready(function() {
         console.log("Firebase connesso.");
 
     } catch (error) {
-        console.error("Firebase Error:", error);
-        alert("Errore connessione Database: " + error.message);
+        console.error("Errore inizializzazione Firebase:", error);
+        alert("Errore Firebase: " + error.message);
+        return;
     }
 
     // =========================================================
@@ -126,129 +69,79 @@ $(document).ready(function() {
         return numericIds.length > 0 ? Math.max(...numericIds) + 1 : 1; 
     }
 
-    function getData(key) { return globalData[key] || []; }
-    function safeFloat(val) { const n = parseFloat(val); return isNaN(n) ? 0 : n; }
-    function toggleEsenzioneIvaField(container, ivaValue) { 
-        const div = (container === 'product') ? $('#esenzione-iva-container') : $('#invoice-esenzione-iva-container'); 
-        if (ivaValue == '0') div.removeClass('d-none'); else div.addClass('d-none'); 
+    function getData(key) {
+        return globalData[key] || [];
     }
 
-    function getUserRootRef() {
-        if (!currentUser || !currentUser.uid) {
-            throw new Error("Utente non autenticato");
-        }
-        return db.collection('users').doc(currentUser.uid);
+    function safeFloat(val) { 
+        const n = parseFloat(val); 
+        return isNaN(n) ? 0 : n; 
     }
-
-    function getUserCollectionRef(collection) {
-        return getUserRootRef().collection(collection);
-    }
-
-    function getCompanyInfoDocRef() {
-        return getUserRootRef().collection('settings').doc('companyInfo');
-    }
-
-
 
     // =========================================================
     // 2. GESTIONE DATI CLOUD
     // =========================================================
 
-    
-    function getUserDocRef() {
-        if (!currentUser || !currentUser.uid) {
-            throw new Error("Utente non autenticato (userDocRef).");
-        }
-        return db.collection('userData').doc(currentUser.uid);
-    }
-
     async function loadAllDataFromCloud() {
-        if (!auth || !db) throw new Error("Firebase non inizializzato.");
-        if (!currentUser) throw new Error("Utente non autenticato.");
         try {
-            const userRef = getUserDocRef();
+            // Azienda
+            const companyDoc = await db.collection('settings').doc('companyInfo').get();
+            if (companyDoc.exists) globalData.companyInfo = companyDoc.data();
 
-            // Azienda (impostazioni per utente)
-            const companyDoc = await userRef.collection('settings').doc('companyInfo').get();
-            globalData.companyInfo = companyDoc.exists ? companyDoc.data() : {};
-
-            // Collezioni per utente
+            // Collezioni (non filtrate per utente, come da versione corrente)
             const collections = ['products', 'customers', 'invoices', 'notes'];
             for (const col of collections) {
-                const snapshot = await userRef.collection(col).get();
+                const snapshot = await db.collection(col).get();
                 globalData[col] = snapshot.docs.map(doc => ({ id: String(doc.id), ...doc.data() }));
             }
-            console.log("Dati sincronizzati per utente:", currentUser.uid, globalData);
-        } catch (e) {
-            console.error("Errore Load Cloud:", e);
-            throw e;
+            console.log("Dati sincronizzati:", globalData);
+        } catch (e) { 
+            console.error("Errore Load Cloud:", e); 
+            throw e; 
         }
     }
 
     async function saveDataToCloud(collection, dataObj, id = null) {
-        if (!currentUser) {
-            alert("Utente non autenticato.");
-            return;
-        }
         try {
-            const userRef = getUserDocRef();
-
             if (collection === 'companyInfo') {
-                await userRef.collection('settings').doc('companyInfo').set(dataObj, { merge: true });
-                globalData.companyInfo = { ...(globalData.companyInfo || {}), ...dataObj };
+                await db.collection('settings').doc('companyInfo').set(dataObj);
+                globalData.companyInfo = dataObj;
             } else {
-                if (!id) {
-                    console.error("ID mancante per salvataggio in", collection);
-                    return;
-                }
-                const strId = String(id);
-                await userRef.collection(collection).doc(strId).set(dataObj, { merge: true });
-
-                if (!globalData[collection]) globalData[collection] = [];
-                const index = globalData[collection].findIndex(item => String(item.id) === strId);
-                if (index > -1) {
-                    globalData[collection][index] = { ...globalData[collection][index], ...dataObj };
-                } else {
-                    globalData[collection].push({ id: strId, ...dataObj });
+                if (id) {
+                    const strId = String(id);
+                    await db.collection(collection).doc(strId).set(dataObj, { merge: true });
+                    // Aggiorna cache locale
+                    const index = globalData[collection].findIndex(item => String(item.id) === strId);
+                    if (index > -1) {
+                        globalData[collection][index] = { ...globalData[collection][index], ...dataObj };
+                    } else {
+                        globalData[collection].push({ id: strId, ...dataObj });
+                    }
+                } else { 
+                    console.error("ID mancante"); 
                 }
             }
-        } catch (e) {
-            console.error("Errore Cloud:", e);
-            alert("Errore Cloud: " + e.message);
+        } catch (e) { 
+            alert("Errore Cloud: " + e.message); 
         }
     }
 
     async function deleteDataFromCloud(collection, id) {
-        if (!currentUser) {
-            alert("Utente non autenticato.");
-            return;
-        }
-        if (!confirm("Sei sicuro di voler eliminare questo elemento?")) return;
-
-        try {
-            const userRef = getUserDocRef();
-            const strId = String(id);
-            await userRef.collection(collection).doc(strId).delete();
-
-            if (globalData[collection]) {
+        if (confirm("Sei sicuro di voler eliminare questo elemento?")) {
+            try {
+                const strId = String(id);
+                await db.collection(collection).doc(strId).delete();
                 globalData[collection] = globalData[collection].filter(item => String(item.id) !== strId);
+                renderAll();
+            } catch (e) { 
+                alert("Errore eliminazione: " + e.message); 
             }
-            renderAll();
-        } catch (e) {
-            console.error("Errore eliminazione:", e);
-            alert("Errore eliminazione: " + e.message);
         }
     }
 
-// =========================================================
+    // =========================================================
     // 3. FUNZIONI DI RENDER UI
     // =========================================================
-
-    // Punto d'ingresso dell'app dopo il login
-    function initializeApp() {
-        // Per ora basta inizializzare tutta la UI
-        renderAll();
-    }
 
     function renderAll() {
         renderCompanyInfoForm(); 
@@ -263,18 +156,27 @@ $(document).ready(function() {
 
     function updateCompanyUI() { 
         const company = getData('companyInfo'); 
-        if(company.name) $('#company-name-sidebar').text(company.name);
-        if(currentUser && currentUser.email) $('#user-name-sidebar').text(currentUser.email);
-        $('#version-sidebar').text('v10.3 (Stable)');
+        if (company.name) $('#company-name-sidebar').text(company.name);
+        if (currentUser && currentUser.email) $('#user-name-sidebar').text(currentUser.email);
     }
 
     function renderHomePage() { 
-        if(currentUser && currentUser.email) $('#welcome-message').text(`Benvenuto, ${currentUser.email}`); 
+        if (currentUser) $('#welcome-message').text(`Benvenuto, ${currentUser.email}`); 
         const note = getData('notes').find(n => n.userId === currentUser.uid);
-        if(note) $('#notes-textarea').val(note.text);
+        if (note) $('#notes-textarea').val(note.text);
         renderCalendar();
         if (dateTimeInterval) clearInterval(dateTimeInterval);
-        const updateDateTime = () => $('#current-datetime').text(new Date().toLocaleDateString('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        const updateDateTime = () => $('#current-datetime').text(
+            new Date().toLocaleDateString('it-IT', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+            })
+        );
         updateDateTime();
         dateTimeInterval = setInterval(updateDateTime, 1000);
     }
@@ -282,64 +184,137 @@ $(document).ready(function() {
     function renderCalendar() {
         const c = $('#calendar-widget');
         const now = new Date();
-        const t = now.getDate();
-        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+        const todayDate = now.getDate();
+        const firstDay = new Date(currentYear, currentMonth, 1);
+        const lastDay = new Date(currentYear, currentMonth + 1, 0);
         const totalDays = lastDay.getDate();
         let startingDay = firstDay.getDay(); 
+        if (startingDay === 0) startingDay = 6; else startingDay -= 1;
 
-        let html = `<div class="card shadow-sm border-0"><div class="card-header bg-primary text-white text-center fw-bold">${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase()}</div><div class="card-body p-0"><table class="table table-bordered text-center mb-0" style="table-layout: fixed;"><thead class="table-light"><tr><th class="text-danger">Dom</th><th>Lun</th><th>Mar</th><th>Mer</th><th>Gio</th><th>Ven</th><th>Sab</th></tr></thead><tbody><tr>`;
-        
-        for (let i = 0; i < startingDay; i++) html += '<td class="bg-light"></td>';
-        for (let day = 1; day <= totalDays; day++) {
-            if (startingDay > 6) { startingDay = 0; html += '</tr><tr>'; }
-            const isToday = (day === t) ? 'bg-primary text-white fw-bold rounded-circle' : '';
-            html += `<td class="align-middle p-2"><div class="${isToday}" style="width:32px; height:32px; line-height:32px; margin:0 auto;">${day}</div></td>`;
-            startingDay++;
+        let html = `
+<div class="card shadow-sm border-0">
+  <div class="card-header bg-primary text-white text-center fw-bold">
+    ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase()}
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-bordered text-center mb-0" style="table-layout: fixed;">
+      <thead class="table-light">
+        <tr>
+          <th>Lu</th><th>Ma</th><th>Me</th><th>Gi</th><th>Ve</th><th>Sa</th><th>Do</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+`;
+
+        for (let i = 0; i < startingDay; i++) {
+            html += `<td></td>`;
         }
-        while (startingDay <= 6) { html += '<td class="bg-light"></td>'; startingDay++; }
-        html += '</tr></tbody></table></div></div>';
+
+        let dayOfWeek = startingDay;
+        for (let day = 1; day <= totalDays; day++) {
+            if (dayOfWeek > 6) {
+                html += `</tr><tr>`;
+                dayOfWeek = 0;
+            }
+            const isToday = (day === todayDate) ? 'bg-primary text-white fw-bold rounded-circle' : '';
+            html += `<td><div class="${isToday}" style="width:2.2rem;height:2.2rem;line-height:2.2rem;margin:auto;">${day}</div></td>`;
+            dayOfWeek++;
+        }
+
+        while (dayOfWeek <= 6) {
+            html += `<td></td>`;
+            dayOfWeek++;
+        }
+
+        html += `
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;
         c.html(html);
     }
 
-    function renderStatisticsPage() {
+    function renderStatisticsPage() { 
         const container = $('#stats-table-container').empty();
         const facts = getData('invoices').filter(i => i.type === 'Fattura' || i.type === undefined || i.type === '');
         const notes = getData('invoices').filter(i => i.type === 'Nota di Credito');
-        
-        if(facts.length === 0) { container.html('<div class="alert alert-info">Nessun dato.</div>'); renderTaxSimulation(0,0); return; }
-
+        if (facts.length === 0) { 
+            container.html('<p class="text-muted">Nessun dato.</p>'); 
+            renderTaxSimulation(0,0); 
+            return; 
+        }
         const totF = facts.reduce((s,i)=>s+safeFloat(i.total),0);
         const totN = notes.reduce((s,i)=>s+safeFloat(i.total),0);
         const net = totF - totN;
 
         let cust = {};
-        facts.forEach(i=>{const c=String(i.customerId); if(!cust[c])cust[c]=0; cust[c]+=safeFloat(i.total)});
-        notes.forEach(i=>{const c=String(i.customerId); if(cust[c])cust[c]-=safeFloat(i.total)});
+        facts.forEach(i=>{
+            const c = String(i.customerId); 
+            if(!cust[c]) cust[c]=0; 
+            cust[c]+=safeFloat(i.total);
+        });
+        notes.forEach(i=>{
+            const c = String(i.customerId); 
+            if(cust[c]) cust[c]-=safeFloat(i.total);
+        });
 
-        let h = `<div class="card shadow-sm mb-4 border-0"><div class="card-header fw-bold bg-white border-bottom">Dettaglio Clienti</div><div class="card-body p-0"><table class="table table-striped mb-0 table-hover"><thead><tr><th>Cliente</th><th class="text-end">Fatturato Netto</th><th class="text-end">% sul Totale</th></tr></thead><tbody>`;
+        let h = `
+<div class="table-responsive">
+<table class="table table-sm table-striped align-middle">
+  <thead class="table-light">
+    <tr>
+      <th>Cliente</th>
+      <th class="text-end">Fatturato Netto</th>
+      <th class="text-end">% sul Totale</th>
+    </tr>
+  </thead>
+  <tbody>
+`;
+
         Object.keys(cust).sort((a,b)=>cust[b]-cust[a]).forEach(cid=>{
             const c = getData('customers').find(x=>String(x.id)===String(cid))||{name:'?'};
-            const tot = cust[cid];
+            const tot = cust[cid]; 
             const perc = net > 0 ? (tot / net) * 100 : 0;
-            h+=`<tr><td>${c.name}</td><td class="text-end">€ ${tot.toFixed(2)}</td><td class="text-end">${perc.toFixed(1)}%</td></tr>`;
+            h+=`
+    <tr>
+      <td>${c.name}</td>
+      <td class="text-end">€ ${tot.toFixed(2)}</td>
+      <td class="text-end">${perc.toFixed(1)}%</td>
+    </tr>`;
         });
-        h+=`</tbody><tfoot class="table-dark"><tr><td>TOTALE</td><td class="text-end">€ ${net.toFixed(2)}</td><td class="text-end">100%</td></tr></tfoot></table></div></div>`;
+
+        h += `
+    <tr class="fw-bold table-secondary">
+      <td>TOTALE</td>
+      <td class="text-end">€ ${net.toFixed(2)}</td>
+      <td class="text-end">100%</td>
+    </tr>
+  </tbody>
+</table>
+</div>`;
+
         container.html(h);
-        
+
         const impF = facts.reduce((s,i)=>s+safeFloat(i.totaleImponibile||i.total),0);
         const impN = notes.reduce((s,i)=>s+safeFloat(i.totaleImponibile||i.total),0);
         renderTaxSimulation(impF, impN);
     }
 
-    function renderTaxSimulation(fatturatoImponibile, noteCreditoImponibile) {
+    function renderTaxSimulation(fatturatoImponibile, noteCreditoImponibile) { 
         const container = $('#tax-simulation-container').empty();
-        const comp = getData('companyInfo');
+        const comp = getData('companyInfo'); 
         const coeff = safeFloat(comp.coefficienteRedditivita);
         const taxRate = safeFloat(comp.aliquotaSostitutiva);
         const inpsRate = safeFloat(comp.aliquotaContributi);
-
-        if(!coeff || !taxRate || !inpsRate) { container.html('<div class="alert alert-warning">Dati mancanti in Anagrafica Azienda.</div>'); return; }
+        if(!coeff || !taxRate || !inpsRate) { 
+            container.html('<p class="text-muted">Dati mancanti per la simulazione fiscale.</p>'); 
+            return; 
+        }
 
         const grossRevenue = fatturatoImponibile - noteCreditoImponibile;
         const taxableIncome = grossRevenue * (coeff / 100);
@@ -349,1177 +324,914 @@ $(document).ready(function() {
         const totalDue = socialSecurity + tax;
 
         const html = `
-            <div class="row">
-                <div class="col-lg-6 mb-4"><div class="card h-100"><div class="card-header fw-bold">Simulazione Contributi INPS</div><div class="card-body"><dl class="row mb-0">
-                    <dt class="col-sm-8">Reddito Lordo Imponibile</dt><dd class="col-sm-4 text-end">€ ${taxableIncome.toFixed(2)}</dd>
-                    <dt class="col-sm-8">Aliquota Contributi INPS</dt><dd class="col-sm-4 text-end">${inpsRate}%</dd>
-                    <dt class="col-sm-8 h5 text-primary border-top pt-3">Contributi Totali Previsti</dt><dd class="col-sm-4 text-end h5 text-primary border-top pt-3">€ ${socialSecurity.toFixed(2)}</dd>
-                    <hr class="my-3"><dt class="col-sm-8 fw-normal">Stima Primo Acconto (40%)</dt><dd class="col-sm-4 text-end text-muted">€ ${(socialSecurity*0.4).toFixed(2)}</dd>
-                    <dt class="col-sm-8 fw-normal">Stima Secondo Acconto (40%)</dt><dd class="col-sm-4 text-end text-muted">€ ${(socialSecurity*0.4).toFixed(2)}</dd>
-                </dl></div></div></div>
-                <div class="col-lg-6 mb-4"><div class="card h-100"><div class="card-header fw-bold">Simulazione Imposta Sostitutiva (IRPEF)</div><div class="card-body"><dl class="row mb-0">
-                    <dt class="col-sm-8">Reddito Lordo Imponibile</dt><dd class="col-sm-4 text-end">€ ${taxableIncome.toFixed(2)}</dd>
-                    <dt class="col-sm-8">Contributi INPS Deducibili</dt><dd class="col-sm-4 text-end text-danger">- € ${socialSecurity.toFixed(2)}</dd>
-                    <dt class="col-sm-8 border-top pt-2">Reddito Netto Imponibile</dt><dd class="col-sm-4 text-end border-top pt-2">€ ${netTaxable.toFixed(2)}</dd>
-                    <dt class="col-sm-8">Aliquota Imposta</dt><dd class="col-sm-4 text-end">${taxRate}%</dd>
-                    <dt class="col-sm-8 h5 text-primary border-top pt-3">Imposta Totale Prevista</dt><dd class="col-sm-4 text-end h5 text-primary border-top pt-3">€ ${tax.toFixed(2)}</dd>
-                    <hr class="my-3"><dt class="col-sm-8 fw-normal">Stima Primo Acconto (50%)</dt><dd class="col-sm-4 text-end text-muted">€ ${(tax*0.5).toFixed(2)}</dd>
-                    <dt class="col-sm-8 fw-normal">Stima Secondo Acconto (50%)</dt><dd class="col-sm-4 text-end text-muted">€ ${(tax*0.5).toFixed(2)}</dd>
-                </dl></div></div></div>
-            </div>
-            <div class="card bg-light mt-4"><div class="card-body d-flex justify-content-between align-items-center"><h5 class="card-title mb-0">Totale Uscite Stimate (Contributi + Imposte)</h5><h5 class="card-title mb-0">€ ${totalDue.toFixed(2)}</h5></div></div>`;
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header bg-light fw-bold">Simulazione Contributi INPS</div>
+      <div class="card-body">
+        <p><strong>Reddito Lordo Imponibile:</strong><br>€ ${taxableIncome.toFixed(2)}</p>
+        <p><strong>Aliquota Contributi INPS:</strong><br>${inpsRate}%</p>
+        <p><strong>Contributi Totali Previsti:</strong><br>€ ${socialSecurity.toFixed(2)}</p>
+        <p><strong>Stima Primo Acconto (40%):</strong><br>€ ${(socialSecurity*0.4).toFixed(2)}</p>
+        <p><strong>Stima Secondo Acconto (40%):</strong><br>€ ${(socialSecurity*0.4).toFixed(2)}</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header bg-light fw-bold">Simulazione Imposta Sostitutiva (IRPEF)</div>
+      <div class="card-body">
+        <p><strong>Reddito Lordo Imponibile:</strong><br>€ ${taxableIncome.toFixed(2)}</p>
+        <p><strong>Contributi INPS Deducibili:</strong><br>- € ${socialSecurity.toFixed(2)}</p>
+        <p><strong>Reddito Netto Imponibile:</strong><br>€ ${netTaxable.toFixed(2)}</p>
+        <p><strong>Aliquota Imposta:</strong><br>${taxRate}%</p>
+        <p><strong>Imposta Totale Prevista:</strong><br>€ ${tax.toFixed(2)}</p>
+        <p><strong>Stima Primo Acconto (50%):</strong><br>€ ${(tax*0.5).toFixed(2)}</p>
+        <p><strong>Stima Secondo Acconto (50%):</strong><br>€ ${(tax*0.5).toFixed(2)}</p>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="alert alert-info mt-3 mb-0">
+  <strong>Totale Uscite Stimate (Contributi + Imposte):</strong> € ${totalDue.toFixed(2)}
+</div>`;
         container.html(html);
     }
 
-    function renderCompanyInfoForm() { const c = getData('companyInfo'); for (const k in c) $(`#company-${k}`).val(c[k]); }
-    
-    function renderProductsTable() { 
-        const table = $('#products-table-body').empty(); 
+    function renderCompanyInfoForm() {
+        const c = getData('companyInfo');
+        for (const k in c) {
+            $(`#company-${k}`).val(c[k]);
+        }
+    }
+
+    function renderProductsTable() {
+        const table = $('#products-table-body').empty();
         getData('products').forEach(p => { 
             const price = parseFloat(p.salePrice).toFixed(2);
-            table.append(`<tr><td>${p.code}</td><td>${p.description}</td><td class="text-end">€ ${price}</td><td class="text-end">${p.iva}%</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-product" data-id="${p.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-product" data-id="${p.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
-        }); 
+            table.append(`
+<tr>
+  <td>${p.code}</td>
+  <td>${p.description}</td>
+  <td class="text-end">€ ${price}</td>
+  <td class="text-center">${p.iva}%</td>
+  <td class="text-end">
+    <button class="btn btn-sm btn-outline-secondary me-1 btn-edit-product" data-id="${p.id}">
+      <i class="fas fa-edit"></i>
+    </button>
+    <button class="btn btn-sm btn-outline-danger btn-delete-product" data-id="${p.id}">
+      <i class="fas fa-trash"></i>
+    </button>
+  </td>
+</tr>`);
+        });
     }
-    
-    function renderCustomersTable() { 
-        const table = $('#customers-table-body').empty(); 
+
+    function renderCustomersTable() {
+        const table = $('#customers-table-body').empty();
         getData('customers').forEach(c => { 
-            table.append(`<tr><td>${c.name}</td><td>${c.piva}</td><td>${c.sdi || '-'}</td><td>${c.address || ''}</td><td class="text-end"><button class="btn btn-sm btn-primary btn-edit-customer" data-id="${c.id}"><i class="fas fa-edit"></i></button> <button class="btn btn-sm btn-danger btn-delete-customer" data-id="${c.id}"><i class="fas fa-trash"></i></button></td></tr>`); 
-        }); 
-    }
-    
-    function populateInvoiceYearFilter() {
-    const select = $('#invoice-year-filter');
-    if (!select.length) return;
-    const invoices = getData('invoices');
-    const yearsSet = new Set();
-    invoices.forEach(inv => {
-        if (inv.date && typeof inv.date === 'string' && inv.date.length >= 4) {
-            yearsSet.add(inv.date.substring(0, 4));
-        }
-    });
-    const years = Array.from(yearsSet).sort().reverse();
-    const current = select.val() || 'all';
-    select.empty();
-    select.append('<option value="all">Tutti</option>');
-    years.forEach(year => {
-        select.append(`<option value="${year}">${year}</option>`);
-    });
-    if (years.includes(current)) {
-        select.val(current);
-    }
-}
-
-function renderInvoicesTable() {
-    populateInvoiceYearFilter();
-
-    const table = $('#invoices-table-body').empty();
-    const select = $('#invoice-year-filter');
-    const yearFilter = select.length ? select.val() : 'all';
-
-    let invoices = getData('invoices').slice();
-    if (yearFilter && yearFilter !== 'all') {
-        invoices = invoices.filter(inv => inv.date && String(inv.date).substring(0, 4) === String(yearFilter));
+            table.append(`
+<tr>
+  <td>${c.name}</td>
+  <td>${c.piva}</td>
+  <td>${c.sdi || '-'}</td>
+  <td>${c.address || ''}</td>
+  <td class="text-center">
+    ${c.rivalsaInps ? '<span class="badge bg-info text-dark">Rivalsa INPS</span>' : ''}
+  </td>
+  <td class="text-end">
+    <button class="btn btn-sm btn-outline-secondary me-1 btn-edit-customer" data-id="${c.id}">
+      <i class="fas fa-edit"></i>
+    </button>
+    <button class="btn btn-sm btn-outline-danger btn-delete-customer" data-id="${c.id}">
+      <i class="fas fa-trash"></i>
+    </button>
+  </td>
+</tr>`);
+        });
     }
 
-    invoices.sort((a, b) => (b.number || '').localeCompare(a.number || ''));
+    function renderInvoicesTable() {
+        const table = $('#invoices-table-body').empty();
+        const invoices = getData('invoices').sort((a, b) => (b.number || '').localeCompare(a.number || ''));
+        invoices.forEach(inv => { 
+            const c = getData('customers').find(cust => String(cust.id) === String(inv.customerId)) || { name: 'Sconosciuto' };
+            const isPaid = inv.status === 'Pagata' || inv.status === 'Emessa';
+            const badge = inv.type === 'Nota di Credito' ? 'NdC' : 'Fatt.';
 
-    invoices.forEach(inv => {
-        const c = getData('customers').find(cust => String(cust.id) === String(inv.customerId)) || { name: 'Sconosciuto' }; 
-        const isPaid = inv.status === 'Pagata' || inv.status === 'Emessa';
+            let statusBadge = 'Da Incassare';
+            if (inv.type === 'Nota di Credito') statusBadge = isPaid ? 'Emessa' : 'Bozza';
+            else statusBadge = isPaid ? 'Pagata' : 'Da Incassare';
 
-        const badge = inv.type === 'Nota di Credito' ? '<span class="badge bg-warning text-dark border border-dark">NdC</span>' : '<span class="badge bg-primary">Fatt.</span>';
-        let statusBadge = '<span class="badge bg-warning text-dark">Da Incassare</span>';
-        if (inv.type === 'Nota di Credito') statusBadge = isPaid ? '<span class="badge bg-info text-dark">Emessa</span>' : '<span class="badge bg-secondary">Bozza</span>';
-        else statusBadge = isPaid ? '<span class="badge bg-success">Pagata</span>' : '<span class="badge bg-warning text-dark">Da Incassare</span>';
+            const payClass = isPaid ? 'btn-secondary disabled' : 'btn-success';
+            const editClass = isPaid ? 'btn-secondary disabled' : 'btn-outline-secondary';
+            const deleteClass = isPaid ? 'btn-secondary disabled' : 'btn-outline-danger';
 
-        const payClass = isPaid ? 'btn-secondary disabled' : 'btn-success';
-const editClass = isPaid ? 'btn-secondary disabled' : 'btn-outline-secondary';
+            const total = (parseFloat(inv.total) || 0).toFixed(2);
 
-// NUOVO: pulsante elimina disabilitato se la fattura è pagata/emessa
-const deleteClass = isPaid ? 'btn-secondary disabled' : 'btn-danger';
-const deleteDisabledAttr = isPaid ? 'disabled' : '';
-const btnDelete = `<button class="btn btn-sm ${deleteClass} btn-delete-invoice" data-id="${inv.id}" title="Elimina" ${deleteDisabledAttr}>
+            const btns = `
+<div class="btn-group btn-group-sm" role="group">
+  <button class="btn btn-outline-primary btn-show-invoice" data-id="${inv.id}">
+    <i class="fas fa-eye"></i>
+  </button>
+  <button class="btn ${editClass} btn-edit-invoice" data-id="${inv.id}">
+    <i class="fas fa-edit"></i>
+  </button>
+  <button class="btn ${deleteClass} btn-delete-invoice" data-id="${inv.id}">
     <i class="fas fa-trash"></i>
-</button>`;
-
-const btns = `<div class="d-flex justify-content-end gap-1">
-    <button class="btn btn-sm btn-info btn-view-invoice text-white" data-id="${inv.id}" data-bs-toggle="modal" data-bs-target="#invoiceDetailModal" title="Vedi">
-        <i class="fas fa-eye"></i>
-    </button>
-    <button class="btn btn-sm ${editClass} btn-edit-invoice" data-id="${inv.id}" title="Modifica" ${isPaid ? 'disabled' : ''}>
-        <i class="fas fa-edit"></i>
-    </button>
-    <button class="btn btn-sm btn-warning btn-export-xml-row" data-id="${inv.id}" title="XML">
-        <i class="fas fa-file-code"></i>
-    </button>
-    <button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="Stato" ${isPaid ? 'disabled' : ''}>
-        <i class="fas fa-check"></i>
-    </button>
-    ${btnDelete}
+  </button>
+  <button class="btn ${payClass} btn-mark-paid" data-id="${inv.id}">
+    <i class="fas fa-check"></i>
+  </button>
 </div>`;
 
-        const total = (parseFloat(inv.total) || 0).toFixed(2);
-        table.append(`<tr class="${isPaid?'table-light text-muted':''}">
-            <td>${badge}</td>
-            <td class="fw-bold">${inv.number}</td>
-            <td>${formatDateForDisplay(inv.date)}</td>
-            <td>${c.name}</td>
-            <td class="text-end">€ ${total}</td>
-            <td class="text-end small">${formatDateForDisplay(inv.dataScadenza)}</td>
-            <td>${statusBadge}</td>
-            <td class="text-end">${btns}</td>
-        </tr>`);
-    });
-}
+            table.append(`
+<tr>
+  <td><span class="badge bg-secondary">${badge}</span></td>
+  <td>${inv.number}</td>
+  <td>${formatDateForDisplay(inv.date)}</td>
+  <td>${c.name}</td>
+  <td class="text-end">€ ${total}</td>
+  <td>${formatDateForDisplay(inv.dataScadenza)}</td>
+  <td>${statusBadge}</td>
+  <td class="text-end">${btns}</td>
+</tr>`);
+        });
+    }
 
     function populateDropdowns() {
-        // Clienti
-        $('#invoice-customer-select').empty().append('<option selected disabled value="">Seleziona Cliente...</option>')
-            .append(getData('customers').map(c => `<option value="${c.id}">${c.name}</option>`));
-        
-        // Prodotti
-        $('#invoice-product-select').empty().append('<option selected value="">Seleziona Servizio...</option><option value="manual">--- Inserimento Manuale ---</option>')
-            .append(getData('products').map(p => {
-                const label = (p.code ? p.code + ' - ' : '') + p.description;
-                return `<option value="${p.id}">${label}</option>`;
-            }));
-        
-        // Data default
-        if(!$('#editing-invoice-id').val()) { 
-            $('#invoice-date').val(new Date().toISOString().slice(0, 10)); 
-        }
+        $('#invoice-customer-select')
+            .empty()
+            .append('<option value="">Seleziona...</option>')
+            .append(
+                getData('customers').map(c => `<option value="${c.id}">${c.name}</option>`)
+            );
+
+        $('#invoice-product-select')
+            .empty()
+            .append('<option value="">Seleziona...</option><option value="manual">Manuale</option>')
+            .append(
+                getData('products').map(p => `<option value="${p.id}">${p.code} - ${p.description}</option>`)
+            );
     }
 
     // =========================================================
-    // 4. EVENTI (AUTH, NAV, FORM)
+    // 4. EVENT LISTENERS (AUTH, NAV, CRUD, FATTURE)
     // =========================================================
 
     // AUTH
-    auth.onAuthStateChanged(async (user) => {
-        if (user) {
-            currentUser = user;
-            $('#login-container').addClass('d-none');
-            $('#loading-screen').removeClass('d-none'); 
-
-            try {
+    auth.onAuthStateChanged(async (user) => { 
+        if (user) { 
+            currentUser = user; 
+            $('#login-container').addClass('d-none'); 
+            $('#loading-screen').removeClass('d-none');
+            try { 
                 await loadAllDataFromCloud(); 
-                $('#loading-screen').addClass('d-none');
-                $('#main-app').removeClass('d-none');
-
-                // Avvio/Reset del controllo di inattività
-                startInactivityWatch();
-
-                initializeApp();
-            } catch (error) {
-                alert("Errore DB: " + error.message);
-                $('#loading-screen').addClass('d-none');
+                $('#loading-screen').addClass('d-none'); 
+                $('#main-app').removeClass('d-none'); 
+                initializeAppUI(); 
+            } catch (error) { 
+                alert("Errore DB: " + error.message); 
+                $('#loading-screen').addClass('d-none'); 
             }
-        } else {
-            // Utente non loggato: stop al controllo di inattività
-            currentUser = null;
-            stopInactivityWatch();
-
-            $('#main-app').addClass('d-none');
-            $('#loading-screen').addClass('d-none');
-            $('#login-container').removeClass('d-none');
+        } else { 
+            currentUser = null; 
+            $('#main-app').addClass('d-none'); 
+            $('#loading-screen').addClass('d-none'); 
+            $('#login-container').removeClass('d-none'); 
         }
     });
 
-    $('#login-form').on('submit', function(e) {
-        e.preventDefault();
-        auth.signInWithEmailAndPassword($('#email').val(), $('#password').val()).catch(err => { $('#login-error').removeClass('d-none'); });
+    $('#login-form').on('submit', function(e) { 
+        e.preventDefault(); 
+        auth.signInWithEmailAndPassword($('#email').val(), $('#password').val()).catch(err => { 
+            $('#login-error').removeClass('d-none'); 
+        }); 
     });
 
-    $('#logout-btn').on('click', function(e) { e.preventDefault(); auth.signOut().then(() => location.reload()); });
+    $('#logout-btn').on('click', function(e) { 
+        e.preventDefault(); 
+        auth.signOut().then(() => location.reload()); 
+    });
 
     // NAVIGAZIONE
     $('.sidebar .nav-link').on('click', function(e) { 
-        if ($(this).attr('id') === 'logout-btn' || $(this).data('bs-toggle') === 'modal') return; 
+        if(this.id === 'logout-btn' || this.getAttribute('data-bs-toggle')) return; 
         e.preventDefault(); 
-        const target = $(this).data('target');
-        if (target === 'nuova-fattura-accompagnatoria') {
-            if ($(this).attr('id') === 'menu-nuova-nota-credito') prepareDocumentForm('Nota di Credito'); 
-            else if ($(this).attr('id') === 'menu-nuova-fattura') return; 
-            else prepareDocumentForm('Fattura');
+        const target = $(this).data('target'); 
+        if(target === 'nuova-fattura-accompagnatoria') { 
+            if(this.id === 'menu-nuova-nota-credito') prepareDocumentForm('Nota di Credito'); 
+            else if(this.id === 'menu-nuova-fattura') return; 
+            else prepareDocumentForm('Fattura'); 
         }
-        if (target === 'statistiche') renderStatisticsPage(); 
-        $('.sidebar .nav-link').removeClass('active'); $(this).addClass('active');
-        $('.content-section').addClass('d-none'); $('#' + target).removeClass('d-none'); 
+        if(target === 'statistiche') renderStatisticsPage(); 
+        $('.sidebar .nav-link').removeClass('active'); 
+        $(this).addClass('active'); 
+        $('.content-section').addClass('d-none'); 
+        $('#' + target).removeClass('d-none'); 
     });
 
-    // AZIENDA
-    $('#company-info-form').on('submit', async function(e) { 
-        e.preventDefault(); const companyInfo = {}; 
-        $(this).find('input, select').each(function() { const id = $(this).attr('id'); if (id) companyInfo[id.replace('company-', '')] = $(this).val(); }); 
-        await saveDataToCloud('companyInfo', companyInfo); alert("Dati salvati!"); updateCompanyUI(); 
+    // MODALE FATTURA: Scelta "nuova o copia da esistente"
+    $('#newInvoiceChoiceModal').on('show.bs.modal', function () { 
+        const invoices = getData('invoices').filter(i => i.type === 'Fattura' || i.type === undefined); 
+        invoices.sort((a, b) => new Date(b.date) - new Date(a.date)); 
+        const options = invoices.map(inv => `<option value="${inv.id}">${inv.number} - ${formatDateForDisplay(inv.date)}</option>`).join(''); 
+        $('#copy-from-invoice-select').html('<option value="">Copia da esistente...</option>' + options); 
     });
 
-    // MODALE FATTURA (Fix)
-    $('#newInvoiceChoiceModal').on('show.bs.modal', function () {
-        const invoices = getData('invoices').filter(i => i.type === 'Fattura' || i.type === undefined);
-        invoices.sort((a, b) => new Date(b.date) - new Date(a.date));
-        const options = invoices.map(inv => `<option value="${inv.id}">${inv.number} - ${formatDateForDisplay(inv.date)}</option>`).join('');
-        $('#copy-from-invoice-select').html('<option selected value="">Copia da esistente...</option>' + options);
+    $('#btn-create-new-blank-invoice').click(function() { 
+        $('#newInvoiceChoiceModal').modal('hide'); 
+        $('.sidebar .nav-link').removeClass('active'); 
+        $('[data-bs-target="#newInvoiceChoiceModal"]').addClass('active'); 
+        $('.content-section').addClass('d-none'); 
+        $('#nuova-fattura-accompagnatoria').removeClass('d-none'); 
+        prepareDocumentForm('Fattura'); 
     });
 
-    $('#btn-create-new-blank-invoice').click(function() {
-        $('#newInvoiceChoiceModal').modal('hide');
-        $('.sidebar .nav-link').removeClass('active'); $('[data-bs-target="#newInvoiceChoiceModal"]').addClass('active');
-        $('.content-section').addClass('d-none'); $('#nuova-fattura-accompagnatoria').removeClass('d-none');
-        prepareDocumentForm('Fattura');
+    $('#btn-copy-from-invoice').click(function() { 
+        const id = $('#copy-from-invoice-select').val(); 
+        if(!id) return; 
+        $('#newInvoiceChoiceModal').modal('hide'); 
+        $('.sidebar .nav-link').removeClass('active'); 
+        $('[data-bs-target="#newInvoiceChoiceModal"]').addClass('active'); 
+        $('.content-section').addClass('d-none'); 
+        $('#nuova-fattura-accompagnatoria').removeClass('d-none'); 
+        loadInvoiceForEditing(id, true); 
     });
 
-    $('#btn-copy-from-invoice').click(function() {
-        const id = $('#copy-from-invoice-select').val();
-        if(!id) return;
-        $('#newInvoiceChoiceModal').modal('hide');
-        $('.sidebar .nav-link').removeClass('active'); $('[data-bs-target="#newInvoiceChoiceModal"]').addClass('active');
-        $('.content-section').addClass('d-none'); $('#nuova-fattura-accompagnatoria').removeClass('d-none');
-        loadInvoiceForEditing(id, true);
-    });
-
+    // =========================================================
     // CRUD ANAGRAFICHE
+    // =========================================================
+
     function editItem(type, id) { 
-        if (type === 'customer' || type === 'product') CURRENT_EDITING_ID = String(id);
+        if (type === 'customer' || type === 'product') CURRENT_EDITING_ID = String(id); 
         const item = getData(`${type}s`).find(i => String(i.id) === String(id)); 
-        if (!item) { alert("Elemento non trovato"); return; }
-        
+        if (!item) return; 
         $(`#${type}Form`)[0].reset(); 
-        $(`#${type}ModalTitle`).text(`Modifica ${type === 'product' ? 'Servizio' : 'Cliente'}`); 
-        $(`#${type}-id`).val(String(item.id));
-        
-        // Set ID sul bottone per sicurezza
-        const btnSave = (type === 'product') ? $('#saveProductBtn') : $('#saveCustomerBtn');
-        btnSave.data('edit-id', String(item.id)); 
-        
+        $(`#${type}ModalTitle`).text(`Modifica`); 
+        $(`#${type}-id`).val(String(item.id)); 
         for (const key in item) { 
             const field = $(`#${type}-${key}`); 
-            if (field.length) { if (field.is(':checkbox')) field.prop('checked', item[key]); else field.val(item[key]); }
-        } 
-        if (type === 'product') { $('#product-iva').trigger('change'); if(item.iva == '0') $('#product-esenzioneIva').val(item.esenzioneIva); } 
+            if (field.length) { 
+                if (field.is(':checkbox')) field.prop('checked', item[key]); 
+                else field.val(item[key]); 
+            } 
+        }
+        if (type === 'product') { 
+            $('#product-iva').trigger('change'); 
+            if(item.iva == '0') $('#product-esenzioneIva').val(item.esenzioneIva); 
+        }
         $(`#${type}Modal`).modal('show'); 
     }
 
     $('#newCustomerBtn').click(() => { 
         CURRENT_EDITING_ID = null; 
-        $('#saveCustomerBtn').data('edit-id', null); 
         $('#customerForm')[0].reset(); 
         $('#customer-id').val('Nuovo'); 
         $('#customerModal').modal('show'); 
     });
 
-    $('#saveCustomerBtn').click(async function() {
-        const editId = $(this).data('edit-id');
-        const data = {
-            name: $('#customer-name').val(), piva: $('#customer-piva').val(), codiceFiscale: $('#customer-codiceFiscale').val(),
-            sdi: $('#customer-sdi').val(), pec: $('#customer-pec').val(), address: $('#customer-address').val(), comune: $('#customer-comune').val(),
-            provincia: $('#customer-provincia').val(), cap: $('#customer-cap').val(), nazione: $('#customer-nazione').val(),
-            rivalsaInps: $('#customer-rivalsaInps').is(':checked')
-        };
-        let id = editId ? editId : String(getNextId(getData('customers')));
-        await saveDataToCloud('customers', data, id); $('#customerModal').modal('hide'); renderAll();
+    $('#saveCustomerBtn').click(async () => { 
+        const data = { 
+            name: $('#customer-name').val(), 
+            piva: $('#customer-piva').val(), 
+            codiceFiscale: $('#customer-codiceFiscale').val(), 
+            sdi: $('#customer-sdi').val(), 
+            address: $('#customer-address').val(), 
+            comune: $('#customer-comune').val(), 
+            provincia: $('#customer-provincia').val(), 
+            cap: $('#customer-cap').val(), 
+            nazione: $('#customer-nazione').val(), 
+            rivalsaInps: $('#customer-rivalsaInps').is(':checked') 
+        }; 
+        let id = CURRENT_EDITING_ID ? CURRENT_EDITING_ID : String(getNextId(getData('customers'))); 
+        await saveDataToCloud('customers', data, id); 
+        $('#customerModal').modal('hide'); 
+        renderAll(); 
     });
 
-    $('#customers-table-body').on('click', '.btn-edit-customer', function(e) { editItem('customer', $(e.currentTarget).attr('data-id')); });
-    $('#customers-table-body').on('click', '.btn-delete-customer', function(e) { deleteDataFromCloud('customers', $(e.currentTarget).attr('data-id')); });
+    $('#customers-table-body').on('click', '.btn-edit-customer', function(e) { 
+        editItem('customer', $(e.currentTarget).attr('data-id')); 
+    });
+
+    $('#customers-table-body').on('click', '.btn-delete-customer', function(e) { 
+        deleteDataFromCloud('customers', $(e.currentTarget).attr('data-id')); 
+    });
 
     $('#newProductBtn').click(() => { 
         CURRENT_EDITING_ID = null; 
-        $('#saveProductBtn').data('edit-id', null);
         $('#productForm')[0].reset(); 
         $('#product-id').val('Nuovo'); 
         $('#product-iva').val('0').change(); 
         $('#productModal').modal('show'); 
     });
 
-    $('#saveProductBtn').click(async function() {
-        const editId = $(this).data('edit-id');
-        const data = {
-            description: $('#product-description').val(), code: $('#product-code').val(),
-            salePrice: $('#product-salePrice').val(), iva: $('#product-iva').val(), esenzioneIva: $('#product-esenzioneIva').val()
-        };
-        let id = editId ? editId : 'PRD' + new Date().getTime();
-        await saveDataToCloud('products', data, id); $('#productModal').modal('hide'); renderAll();
+    $('#saveProductBtn').click(async () => { 
+        const data = { 
+            description: $('#product-description').val(), 
+            code: $('#product-code').val(), 
+            salePrice: $('#product-salePrice').val(), 
+            iva: $('#product-iva').val(), 
+            esenzioneIva: $('#product-esenzioneIva').val() 
+        }; 
+        let id = CURRENT_EDITING_ID ? CURRENT_EDITING_ID : 'PRD' + new Date().getTime(); 
+        await saveDataToCloud('products', data, id); 
+        $('#productModal').modal('hide'); 
+        renderAll(); 
     });
 
-    $('#products-table-body').on('click', '.btn-edit-product', function(e) { editItem('product', $(e.currentTarget).attr('data-id')); });
-    $('#products-table-body').on('click', '.btn-delete-product', function(e) { deleteDataFromCloud('products', $(e.currentTarget).attr('data-id')); });
-    $('#product-iva').change(function() { toggleEsenzioneIvaField('product', $(this).val()); });
-    
-    function toggleEsenzioneIvaField(container, ivaValue) { const div = (container === 'product') ? $('#esenzione-iva-container') : $('#invoice-esenzione-iva-container'); if (ivaValue == '0') div.removeClass('d-none'); else div.addClass('d-none'); }
+    $('#products-table-body').on('click', '.btn-edit-product', function(e) { 
+        editItem('product', $(e.currentTarget).attr('data-id')); 
+    });
 
+    $('#products-table-body').on('click', '.btn-delete-product', function(e) { 
+        deleteDataFromCloud('products', $(e.currentTarget).attr('data-id')); 
+    });
+
+    $('#product-iva').change(function() { 
+        toggleEsenzioneIvaField('product', $(this).val()); 
+    });
+
+    // =========================================================
     // FATTURE CORE
-    function prepareDocumentForm(type) {
+    // =========================================================
+
+    function prepareDocumentForm(type) { 
         CURRENT_EDITING_INVOICE_ID = null; 
-        $('#new-invoice-form')[0].reset(); $('#invoice-id').val('Nuovo'); $('#document-type').val(type);
-        $('#invoice-lines-tbody').empty(); window.tempInvoiceLines = []; 
+        $('#new-invoice-form')[0].reset(); 
+        $('#invoice-id').val('Nuovo'); 
+        $('#document-type').val(type); 
+        $('#invoice-lines-tbody').empty(); 
+        window.tempInvoiceLines = []; 
         populateDropdowns(); 
-        const today = new Date().toISOString().slice(0, 10); $('#invoice-date').val(today);
-        if (type === 'Nota di Credito') { $('#document-title').text('Nuova Nota di Credito'); $('#credit-note-fields').removeClass('d-none'); } 
-        else { $('#document-title').text('Nuova Fattura'); $('#credit-note-fields').addClass('d-none'); }
-        updateInvoiceNumber(type, today.substring(0, 4)); updateTotalsDisplay();
+        const today = new Date().toISOString().slice(0, 10); 
+        $('#invoice-date').val(today); 
+        if (type === 'Nota di Credito') { 
+            $('#document-title').text('Nuova Nota di Credito'); 
+            $('#credit-note-fields').removeClass('d-none'); 
+        } else { 
+            $('#document-title').text('Nuova Fattura'); 
+            $('#credit-note-fields').addClass('d-none'); 
+        }
+        updateInvoiceNumber(type, today.substring(0, 4)); 
+        updateTotalsDisplay(); 
     }
 
-    function loadInvoiceForEditing(id, isCopy) {
-        const inv = getData('invoices').find(i => String(i.id) === String(id)); if (!inv) return;
-        const type = isCopy ? 'Fattura' : (inv.type || 'Fattura');
-        prepareDocumentForm(type);
-        if (!isCopy) { CURRENT_EDITING_INVOICE_ID = String(inv.id); $('#invoice-id').val(inv.id); $('#document-title').text(`Modifica ${type} ${inv.number}`); }
-        $('#invoice-customer-select').val(inv.customerId);
-        $('#invoice-date').val(isCopy ? new Date().toISOString().slice(0, 10) : inv.date);
-        if(!isCopy) $('#invoice-number').val(inv.number);
-        $('#invoice-condizioniPagamento').val(inv.condizioniPagamento); $('#invoice-modalitaPagamento').val(inv.modalitaPagamento); $('#invoice-dataScadenza').val(inv.dataScadenza);
-        if (type === 'Nota di Credito') { $('#linked-invoice').val(inv.linkedInvoice); $('#reason').val(inv.reason); }
-        window.tempInvoiceLines = JSON.parse(JSON.stringify(inv.lines)); renderLocalInvoiceLines(); updateTotalsDisplay();
+    function loadInvoiceForEditing(id, isCopy) { 
+        const inv = getData('invoices').find(i => String(i.id) === String(id)); 
+        if (!inv) return; 
+        const type = isCopy ? 'Fattura' : (inv.type || 'Fattura'); 
+        prepareDocumentForm(type); 
+        if (!isCopy) { 
+            CURRENT_EDITING_INVOICE_ID = String(inv.id); 
+            $('#invoice-id').val(inv.id); 
+            $('#document-title').text(`Modifica ${type} ${inv.number}`); 
+        }
+        $('#invoice-customer-select').val(inv.customerId); 
+        $('#invoice-date').val(isCopy ? new Date().toISOString().slice(0, 10) : inv.date); 
+        if(!isCopy) $('#invoice-number').val(inv.number); 
+        $('#invoice-condizioniPagamento').val(inv.condizioniPagamento); 
+        $('#invoice-modalitaPagamento').val(inv.modalitaPagamento); 
+        $('#invoice-dataScadenza').val(inv.dataScadenza); 
+        if (type === 'Nota di Credito') { 
+            $('#linked-invoice').val(inv.linkedInvoice); 
+            $('#reason').val(inv.reason); 
+        }
+        window.tempInvoiceLines = JSON.parse(JSON.stringify(inv.lines || [])); 
+        renderLocalInvoiceLines(); 
+        updateTotalsDisplay(); 
     }
 
-    function updateInvoiceNumber(type, year) {
-        if (CURRENT_EDITING_INVOICE_ID) return;
-        const invs = getData('invoices').filter(i => (i.type === type || (type==='Fattura' && !i.type)) && i.date.substring(0, 4) === String(year));
-        let next = 1; if (invs.length > 0) next = Math.max(...invs.map(i => parseInt(i.number.split('-').pop()) || 0)) + 1;
-        $('#invoice-number').val(`${type==='Fattura'?'FATT':'NC'}-${year}-${String(next).padStart(2, '0')}`);
+    function updateInvoiceNumber(type, year) { 
+        if (CURRENT_EDITING_INVOICE_ID) return; 
+        const invs = getData('invoices').filter(i => 
+            (i.type === type || (type==='Fattura' && !i.type)) && 
+            i.date && i.date.substring(0, 4) === String(year)
+        ); 
+        let next = 1; 
+        if (invs.length > 0) { 
+            next = Math.max(...invs.map(i => parseInt((i.number || '').split('-').pop()) || 0)) + 1; 
+        }
+        $('#invoice-number').val(`${type==='Fattura'?'FATT':'NC'}-${year}-${String(next).padStart(2, '0')}`); 
     }
 
-    $('#add-product-to-invoice-btn').click(() => {
-        const d = $('#invoice-product-description').val(); if(!d) return;
-        window.tempInvoiceLines.push({ productName: d, qty: parseFloat($('#invoice-product-qty').val())||1, price: parseFloat($('#invoice-product-price').val())||0, subtotal: (parseFloat($('#invoice-product-qty').val())||1)*(parseFloat($('#invoice-product-price').val())||0), iva: $('#invoice-product-iva').val(), esenzioneIva: $('#invoice-product-esenzioneIva').val() });
-        renderLocalInvoiceLines(); updateTotalsDisplay();
-    });
+    // === LOGICA DI CALCOLO CORRETTA (Rivalsa INPS + Rivalsa Bollo) ===
+    function updateTotalsDisplay() {
+        const cid = $('#invoice-customer-select').val();
+        const cust = getData('customers').find(c => String(c.id) === String(cid));
+        const comp = getData('companyInfo');
 
-    function renderLocalInvoiceLines() {
-        const t = $('#invoice-lines-tbody').empty(); 
-        window.tempInvoiceLines.forEach((l, i) => { t.append(`<tr><td>${l.productName}</td><td class="text-end">${l.qty}</td><td class="text-end">€ ${l.price.toFixed(2)}</td><td class="text-end">€ ${l.subtotal.toFixed(2)}</td><td class="text-center"><button type="button" class="btn btn-sm btn-danger del-line" data-i="${i}">x</button></td></tr>`); });
+        // Righe effettive di prestazione (escludo la riga "Rivalsa Bollo")
+        const rows = window.tempInvoiceLines.filter(
+            l => (l.productName || '').toLowerCase() !== 'rivalsa bollo'
+        );
+
+        // Riga bollo (se presente)
+        const bollo = window.tempInvoiceLines.find(
+            l => (l.productName || '').toLowerCase() === 'rivalsa bollo'
+        );
+        const impBollo = bollo ? safeFloat(bollo.subtotal) : 0;
+
+        // Totale prestazioni
+        const totPrest = rows.reduce((s, l) => s + safeFloat(l.subtotal), 0);
+
+        // Rivalsa INPS se il cliente ha la spunta
+        let riv = 0;
+        if (cust && cust.rivalsaInps) {
+            const aliqInps = safeFloat(comp.aliquotaInps || comp.aliquotaContributi || 0);
+            riv = totPrest * (aliqInps / 100);
+        }
+
+        // Totale Documento = Prestazioni + Rivalsa + Bolli
+        const totDoc = totPrest + riv + impBollo;
+
+        $('#invoice-total').text(`€ ${totDoc.toFixed(2)}`);
+        $('#invoice-tax-details').text(
+            `(Imp: € ${(totPrest + riv).toFixed(2)} - Bollo: € ${impBollo.toFixed(2)})`
+        );
+
+        return { 
+            totPrest, 
+            riv, 
+            impBollo, 
+            totImp: totPrest + riv, 
+            totDoc 
+        };
     }
-    $('#invoice-lines-tbody').on('click', '.del-line', function() { window.tempInvoiceLines.splice($(this).data('i'), 1); renderLocalInvoiceLines(); updateTotalsDisplay(); });
 
-    // ===============================
-// Calcolo totali fattura
-// ===============================
-function updateTotalsDisplay() {
-    const cid  = $('#invoice-customer-select').val();
-    const cust = getData('customers').find(c => String(c.id) === String(cid));
-    const comp = getData('companyInfo');
+    $('#invoice-customer-select').change(updateTotalsDisplay);
 
-    // Righe diverse dalla "Rivalsa Bollo"
-    const rows = window.tempInvoiceLines.filter(l =>
-        l.productName &&
-        l.productName.toLowerCase() !== 'rivalsa bollo'
-    );
+    // Quando seleziono un servizio dalla tendina, compilo automaticamente la riga
+    $('#invoice-product-select').on('change', function() {
+        const selectedId = $(this).val();
+        const descInput = $('#invoice-product-description');
+        const qtyInput = $('#invoice-product-qty');
+        const priceInput = $('#invoice-product-price');
+        const ivaSelect = $('#invoice-product-iva');
+        const esenzioneSelect = $('#invoice-product-esenzioneIva');
 
-    // Righe "Rivalsa Bollo"
-    const bolloRows = window.tempInvoiceLines.filter(l =>
-        l.productName &&
-        l.productName.toLowerCase() === 'rivalsa bollo'
-    );
+        if (!selectedId) {
+            descInput.val('');
+            priceInput.val('');
+            qtyInput.val(1);
+            ivaSelect.val('0');
+            esenzioneSelect.val('N2.1');
+            descInput.prop('readonly', true);
+            ivaSelect.prop('disabled', true);
+            esenzioneSelect.prop('disabled', true);
+            toggleEsenzioneIvaField('invoice', ivaSelect.val());
+            return;
+        }
 
-    const impBollo = bolloRows.reduce((s, l) => s + (l.subtotal || 0), 0);
+        if (selectedId === 'manual') {
+            // Inserimento manuale
+            descInput.val('');
+            priceInput.val('');
+            qtyInput.val(1);
+            ivaSelect.val('0');
+            esenzioneSelect.val('N2.1');
+            descInput.prop('readonly', false);
+            ivaSelect.prop('disabled', false);
+            esenzioneSelect.prop('disabled', false);
+            toggleEsenzioneIvaField('invoice', ivaSelect.val());
+            return;
+        }
 
-    // Totale prestazioni (senza bollo)
-    const totPrest = rows.reduce((s, l) => s + (l.subtotal || 0), 0);
+        const p = getData('products').find(prod => String(prod.id) === String(selectedId));
+        if (!p) {
+            descInput.val('');
+            priceInput.val('');
+            qtyInput.val(1);
+            ivaSelect.val('0');
+            esenzioneSelect.val('N2.1');
+            descInput.prop('readonly', true);
+            ivaSelect.prop('disabled', true);
+            esenzioneSelect.prop('disabled', true);
+            toggleEsenzioneIvaField('invoice', ivaSelect.val());
+            return;
+        }
 
-    // Rivalsa INPS solo se il cliente ha la spunta
-    let riv = 0;
-    if (cust && cust.rivalsaInps) {
-        const aliqInps = parseFloat(comp.aliquotaInps || '0');
-        riv = totPrest * (aliqInps / 100);
-    }
-
-    const totImp = totPrest + riv;
-    const totDoc = totImp + impBollo;
-
-    // Aggiornamento UI
-    $('#invoice-total').text(`€ ${totDoc.toFixed(2)}`);
-    $('#invoice-tax-details').text(
-        `(Imp: € ${totImp.toFixed(2)} - Bollo: € ${impBollo.toFixed(2)})`
-    );
-
-    // Valori usati per salvare la fattura
-    return {
-        totPrest,
-        riv,
-        impBollo,
-        totImp,
-        totDoc
-    };
-}
-
-// Ricalcola quando cambio cliente
-$('#invoice-customer-select').change(updateTotalsDisplay);
-
-
-
-// Quando seleziono un servizio dalla tendina, compilo automaticamente la riga
-$('#invoice-product-select').on('change', function() {
-    const selectedId = $(this).val();
-    const descInput = $('#invoice-product-description');
-    const qtyInput = $('#invoice-product-qty');
-    const priceInput = $('#invoice-product-price');
-    const ivaSelect = $('#invoice-product-iva');
-    const esenzioneSelect = $('#invoice-product-esenzioneIva');
-
-    if (!selectedId) {
-        // Nessuna scelta: reset campi
-        descInput.val('');
-        priceInput.val('');
+        descInput.val(p.description);
+        priceInput.val(p.salePrice);
         qtyInput.val(1);
-        ivaSelect.val('0');
-        esenzioneSelect.val('N2.1');
+        ivaSelect.val(p.iva || '0');
+        esenzioneSelect.val(p.esenzioneIva || 'N2.1');
+
         descInput.prop('readonly', true);
         ivaSelect.prop('disabled', true);
         esenzioneSelect.prop('disabled', true);
         toggleEsenzioneIvaField('invoice', ivaSelect.val());
-        return;
-    }
-
-    if (selectedId === 'manual') {
-        // Inserimento manuale
-        descInput.val('');
-        priceInput.val('');
-        qtyInput.val(1);
-        ivaSelect.val('0');
-        esenzioneSelect.val('N2.1');
-        descInput.prop('readonly', false);
-        ivaSelect.prop('disabled', false);
-        esenzioneSelect.prop('disabled', false);
-        toggleEsenzioneIvaField('invoice', ivaSelect.val());
-        return;
-    }
-
-    const p = getData('products').find(prod => String(prod.id) === String(selectedId));
-    if (!p) {
-        // Fallback: passo in manuale se non trovo il prodotto
-        descInput.val('');
-        priceInput.val('');
-        qtyInput.val(1);
-        ivaSelect.val('0');
-        esenzioneSelect.val('N2.1');
-        descInput.prop('readonly', false);
-        ivaSelect.prop('disabled', false);
-        esenzioneSelect.prop('disabled', false);
-        toggleEsenzioneIvaField('invoice', ivaSelect.val());
-        return;
-    }
-
-    // Prodotto selezionato: uso i dati dell'anagrafica
-    descInput.val(p.description || '');
-    priceInput.val(p.salePrice || 0);
-    qtyInput.val(1);
-    ivaSelect.val(p.iva != null ? String(p.iva) : '0');
-    esenzioneSelect.val(p.esenzioneIva || 'N2.1');
-
-    // Di default blocco la descrizione (proviene dal listino)
-    descInput.prop('readonly', true);
-    // L'aliquota la lascio modificabile se vuoi correggere manualmente
-    ivaSelect.prop('disabled', false);
-    esenzioneSelect.prop('disabled', ivaSelect.val() !== '0');
-
-    toggleEsenzioneIvaField('invoice', ivaSelect.val());
-});
-
-// Se cambio l'aliquota IVA a mano, gestisco il campo Esenzione
-$('#invoice-product-iva').on('change', function() {
-    const ivaVal = $(this).val();
-    toggleEsenzioneIvaField('invoice', ivaVal);
-    if (ivaVal === '0') {
-        $('#invoice-product-esenzioneIva').prop('disabled', false);
-    } else {
-        $('#invoice-product-esenzioneIva').prop('disabled', true).val('');
-    }
-});
-
-$('#invoice-year-filter').on('change', function() { renderInvoicesTable(); });
-    $('#invoice-date').change(function() { $('#invoice-dataRiferimento').val($(this).val()); updateInvoiceNumber($('#document-type').val(), $(this).val().substring(0, 4)); });
-    $('#invoice-dataRiferimento, #invoice-giorniTermini').on('input', function() { const d = $('#invoice-dataRiferimento').val(); const g = parseInt($('#invoice-giorniTermini').val()); if(d && !isNaN(g)) { const dt = new Date(d); dt.setDate(dt.getDate() + g); $('#invoice-dataScadenza').val(dt.toISOString().split('T')[0]); } });
-
-    $('#new-invoice-form').submit(async function (e) {
-    e.preventDefault();
-
-    const cid = $('#invoice-customer-select').val();
-    if (!cid || window.tempInvoiceLines.length === 0) {
-        alert("Dati incompleti.");
-        return;
-    }
-
-    const type  = $('#document-type').val();
-    const calcs = updateTotalsDisplay();      // ← usa la funzione sopra
-    const comp  = getData('companyInfo');
-
-    // Oggetto rivalsa: solo se esiste importo
-    const rivImporto = calcs.riv || 0;
-    const rivObj = (rivImporto > 0)
-        ? {
-            aliquota: parseFloat(comp.aliquotaInps || '0'),
-            importo:  rivImporto
-          }
-        : {};
-
-    const data = {
-        number: $('#invoice-number').val(),
-        date:   $('#invoice-date').val(),
-        customerId: cid,
-        type: type,
-        lines: window.tempInvoiceLines,
-
-        // Campi economici coerenti con la versione offline
-        totalePrestazioni: calcs.totPrest,
-        importoBollo:      calcs.impBollo,
-        rivalsa:           rivObj,
-        totaleImponibile:  calcs.totImp,
-        total:             calcs.totDoc,
-
-        status: (type === 'Fattura' ? 'Da Incassare' : 'Emessa'),
-        dataScadenza: $('#invoice-dataScadenza').val(),
-        condizioniPagamento: $('#invoice-condizioniPagamento').val(),
-        modalitaPagamento:   $('#invoice-modalitaPagamento').val(),
-        linkedInvoice: $('#linked-invoice').val(),
-        reason:        $('#reason').val()
-    };
-
-    // Se sto modificando, mantengo lo stato precedente
-    if (CURRENT_EDITING_INVOICE_ID) {
-        const old = getData('invoices').find(
-            i => String(i.id) === CURRENT_EDITING_INVOICE_ID
-        );
-        if (old) data.status = old.status;
-    }
-
-    const id = CURRENT_EDITING_INVOICE_ID
-        ? CURRENT_EDITING_INVOICE_ID
-        : String(getNextId(getData('invoices')));
-
-    await saveDataToCloud('invoices', data, id);
-    alert("Salvato!");
-
-    // Torno all'elenco fatture
-    $('.sidebar .nav-link[data-target="elenco-fatture"]').click();
-});
-    $('#invoices-table-body').on('click', '.btn-edit-invoice', function () {
-    const id = $(this).attr('data-id');
-    const inv = getData('invoices').find(i => String(i.id) === String(id));
-    if (!inv) return;
-
-    // 🔒 Blocca modifiche se FATTURA PAGATA 
-    //    o NOTA DI CREDITO già EMESSA
-    if (inv.status === 'Pagata' || (inv.type === 'Nota di Credito' && inv.status === 'Emessa')) {
-        alert('Non è possibile modificare un documento già saldato/emesso.');
-        return;
-    }
-
-    // Mostra la pagina "Nuova Fattura / Nota di Credito" in modalità modifica
-    $('.content-section').addClass('d-none');
-    $('#nuova-fattura-accompagnatoria').removeClass('d-none');
-
-    // Aggiorna il menu laterale
-    $('.sidebar .nav-link').removeClass('active');
-    if (inv.type === 'Nota di Credito') {
-        $('#menu-nuova-nota-credito').addClass('active');
-    } else {
-        $('#menu-nuova-fattura').addClass('active');
-    }
-
-    // Carica i dati della fattura nel form
-    loadInvoiceForEditing(id, false);
-});
-    $('#invoices-table-body').on('click', '.btn-delete-invoice', function() { deleteDataFromCloud('invoices', $(this).attr('data-id')); });
-    $('#invoices-table-body').on('click', '.btn-mark-paid', async function() { 
-        const id = $(this).attr('data-id'); const inv = getData('invoices').find(i => String(i.id) === String(id));
-        if(confirm("Confermi cambio stato?")) { await saveDataToCloud('invoices', { status: inv.type === 'Nota di Credito' ? 'Emessa' : 'Pagata' }, id); renderInvoicesTable(); }
     });
 
-    // XML
-    $('#invoices-table-body, #invoiceDetailModal').on('click', '.btn-export-xml, #export-xml-btn, .btn-export-xml-row', function() { 
-         let id = $(this).attr('id') === 'export-xml-btn' ? $('#export-xml-btn').data('invoiceId') : $(this).attr('data-id');
-         if (id) generateInvoiceXML(id); 
-    });
-    function generateInvoiceXML(invoiceId) {
-    const invoice = getData('invoices').find(inv => String(inv.id) === String(invoiceId));
-    if (!invoice) {
-        alert("Errore: fattura non trovata");
-        return;
-    }
-
-    const company  = getData('companyInfo');
-    const customer = getData('customers').find(c => String(c.id) === String(invoice.customerId));
-
-    if (!company || !customer) {
-        alert("Dati anagrafici mancanti (azienda o cliente).");
-        return;
-    }
-
-    // =========================
-    // 1. ANAGRAFICA CEDENTE
-    // =========================
-    let anagraficaCedente = `<Anagrafica><Denominazione>${escapeXML(company.name || '')}</Denominazione></Anagrafica>`;
-    if (company.nome && company.cognome) {
-        anagraficaCedente =
-            `<Anagrafica><Nome>${escapeXML(company.nome)}</Nome><Cognome>${escapeXML(company.cognome)}</Cognome></Anagrafica>`;
-    }
-
-    // =========================
-    // 2. CALCOLI ECONOMICI
-    // =========================
-    const lines = Array.isArray(invoice.lines) ? invoice.lines : [];
-
-    // Righe di prestazioni (esclusa "Rivalsa Bollo")
-    const serviceLines = lines.filter(
-        l => (l.productName || '').toLowerCase() !== 'rivalsa bollo'
-    );
-
-    // Riga bollo (se presente)
-    const bolloLine = lines.find(
-        l => (l.productName || '').toLowerCase() === 'rivalsa bollo'
-    );
-
-    // Totale prestazioni
-    const totPrest = (typeof invoice.totalePrestazioni === 'number')
-        ? invoice.totalePrestazioni
-        : serviceLines.reduce((s, l) => s + safeFloat(l.subtotal), 0);
-
-    // Importo bollo
-    const importoBollo = (typeof invoice.importoBollo === 'number')
-        ? invoice.importoBollo
-        : (bolloLine ? safeFloat(bolloLine.subtotal) : 0);
-
-    // Rivalsa INPS
-    const rivalsaImporto = (invoice.rivalsa && typeof invoice.rivalsa.importo === 'number')
-        ? invoice.rivalsa.importo
-        : 0;
-
-    // Imponibili per il riepilogo IVA / Natura
-    const riepilogoN22Imponibile = totPrest;
-    const riepilogoN4Imponibile  = rivalsaImporto + importoBollo;
-
-    const tipoDocumento = (invoice.type === 'Nota di Credito' ? 'TD04' : 'TD01');
-
-    // =========================
-    // 3. HEADER + DATI GENERALI
-    // =========================
-    let xml = `<?xml version="1.0" encoding="UTF-8"?>` +
-        `<p:FatturaElettronica versione="FPR12" xmlns:ds="http://www.w3.org/2000/09/xmldsig#"` +
-        ` xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2"` +
-        ` xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">` +
-        `<FatturaElettronicaHeader>` +
-          `<DatiTrasmissione>` +
-            `<IdTrasmittente>` +
-              `<IdPaese>IT</IdPaese>` +
-              `<IdCodice>${escapeXML(company.codiceFiscale || '')}</IdCodice>` +
-            `</IdTrasmittente>` +
-            `<ProgressivoInvio>${(Math.random().toString(36) + '00000').slice(2, 7)}</ProgressivoInvio>` +
-            `<FormatoTrasmissione>FPR12</FormatoTrasmissione>` +
-            `<CodiceDestinatario>${escapeXML(customer.sdi || '0000000')}</CodiceDestinatario>` +
-          `</DatiTrasmissione>` +
-          `<CedentePrestatore>` +
-            `<DatiAnagrafici>` +
-              `<IdFiscaleIVA>` +
-                `<IdPaese>IT</IdPaese>` +
-                `<IdCodice>${escapeXML(company.piva || '')}</IdCodice>` +
-              `</IdFiscaleIVA>` +
-              `<CodiceFiscale>${escapeXML(company.codiceFiscale || '')}</CodiceFiscale>` +
-              `${anagraficaCedente}` +
-              `<RegimeFiscale>${escapeXML(company.codiceRegimeFiscale || '')}</RegimeFiscale>` +
-            `</DatiAnagrafici>` +
-            `<Sede>` +
-              `<Indirizzo>${escapeXML(company.address || '')}</Indirizzo>` +
-              `<NumeroCivico>${escapeXML(company.numeroCivico || '')}</NumeroCivico>` +
-              `<CAP>${escapeXML(company.zip || '')}</CAP>` +
-              `<Comune>${escapeXML(company.city || '')}</Comune>` +
-              `<Provincia>${escapeXML((company.province || '').toUpperCase())}</Provincia>` +
-              `<Nazione>IT</Nazione>` +
-            `</Sede>` +
-          `</CedentePrestatore>` +
-          `<CessionarioCommittente>` +
-            `<DatiAnagrafici>` +
-              `<IdFiscaleIVA>` +
-                `<IdPaese>IT</IdPaese>` +
-                `<IdCodice>${escapeXML(customer.piva || '')}</IdCodice>` +
-              `</IdFiscaleIVA>` +
-              `<CodiceFiscale>${escapeXML(customer.codiceFiscale || '')}</CodiceFiscale>` +
-              `<Anagrafica>` +
-                `<Denominazione>${escapeXML(customer.name || '')}</Denominazione>` +
-              `</Anagrafica>` +
-            `</DatiAnagrafici>` +
-            `<Sede>` +
-              `<Indirizzo>${escapeXML(customer.address || '')}</Indirizzo>` +
-              `<CAP>${escapeXML(customer.cap || '')}</CAP>` +
-              `<Comune>${escapeXML(customer.comune || '')}</Comune>` +
-              `<Provincia>${escapeXML((customer.provincia || '').toUpperCase())}</Provincia>` +
-              `<Nazione>IT</Nazione>` +
-            `</Sede>` +
-          `</CessionarioCommittente>` +
-        `</FatturaElettronicaHeader>` +
-        `<FatturaElettronicaBody>` +
-          `<DatiGenerali>` +
-            `<DatiGeneraliDocumento>` +
-              `<TipoDocumento>${tipoDocumento}</TipoDocumento>` +
-              `<Divisa>EUR</Divisa>` +
-              `<Data>${invoice.date}</Data>` +
-              `<Numero>${escapeXML(invoice.number || '')}</Numero>`;
-
-    // Dati bollo (se presente)
-    if (importoBollo > 0) {
-        xml += `<DatiBollo><BolloVirtuale>SI</BolloVirtuale><ImportoBollo>${importoBollo.toFixed(2)}</ImportoBollo></DatiBollo>`;
-    }
-
-    // Dati cassa previdenziale (se presente rivalsa)
-    if (rivalsaImporto > 0) {
-        const alCassa = (invoice.rivalsa && typeof invoice.rivalsa.aliquota === 'number')
-            ? invoice.rivalsa.aliquota
-            : safeFloat(company.aliquotaInps || company.aliquotaContributi || 0);
-
-        xml += `<DatiCassaPrevidenziale>` +
-                 `<TipoCassa>TC22</TipoCassa>` +
-                 `<AlCassa>${alCassa.toFixed(2)}</AlCassa>` +
-                 `<ImportoContributoCassa>${rivalsaImporto.toFixed(2)}</ImportoContributoCassa>` +
-                 `<ImponibileCassa>${totPrest.toFixed(2)}</ImponibileCassa>` +
-                 `<AliquotaIVA>0.00</AliquotaIVA>` +
-                 `<Natura>N4</Natura>` +
-               `</DatiCassaPrevidenziale>`;
-    }
-
-    xml += `<ImportoTotaleDocumento>${invoice.total.toFixed(2)}</ImportoTotaleDocumento>`;
-
-    if (invoice.type === 'Nota di Credito' && invoice.reason) {
-        xml += `<Causale>${escapeXML(invoice.reason)}</Causale>`;
-    }
-
-    xml += `</DatiGeneraliDocumento></DatiGenerali><DatiBeniServizi>`;
-
-    // =========================
-    // 4. DETTAGLIO LINEE
-    // =========================
-    let ln = 1;
-    lines.forEach(l => {
-        const qty      = safeFloat(l.qty);
-        const price    = safeFloat(l.price);
-        const subtotal = safeFloat(l.subtotal);
-
-        let natura = l.esenzioneIva || '';
-        // Forzo la Natura N4 per la riga "Rivalsa Bollo", come nel file AdE
-        if ((l.productName || '').toLowerCase() === 'rivalsa bollo') {
-            natura = 'N4';
+    $('#add-product-to-invoice-btn').click(() => {
+        const d = $('#invoice-product-description').val();
+        if (!d) {
+            alert("Inserisci una descrizione o seleziona un servizio.");
+            return;
         }
+        const qty = parseFloat($('#invoice-product-qty').val()) || 1;
+        const price = parseFloat($('#invoice-product-price').val()) || 0;
+        const iva = $('#invoice-product-iva').val();
+        const esenzioneIva = $('#invoice-product-esenzioneIva').val();
 
-        xml += `<DettaglioLinee>` +
-                 `<NumeroLinea>${ln++}</NumeroLinea>` +
-                 `<Descrizione>${escapeXML(l.productName || '')}</Descrizione>` +
-                 `<Quantita>${qty.toFixed(2)}</Quantita>` +
-                 `<PrezzoUnitario>${price.toFixed(2)}</PrezzoUnitario>` +
-                 `<PrezzoTotale>${subtotal.toFixed(2)}</PrezzoTotale>` +
-                 `<AliquotaIVA>${parseFloat(l.iva || '0').toFixed(2)}</AliquotaIVA>` +
-                 (natura ? `<Natura>${escapeXML(natura)}</Natura>` : '') +
-               `</DettaglioLinee>`;
+        const subtotal = qty * price;
+
+        window.tempInvoiceLines.push({
+            productName: d,
+            qty,
+            price,
+            subtotal,
+            iva,
+            esenzioneIva
+        });
+
+        renderLocalInvoiceLines();
+        updateTotalsDisplay();
     });
 
-    // =========================
-    // 5. DATI RIEPILOGO
-    // =========================
-    // N2.2: tutte le prestazioni
-    xml += `<DatiRiepilogo>` +
-             `<AliquotaIVA>0.00</AliquotaIVA>` +
-             `<Natura>N2.2</Natura>` +
-             `<ImponibileImporto>${riepilogoN22Imponibile.toFixed(2)}</ImponibileImporto>` +
-             `<Imposta>0.00</Imposta>` +
-           `</DatiRiepilogo>`;
-
-    // N4: rivalsa INPS + bollo (se > 0)
-    if (riepilogoN4Imponibile > 0) {
-        xml += `<DatiRiepilogo>` +
-                 `<AliquotaIVA>0.00</AliquotaIVA>` +
-                 `<Natura>N4</Natura>` +
-                 `<ImponibileImporto>${riepilogoN4Imponibile.toFixed(2)}</ImponibileImporto>` +
-                 `<Imposta>0.00</Imposta>` +
-               `</DatiRiepilogo>`;
+    function renderLocalInvoiceLines() {
+        const t = $('#invoice-lines-tbody').empty();
+        window.tempInvoiceLines.forEach((l, i) => {
+            t.append(`
+<tr>
+  <td>${l.productName}</td>
+  <td class="text-end">${l.qty}</td>
+  <td class="text-end">€ ${l.price.toFixed(2)}</td>
+  <td class="text-end">€ ${l.subtotal.toFixed(2)}</td>
+  <td class="text-center">
+    <button class="btn btn-sm btn-outline-danger del-line" data-i="${i}">
+      <i class="fas fa-trash"></i>
+    </button>
+  </td>
+</tr>`);
+        });
     }
 
-    xml += `</DatiBeniServizi>` +
-           `<DatiPagamento>` +
-             `<CondizioniPagamento>TP02</CondizioniPagamento>` +
-             `<DettaglioPagamento>` +
-               `<ModalitaPagamento>MP05</ModalitaPagamento>` +
-               `<DataScadenzaPagamento>${invoice.dataScadenza}</DataScadenzaPagamento>` +
-               `<ImportoPagamento>${invoice.total.toFixed(2)}</ImportoPagamento>` +
-               `<IBAN>${escapeXML(company.iban || '')}</IBAN>` +
-             `</DettaglioPagamento>` +
-           `</DatiPagamento>` +
-         `</FatturaElettronicaBody>` +
-       `</p:FatturaElettronica>`;
-
-    // =========================
-    // 6. DOWNLOAD FILE (con suffisso casuale)
-    // =========================
-    const a = document.createElement('a');
-    const randomSuffix = Math.random().toString(36).substring(2, 7);
-    a.download = `IT${company.piva}_${randomSuffix}.xml`;
-    const b = new Blob([xml], { type: 'application/xml' });
-    a.href = URL.createObjectURL(b);
-    a.click();
-function generateInvoiceXML(invoiceId) {
-    const invoice = getData('invoices').find(inv => String(inv.id) === String(invoiceId));
-    if (!invoice) {
-        alert("Errore: fattura non trovata");
-        return;
-    }
-
-    const company  = getData('companyInfo');
-    const customer = getData('customers').find(c => String(c.id) === String(invoice.customerId));
-
-    if (!company || !customer) {
-        alert("Dati anagrafici mancanti (azienda o cliente).");
-        return;
-    }
-
-    // =========================
-    // 1. ANAGRAFICA CEDENTE
-    // =========================
-    let anagraficaCedente = `<Anagrafica><Denominazione>${escapeXML(company.name || '')}</Denominazione></Anagrafica>`;
-    if (company.nome && company.cognome) {
-        anagraficaCedente =
-            `<Anagrafica><Nome>${escapeXML(company.nome)}</Nome><Cognome>${escapeXML(company.cognome)}</Cognome></Anagrafica>`;
-    }
-
-    // =========================
-    // 2. CALCOLI ECONOMICI
-    // =========================
-    const lines = Array.isArray(invoice.lines) ? invoice.lines : [];
-
-    // Righe di prestazioni (esclusa "Rivalsa Bollo")
-    const serviceLines = lines.filter(
-        l => (l.productName || '').toLowerCase() !== 'rivalsa bollo'
-    );
-
-    // Riga bollo (se presente)
-    const bolloLine = lines.find(
-        l => (l.productName || '').toLowerCase() === 'rivalsa bollo'
-    );
-
-    // Totale prestazioni
-    const totPrest = (typeof invoice.totalePrestazioni === 'number')
-        ? invoice.totalePrestazioni
-        : serviceLines.reduce((s, l) => s + safeFloat(l.subtotal), 0);
-
-    // Importo bollo
-    const importoBollo = (typeof invoice.importoBollo === 'number')
-        ? invoice.importoBollo
-        : (bolloLine ? safeFloat(bolloLine.subtotal) : 0);
-
-    // Rivalsa INPS
-    const rivalsaImporto = (invoice.rivalsa && typeof invoice.rivalsa.importo === 'number')
-        ? invoice.rivalsa.importo
-        : 0;
-
-    // Imponibili per il riepilogo IVA / Natura
-    const riepilogoN22Imponibile = totPrest;
-    const riepilogoN4Imponibile  = rivalsaImporto + importoBollo;
-
-    const tipoDocumento = (invoice.type === 'Nota di Credito' ? 'TD04' : 'TD01');
-
-    // =========================
-    // 3. HEADER + DATI GENERALI
-    // =========================
-    let xml = `<?xml version="1.0" encoding="UTF-8"?>` +
-        `<p:FatturaElettronica versione="FPR12" xmlns:ds="http://www.w3.org/2000/09/xmldsig#"` +
-        ` xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2"` +
-        ` xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">` +
-        `<FatturaElettronicaHeader>` +
-          `<DatiTrasmissione>` +
-            `<IdTrasmittente>` +
-              `<IdPaese>IT</IdPaese>` +
-              `<IdCodice>${escapeXML(company.codiceFiscale || '')}</IdCodice>` +
-            `</IdTrasmittente>` +
-            `<ProgressivoInvio>${(Math.random().toString(36) + '00000').slice(2, 7)}</ProgressivoInvio>` +
-            `<FormatoTrasmissione>FPR12</FormatoTrasmissione>` +
-            `<CodiceDestinatario>${escapeXML(customer.sdi || '0000000')}</CodiceDestinatario>` +
-          `</DatiTrasmissione>` +
-          `<CedentePrestatore>` +
-            `<DatiAnagrafici>` +
-              `<IdFiscaleIVA>` +
-                `<IdPaese>IT</IdPaese>` +
-                `<IdCodice>${escapeXML(company.piva || '')}</IdCodice>` +
-              `</IdFiscaleIVA>` +
-              `<CodiceFiscale>${escapeXML(company.codiceFiscale || '')}</CodiceFiscale>` +
-              `${anagraficaCedente}` +
-              `<RegimeFiscale>${escapeXML(company.codiceRegimeFiscale || '')}</RegimeFiscale>` +
-            `</DatiAnagrafici>` +
-            `<Sede>` +
-              `<Indirizzo>${escapeXML(company.address || '')}</Indirizzo>` +
-              `<NumeroCivico>${escapeXML(company.numeroCivico || '')}</NumeroCivico>` +
-              `<CAP>${escapeXML(company.zip || '')}</CAP>` +
-              `<Comune>${escapeXML(company.city || '')}</Comune>` +
-              `<Provincia>${escapeXML((company.province || '').toUpperCase())}</Provincia>` +
-              `<Nazione>IT</Nazione>` +
-            `</Sede>` +
-          `</CedentePrestatore>` +
-          `<CessionarioCommittente>` +
-            `<DatiAnagrafici>` +
-              `<IdFiscaleIVA>` +
-                `<IdPaese>IT</IdPaese>` +
-                `<IdCodice>${escapeXML(customer.piva || '')}</IdCodice>` +
-              `</IdFiscaleIVA>` +
-              `<CodiceFiscale>${escapeXML(customer.codiceFiscale || '')}</CodiceFiscale>` +
-              `<Anagrafica>` +
-                `<Denominazione>${escapeXML(customer.name || '')}</Denominazione>` +
-              `</Anagrafica>` +
-            `</DatiAnagrafici>` +
-            `<Sede>` +
-              `<Indirizzo>${escapeXML(customer.address || '')}</Indirizzo>` +
-              `<CAP>${escapeXML(customer.cap || '')}</CAP>` +
-              `<Comune>${escapeXML(customer.comune || '')}</Comune>` +
-              `<Provincia>${escapeXML((customer.provincia || '').toUpperCase())}</Provincia>` +
-              `<Nazione>IT</Nazione>` +
-            `</Sede>` +
-          `</CessionarioCommittente>` +
-        `</FatturaElettronicaHeader>` +
-        `<FatturaElettronicaBody>` +
-          `<DatiGenerali>` +
-            `<DatiGeneraliDocumento>` +
-              `<TipoDocumento>${tipoDocumento}</TipoDocumento>` +
-              `<Divisa>EUR</Divisa>` +
-              `<Data>${invoice.date}</Data>` +
-              `<Numero>${escapeXML(invoice.number || '')}</Numero>`;
-
-    // Dati bollo (se presente)
-    if (importoBollo > 0) {
-        xml += `<DatiBollo><BolloVirtuale>SI</BolloVirtuale><ImportoBollo>${importoBollo.toFixed(2)}</ImportoBollo></DatiBollo>`;
-    }
-
-    // Dati cassa previdenziale (se presente rivalsa)
-    if (rivalsaImporto > 0) {
-        const alCassa = (invoice.rivalsa && typeof invoice.rivalsa.aliquota === 'number')
-            ? invoice.rivalsa.aliquota
-            : safeFloat(company.aliquotaInps || company.aliquotaContributi || 0);
-
-        xml += `<DatiCassaPrevidenziale>` +
-                 `<TipoCassa>TC22</TipoCassa>` +
-                 `<AlCassa>${alCassa.toFixed(2)}</AlCassa>` +
-                 `<ImportoContributoCassa>${rivalsaImporto.toFixed(2)}</ImportoContributoCassa>` +
-                 `<ImponibileCassa>${totPrest.toFixed(2)}</ImponibileCassa>` +
-                 `<AliquotaIVA>0.00</AliquotaIVA>` +
-                 `<Natura>N4</Natura>` +
-               `</DatiCassaPrevidenziale>`;
-    }
-
-    xml += `<ImportoTotaleDocumento>${invoice.total.toFixed(2)}</ImportoTotaleDocumento>`;
-
-    if (invoice.type === 'Nota di Credito' && invoice.reason) {
-        xml += `<Causale>${escapeXML(invoice.reason)}</Causale>`;
-    }
-
-    xml += `</DatiGeneraliDocumento></DatiGenerali><DatiBeniServizi>`;
-
-    // =========================
-    // 4. DETTAGLIO LINEE
-    // =========================
-    let ln = 1;
-    lines.forEach(l => {
-        const qty      = safeFloat(l.qty);
-        const price    = safeFloat(l.price);
-        const subtotal = safeFloat(l.subtotal);
-
-        let natura = l.esenzioneIva || '';
-        // Forzo la Natura N4 per la riga "Rivalsa Bollo", come nel file AdE
-        if ((l.productName || '').toLowerCase() === 'rivalsa bollo') {
-            natura = 'N4';
-        }
-
-        xml += `<DettaglioLinee>` +
-                 `<NumeroLinea>${ln++}</NumeroLinea>` +
-                 `<Descrizione>${escapeXML(l.productName || '')}</Descrizione>` +
-                 `<Quantita>${qty.toFixed(2)}</Quantita>` +
-                 `<PrezzoUnitario>${price.toFixed(2)}</PrezzoUnitario>` +
-                 `<PrezzoTotale>${subtotal.toFixed(2)}</PrezzoTotale>` +
-                 `<AliquotaIVA>${parseFloat(l.iva || '0').toFixed(2)}</AliquotaIVA>` +
-                 (natura ? `<Natura>${escapeXML(natura)}</Natura>` : '') +
-               `</DettaglioLinee>`;
+    $('#invoice-lines-tbody').on('click', '.del-line', function() { 
+        window.tempInvoiceLines.splice($(this).data('i'), 1); 
+        renderLocalInvoiceLines(); 
+        updateTotalsDisplay(); 
     });
 
-    // =========================
-    // 5. DATI RIEPILOGO
-    // =========================
-    // N2.2: tutte le prestazioni
-    xml += `<DatiRiepilogo>` +
-             `<AliquotaIVA>0.00</AliquotaIVA>` +
-             `<Natura>N2.2</Natura>` +
-             `<ImponibileImporto>${riepilogoN22Imponibile.toFixed(2)}</ImponibileImporto>` +
-             `<Imposta>0.00</Imposta>` +
-           `</DatiRiepilogo>`;
+    $('#new-invoice-form').submit(async function(e) {
+        e.preventDefault();
 
-    // N4: rivalsa INPS + bollo (se > 0)
-    if (riepilogoN4Imponibile > 0) {
-        xml += `<DatiRiepilogo>` +
-                 `<AliquotaIVA>0.00</AliquotaIVA>` +
-                 `<Natura>N4</Natura>` +
-                 `<ImponibileImporto>${riepilogoN4Imponibile.toFixed(2)}</ImponibileImporto>` +
-                 `<Imposta>0.00</Imposta>` +
-               `</DatiRiepilogo>`;
-    }
-
-    xml += `</DatiBeniServizi>` +
-           `<DatiPagamento>` +
-             `<CondizioniPagamento>TP02</CondizioniPagamento>` +
-             `<DettaglioPagamento>` +
-               `<ModalitaPagamento>MP05</ModalitaPagamento>` +
-               `<DataScadenzaPagamento>${invoice.dataScadenza}</DataScadenzaPagamento>` +
-               `<ImportoPagamento>${invoice.total.toFixed(2)}</ImportoPagamento>` +
-               `<IBAN>${escapeXML(company.iban || '')}</IBAN>` +
-             `</DettaglioPagamento>` +
-           `</DatiPagamento>` +
-         `</FatturaElettronicaBody>` +
-       `</p:FatturaElettronica>`;
-
-    // =========================
-    // 6. DOWNLOAD FILE (con suffisso casuale)
-    // =========================
-    const a = document.createElement('a');
-    const randomSuffix = Math.random().toString(36).substring(2, 7);
-    a.download = `IT${company.piva}_${randomSuffix}.xml`;
-    const b = new Blob([xml], { type: 'application/xml' });
-    a.href = URL.createObjectURL(b);
-    a.click();
-}
-
-    // VIEW
-    $('#invoices-table-body').on('click', '.btn-view-invoice', function() {
-        const id = $(this).attr('data-id'); const inv = getData('invoices').find(i=>String(i.id)===String(id)); if(!inv) return;
-        const c = getData('customers').find(x=>String(x.id)===String(inv.customerId))||{};
-        const comp = getData('companyInfo');
-        $('#export-xml-btn').data('invoiceId', inv.id); $('#invoiceDetailModalTitle').text(`${inv.type||'Fattura'} N. ${inv.number}`);
-        let h = `<div class="row"><div class="col-6"><strong>Emittente:</strong><br>${comp.name}<br>${comp.address}<br>P.IVA: ${comp.piva}</div>
-                 <div class="col-6 text-end"><strong>Destinatario:</strong><br>${c.name}<br>${c.address}<br>P.IVA: ${c.piva}</div></div>
-                 <hr><table class="table table-sm"><thead><tr><th>Desc</th><th>Qt</th><th>Prezzo</th><th>Tot</th></tr></thead><tbody>`;
-        inv.lines.forEach(l=>h+=`<tr><td>${l.productName}</td><td>${l.qty}</td><td>€ ${l.price.toFixed(2)}</td><td>€ ${l.subtotal.toFixed(2)}</td></tr>`);
-        h+=`</tbody></table><h4 class="text-end">Totale: € ${parseFloat(inv.total).toFixed(2)}</h4>`;
-        if(inv.type==='Nota di Credito' && inv.linkedInvoice) h+= `<p class="text-danger">Rettifica fattura: ${inv.linkedInvoice}</p>`;
-        $('#invoiceDetailModalBody').html(h);
-    });
-    $('#print-invoice-btn').click(()=>window.print());
-    $('#company-info-form').on('submit', async function(e) { e.preventDefault(); const d={}; $(this).find('input').each(function(){if(this.id)d[this.id.replace('company-','')] = $(this).val()}); await saveDataToCloud('companyInfo', d); alert("Salvato!"); });
-    
-$('#export-cloud-json-btn').on('click', function() {
-    if (!currentUser) {
-        alert('Devi essere loggato per esportare il backup dal Cloud.');
-        return;
-    }
-    const backup = {
-        meta: {
-            version: 2,
-            exportedAt: new Date().toISOString(),
-            userId: currentUser.uid || null,
-            userEmail: currentUser.email || null
-        },
-        data: {
-            companyInfo: globalData.companyInfo || {},
-            products: globalData.products || [],
-            customers: globalData.customers || [],
-            invoices: globalData.invoices || [],
-            notes: globalData.notes || []
-        }
-    };
-    const jsonStr = JSON.stringify(backup, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const a = document.createElement('a');
-    const dateStr = new Date().toISOString().slice(0,10);
-    a.href = URL.createObjectURL(blob);
-    a.download = `gestionale-backup-cloud-${dateStr}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(a.href);
-});
-    $('#save-notes-btn').click(async()=>{ await saveDataToCloud('notes', {userId:currentUser.uid, text:$('#notes-textarea').val()}, currentUser.uid); alert("Salvato!"); });
-    
-    $('#import-file-input').change(function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        if (!currentUser) {
-            alert("Devi prima effettuare il login per importare un backup.");
+        const cid = $('#invoice-customer-select').val();
+        if (!cid || window.tempInvoiceLines.length === 0) {
+            alert("Dati incompleti.");
             return;
         }
 
-        const reader = new FileReader();
-        reader.onload = async (ev) => {
-            try {
-                const d = JSON.parse(ev.target.result);
-                if (!d || typeof d !== 'object') {
-                    alert("File JSON non valido.");
-                    return;
-                }
+        const type = $('#document-type').val();
+        const calcs = updateTotalsDisplay();
 
-                if (!confirm("ATTENZIONE:\n\nL'import sovrascriver\u00e0 i dati esistenti (clienti, servizi, documenti, note) per questo utente.\n\nVuoi continuare?")) {
-                    return;
-                }
+        const data = {
+            number: $('#invoice-number').val(),
+            date: $('#invoice-date').val(),
+            customerId: cid,
+            type: type,
+            lines: window.tempInvoiceLines,
+            totalePrestazioni: calcs.totPrest,
+            importoBollo: calcs.impBollo,
+            rivalsa: { importo: calcs.riv },
+            totaleImponibile: calcs.totImp,
+            total: calcs.totDoc,
+            status: (type === 'Fattura' ? 'Da Incassare' : 'Emessa'),
+            dataScadenza: $('#invoice-dataScadenza').val(),
+            condizioniPagamento: $('#invoice-condizioniPagamento').val(),
+            modalitaPagamento: $('#invoice-modalitaPagamento').val(),
+            linkedInvoice: $('#linked-invoice').val(),
+            reason: $('#reason').val()
+        };
 
-                const userRef = getUserDocRef();
+        if (CURRENT_EDITING_INVOICE_ID) {
+            const old = getData('invoices').find(i => String(i.id) === CURRENT_EDITING_INVOICE_ID);
+            if (old) data.status = old.status;
+        }
 
-                // 1. Svuota le sottocollezioni attuali dell'utente
-                const collectionsToClear = ['products', 'customers', 'invoices', 'notes'];
-                for (const col of collectionsToClear) {
-                    const snap = await userRef.collection(col).get();
-                    if (!snap.empty) {
-                        const batch = db.batch();
-                        snap.forEach(doc => batch.delete(doc.ref));
-                        await batch.commit();
-                    }
-                    globalData[col] = [];
-                }
+        let id = CURRENT_EDITING_INVOICE_ID ? CURRENT_EDITING_INVOICE_ID : String(getNextId(getData('invoices')));
+        await saveDataToCloud('invoices', data, id);
 
-                // 2. Importa anagrafica azienda
-                if (d.companyInfo) {
-                    await saveDataToCloud('companyInfo', d.companyInfo);
-                }
+        alert("Documento salvato!");
+        $('.sidebar .nav-link[data-target="elenco-fatture"]').click();
+    });
 
-                // 3. Importa clienti
-                if (Array.isArray(d.customers)) {
-                    for (const c of d.customers) {
-                        const id = (c.id !== undefined && c.id !== null)
-                            ? String(c.id)
-                            : String(getNextId(globalData.customers || []));
-                        const { id: _oldId, ...customerData } = c;
-                        await saveDataToCloud('customers', customerData, id);
-                    }
-                }
+    $('#invoices-table-body').on('click', '.btn-edit-invoice', function() { 
+        const id = $(this).attr('data-id');
+        const inv = getData('invoices').find(i => String(i.id) === String(id));
+        if (!inv) return;
+        if (inv.status === 'Pagata') return; // Blocco modifiche se pagata
+        $('.sidebar .nav-link').removeClass('active'); 
+        $('.sidebar .nav-link[data-target="nuova-fattura-accompagnatoria"]').addClass('active'); 
+        $('.content-section').addClass('d-none'); 
+        $('#nuova-fattura-accompagnatoria').removeClass('d-none'); 
+        loadInvoiceForEditing(id, false); 
+    });
 
-                // 4. Importa prodotti
-                if (Array.isArray(d.products)) {
-                    for (const p of d.products) {
-                        const id = (p.id !== undefined && p.id !== null)
-                            ? String(p.id)
-                            : 'PRD' + new Date().getTime();
-                        const { id: _oldId, ...productData } = p;
-                        await saveDataToCloud('products', productData, id);
-                    }
-                }
+    $('#invoices-table-body').on('click', '.btn-delete-invoice', function() { 
+        const id = $(this).attr('data-id'); 
+        const inv = getData('invoices').find(i => String(i.id) === String(id)); 
+        if (!inv) return; 
+        if (inv.status === 'Pagata') return; // Blocco cancellazione se pagata
+        deleteDataFromCloud('invoices', id); 
+    });
 
-                // 5. Importa documenti
-                if (Array.isArray(d.invoices)) {
-                    for (const i of d.invoices) {
-                        const id = (i.id !== undefined && i.id !== null)
-                            ? String(i.id)
-                            : String(getNextId(globalData.invoices || []));
-                        const { id: _oldId, ...invoiceData } = i;
-                        await saveDataToCloud('invoices', invoiceData, id);
-                    }
-                }
+    $('#invoices-table-body').on('click', '.btn-mark-paid', async function() { 
+        const id = $(this).attr('data-id'); 
+        const inv = getData('invoices').find(i => String(i.id) === String(id)); 
+        if (!inv) return; 
+        if (!confirm("Confermi cambio stato?")) return; 
+        await saveDataToCloud('invoices', { status: inv.type === 'Nota di Credito' ? 'Emessa' : 'Pagata' }, id); 
+        renderInvoicesTable(); 
+    });
 
-                // 6. Importa note (vecchio formato)
-                if (Array.isArray(d.notes) && d.notes.length > 0) {
-                    const mergedText = d.notes.map(n => n.text).join("\n----------------------\n");
-                    const noteDoc = {
-                        userId: currentUser.uid,
-                        text: mergedText
+    // =========================================================
+    // EXPORT XML (LOGICA ALLINEATA A script_ok.js)
+    // =========================================================
+
+    $('#invoices-table-body, #invoiceDetailModal').on('click', '.btn-export-xml, #export-xml-btn, .btn-export-xml-row', function() { 
+        let id = $(this).attr('id') === 'export-xml-btn' ? $('#export-xml-btn').data('invoiceId') : $(this).attr('data-id'); 
+        if (id) generateInvoiceXML(id); 
+    });
+
+    function generateInvoiceXML(invoiceId) {
+        const invoice = getData('invoices').find(inv => String(inv.id) === String(invoiceId));
+        if (!invoice) {
+            alert("Errore: documento non trovato.");
+            return;
+        }
+
+        const company = getData('companyInfo');
+        const customer = getData('customers').find(c => String(c.id) === String(invoice.customerId));
+
+        if (!company || !customer) {
+            alert("Errore: anagrafica incompleta (azienda o cliente).");
+            return;
+        }
+
+        let anagraficaCedente = `<Anagrafica><Denominazione>${escapeXML(company.name)}</Denominazione></Anagrafica>`;
+        if (company.nome && company.cognome) {
+            anagraficaCedente = `<Anagrafica><Nome>${escapeXML(company.nome)}</Nome><Cognome>${escapeXML(company.cognome)}</Cognome></Anagrafica>`;
+        }
+
+        // Riepilogo per Natura IVA
+        const summaryByNature = {};
+        (invoice.lines || []).forEach(l => {
+            const iva = (l.iva || "0").toString();
+            const natura = l.esenzioneIva || '';
+            if (iva === "0" && natura) {
+                const key = natura;
+                if (!summaryByNature[key]) {
+                    summaryByNature[key] = {
+                        aliquota: iva,
+                        natura: key,
+                        imponibile: 0
                     };
-                    await saveDataToCloud('notes', noteDoc, currentUser.uid);
                 }
+                summaryByNature[key].imponibile += safeFloat(l.subtotal);
+            }
+        });
 
-                alert("Import completato per l'utente " + (currentUser.email || currentUser.uid) + ".");
-                await loadAllDataFromCloud();
-                renderAll();
+        // Se c'è rivalsa INPS la trattiamo come Natura N4
+        if (invoice.rivalsa && safeFloat(invoice.rivalsa.importo) > 0) {
+            const k = "N4";
+            if (!summaryByNature[k]) {
+                summaryByNature[k] = {
+                    aliquota: "0",
+                    natura: k,
+                    imponibile: 0
+                };
+            }
+            summaryByNature[k].imponibile += safeFloat(invoice.rivalsa.importo);
+        }
+
+        // Se c'è bollo, lo sommiamo anch'esso a N4
+        if (safeFloat(invoice.importoBollo) > 0) {
+            const k = "N4";
+            if (!summaryByNature[k]) {
+                summaryByNature[k] = {
+                    aliquota: "0",
+                    natura: k,
+                    imponibile: 0
+                };
+            }
+            summaryByNature[k].imponibile += safeFloat(invoice.importoBollo);
+        }
+
+        let riepilogoXml = '';
+        Object.values(summaryByNature).forEach(s => {
+            riepilogoXml += `
+<DatiRiepilogo>
+  <AliquotaIVA>${parseFloat(s.aliquota).toFixed(2)}</AliquotaIVA>
+  <Natura>${escapeXML(s.natura)}</Natura>
+  <ImponibileImporto>${s.imponibile.toFixed(2)}</ImponibileImporto>
+  <Imposta>0.00</Imposta>
+</DatiRiepilogo>`;
+        });
+
+        // Numero progressivo univoco simile all'Agenzia
+        const numeroProgressivo = (Math.random().toString(36) + '00000').slice(2,7);
+
+        const provinciaUpper = escapeXML((customer.provincia || '').toUpperCase());
+
+        let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<p:FatturaElettronica xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" versione="FPR12">
+  <FatturaElettronicaHeader>
+    <DatiTrasmissione>
+      <IdTrasmittente>
+        <IdPaese>IT</IdPaese>
+        <IdCodice>${escapeXML(company.codiceFiscale || company.piva || '')}</IdCodice>
+      </IdTrasmittente>
+      <ProgressivoInvio>${numeroProgressivo}</ProgressivoInvio>
+      <FormatoTrasmissione>FPR12</FormatoTrasmissione>
+      <CodiceDestinatario>${escapeXML(customer.sdi || '0000000')}</CodiceDestinatario>
+    </DatiTrasmissione>
+    <CedentePrestatore>
+      <DatiAnagrafici>
+        <IdFiscaleIVA>
+          <IdPaese>IT</IdPaese>
+          <IdCodice>${escapeXML(company.piva || '')}</IdCodice>
+        </IdFiscaleIVA>
+        <CodiceFiscale>${escapeXML(company.codiceFiscale || '')}</CodiceFiscale>
+        ${anagraficaCedente}
+        <RegimeFiscale>${escapeXML(company.codiceRegimeFiscale || 'RF19')}</RegimeFiscale>
+      </DatiAnagrafici>
+      <Sede>
+        <Indirizzo>${escapeXML(company.address || '')}</Indirizzo>
+        <NumeroCivico>${escapeXML(company.numeroCivico || '')}</NumeroCivico>
+        <CAP>${escapeXML(company.zip || '')}</CAP>
+        <Comune>${escapeXML(company.city || '')}</Comune>
+        <Provincia>${escapeXML((company.province || '').toUpperCase())}</Provincia>
+        <Nazione>IT</Nazione>
+      </Sede>
+    </CedentePrestatore>
+    <CessionarioCommittente>
+      <DatiAnagrafici>
+        <IdFiscaleIVA>
+          <IdPaese>IT</IdPaese>
+          <IdCodice>${escapeXML(customer.piva || '')}</IdCodice>
+        </IdFiscaleIVA>
+        <CodiceFiscale>${escapeXML(customer.codiceFiscale || '')}</CodiceFiscale>
+        <Anagrafica>
+          <Denominazione>${escapeXML(customer.name || '')}</Denominazione>
+        </Anagrafica>
+      </DatiAnagrafici>
+      <Sede>
+        <Indirizzo>${escapeXML(customer.address || '')}</Indirizzo>
+        <CAP>${escapeXML(customer.cap || '')}</CAP>
+        <Comune>${escapeXML(customer.comune || '')}</Comune>
+        <Provincia>${provinciaUpper}</Provincia>
+        <Nazione>IT</Nazione>
+      </Sede>
+    </CessionarioCommittente>
+  </FatturaElettronicaHeader>
+  <FatturaElettronicaBody>
+    <DatiGenerali>
+      <DatiGeneraliDocumento>
+        <TipoDocumento>${invoice.type === 'Nota di Credito' ? 'TD04' : 'TD01'}</TipoDocumento>
+        <Divisa>EUR</Divisa>
+        <Data>${invoice.date}</Data>
+        <Numero>${escapeXML(invoice.number || '')}</Numero>
+        <ImportoTotaleDocumento>${safeFloat(invoice.total).toFixed(2)}</ImportoTotaleDocumento>`;
+
+        // Dati Bollo se presenti
+        if (safeFloat(invoice.importoBollo) > 0) {
+            xml += `
+        <DatiBollo>
+          <BolloVirtuale>SI</BolloVirtuale>
+          <ImportoBollo>${safeFloat(invoice.importoBollo).toFixed(2)}</ImportoBollo>
+        </DatiBollo>`;
+        }
+
+        // Cassa previdenziale per rivalsa INPS (gestione separata)
+        if (invoice.rivalsa && safeFloat(invoice.rivalsa.importo) > 0) {
+            const imponibileCassa = safeFloat(invoice.totalePrestazioni || invoice.totaleImponibile);
+            const importoCassa = safeFloat(invoice.rivalsa.importo);
+            xml += `
+        <DatiCassaPrevidenziale>
+          <TipoCassa>TC22</TipoCassa>
+          <AlCassa>${(safeFloat(company.aliquotaInps || company.aliquotaContributi || 0)).toFixed(2)}</AlCassa>
+          <ImportoContributoCassa>${importoCassa.toFixed(2)}</ImportoContributoCassa>
+          <ImponibileCassa>${imponibileCassa.toFixed(2)}</ImponibileCassa>
+          <AliquotaIVA>0.00</AliquotaIVA>
+          <Natura>N4</Natura>
+        </DatiCassaPrevidenziale>`;
+        }
+
+        xml += `
+      </DatiGeneraliDocumento>
+    </DatiGenerali>
+    <DatiBeniServizi>`;
+
+        let lineNumber = 1;
+        (invoice.lines || []).forEach(l => {
+            xml += `
+      <DettaglioLinee>
+        <NumeroLinea>${lineNumber++}</NumeroLinea>
+        <Descrizione>${escapeXML(l.productName || '')}</Descrizione>
+        <Quantita>${(safeFloat(l.qty)).toFixed(2)}</Quantita>
+        <PrezzoUnitario>${(safeFloat(l.price)).toFixed(2)}</PrezzoUnitario>
+        <PrezzoTotale>${(safeFloat(l.subtotal)).toFixed(2)}</PrezzoTotale>
+        <AliquotaIVA>${parseFloat(l.iva || '0').toFixed(2)}</AliquotaIVA>`;
+            if ((l.iva || '0') === '0' && l.esenzioneIva) {
+                xml += `
+        <Natura>${escapeXML(l.esenzioneIva)}</Natura>`;
+            }
+            xml += `
+      </DettaglioLinee>`;
+        });
+
+        xml += `
+      <DatiRiepilogo>
+        <AliquotaIVA>0.00</AliquotaIVA>
+        <Natura>N2.2</Natura>
+        <ImponibileImporto>${safeFloat(invoice.totalePrestazioni || invoice.totaleImponibile).toFixed(2)}</ImponibileImporto>
+        <Imposta>0.00</Imposta>
+      </DatiRiepilogo>`;
+
+        xml += riepilogoXml;
+
+        xml += `
+    </DatiBeniServizi>
+    <DatiPagamento>
+      <CondizioniPagamento>${escapeXML(invoice.condizioniPagamento || 'TP02')}</CondizioniPagamento>
+      <DettaglioPagamento>
+        <ModalitaPagamento>MP05</ModalitaPagamento>
+        <DataScadenzaPagamento>${escapeXML(invoice.dataScadenza || invoice.date)}</DataScadenzaPagamento>
+        <ImportoPagamento>${safeFloat(invoice.total).toFixed(2)}</ImportoPagamento>
+        ${company.iban ? `<IBAN>${escapeXML(company.iban)}</IBAN>` : ''}
+      </DettaglioPagamento>
+    </DatiPagamento>
+  </FatturaElettronicaBody>
+</p:FatturaElettronica>`;
+
+        // Nome file: IT + PIVA + "_" + casuale 5 char
+        const piva = (company.piva || '').replace(/[^0-9]/g, '');
+        const randomSuffix = Math.random().toString(36).substring(2, 7);
+        const fileName = `IT${piva}_${randomSuffix}.xml`;
+
+        const blob = new Blob([xml.trim()], { type: 'application/xml' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    // =========================================================
+    // NOTE, BACKUP/IMPORT & TIMEOUT INATTIVITÀ
+    // =========================================================
+
+    $('#save-notes-btn').click(async () => { 
+        await saveDataToCloud('notes', { userId: currentUser.uid, text: $('#notes-textarea').val() }, currentUser.uid); 
+        alert("Note salvate!");
+    });
+
+    $('#import-file-input').change(function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async function(evt) {
+            try {
+                const imported = JSON.parse(evt.target.result);
+                // Qui la logica di import/migrazione dal vecchio JSON se necessario
+                console.log("Dati importati:", imported);
+                alert("File importato (logica di import da completare).");
             } catch (err) {
-                console.error("Errore durante l'import JSON:", err);
-                alert("Errore durante l'import: " + err.message);
+                alert("Errore lettura JSON: " + err.message);
             }
         };
         reader.readAsText(file);
     });
+
+    // TIMEOUT DI INATTIVITÀ (5 minuti)
+    const INACTIVITY_LIMIT_MS = 5 * 60 * 1000;
+    let inactivityTimer = null;
+    let inactivityHandlersBound = false;
+
+    function resetInactivityTimer() {
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(() => {
+            if (auth && auth.currentUser) {
+                alert("Sessione scaduta per inattività. Verrai disconnesso.");
+                auth.signOut().then(() => location.reload());
+            }
+        }, INACTIVITY_LIMIT_MS);
+    }
+
+    function bindInactivityHandlers() {
+        if (inactivityHandlersBound) return;
+        inactivityHandlersBound = true;
+        ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+            document.addEventListener(evt, resetInactivityTimer);
+        });
+        resetInactivityTimer();
+    }
+
+    function initializeAppUI() {
+        renderAll();
+        bindInactivityHandlers();
+    }
+
 });
