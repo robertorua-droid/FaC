@@ -15,6 +15,64 @@ window.tempInvoiceLines = [];
 
 $(document).ready(function() {
 
+ // =========================================================
+    // TIMEOUT DI INATTIVITÀ (5 minuti)
+    // =========================================================
+    const INACTIVITY_LIMIT_MS = 5 * 60 * 1000; // 5 minuti
+    let inactivityTimer = null;
+    let inactivityHandlersBound = false;
+
+    function handleInactivityLogout() {
+        if (!currentUser) return; // già disconnesso
+
+        // Piccolo messaggio all'utente
+        alert("Sessione scaduta per inattività. Verrai disconnesso.");
+
+        // Sign-out Firebase + reload pulito
+        auth.signOut().then(() => {
+            // location.reload() per essere sicuri di resettare lo stato dell'app
+            location.reload();
+        }).catch(err => {
+            console.error("Errore nel logout per inattività:", err);
+            location.reload();
+        });
+    }
+
+    function resetInactivityTimer() {
+        if (!currentUser) return; // timer attivo solo se loggato
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(handleInactivityLogout, INACTIVITY_LIMIT_MS);
+    }
+
+    function startInactivityWatch() {
+        if (inactivityHandlersBound) {
+            // Già agganciati, basta resettare il timer
+            resetInactivityTimer();
+            return;
+        }
+
+        inactivityHandlersBound = true;
+
+        // Qualsiasi interazione “normale” resetta il timer
+        $(document).on(
+            'mousemove.inactivity keydown.inactivity click.inactivity scroll.inactivity touchstart.inactivity',
+            resetInactivityTimer
+        );
+
+        resetInactivityTimer();
+    }
+
+    function stopInactivityWatch() {
+        if (inactivityTimer) {
+            clearTimeout(inactivityTimer);
+            inactivityTimer = null;
+        }
+        if (inactivityHandlersBound) {
+            $(document).off('.inactivity');
+            inactivityHandlersBound = false;
+        }
+    }
+
     // =========================================================
     // 0. INIZIALIZZAZIONE FIREBASE (AVVIO SICURO)
     // =========================================================
@@ -185,6 +243,12 @@ $(document).ready(function() {
 // =========================================================
     // 3. FUNZIONI DI RENDER UI
     // =========================================================
+
+    // Punto d'ingresso dell'app dopo il login
+    function initializeApp() {
+        // Per ora basta inizializzare tutta la UI
+        renderAll();
+    }
 
     function renderAll() {
         renderCompanyInfoForm(); 
@@ -435,15 +499,30 @@ const btns = `<div class="d-flex justify-content-end gap-1">
     auth.onAuthStateChanged(async (user) => {
         if (user) {
             currentUser = user;
-            $('#login-container').addClass('d-none'); $('#loading-screen').removeClass('d-none'); 
+            $('#login-container').addClass('d-none');
+            $('#loading-screen').removeClass('d-none'); 
+
             try {
                 await loadAllDataFromCloud(); 
-                $('#loading-screen').addClass('d-none'); $('#main-app').removeClass('d-none');
-                renderAll();
-            } catch (error) { alert("Errore DB: " + error.message); $('#loading-screen').addClass('d-none'); }
+                $('#loading-screen').addClass('d-none');
+                $('#main-app').removeClass('d-none');
+
+                // Avvio/Reset del controllo di inattività
+                startInactivityWatch();
+
+                initializeApp();
+            } catch (error) {
+                alert("Errore DB: " + error.message);
+                $('#loading-screen').addClass('d-none');
+            }
         } else {
+            // Utente non loggato: stop al controllo di inattività
             currentUser = null;
-            $('#main-app').addClass('d-none'); $('#loading-screen').addClass('d-none'); $('#login-container').removeClass('d-none');
+            stopInactivityWatch();
+
+            $('#main-app').addClass('d-none');
+            $('#loading-screen').addClass('d-none');
+            $('#login-container').removeClass('d-none');
         }
     });
 
@@ -614,19 +693,61 @@ const btns = `<div class="d-flex justify-content-end gap-1">
     }
     $('#invoice-lines-tbody').on('click', '.del-line', function() { window.tempInvoiceLines.splice($(this).data('i'), 1); renderLocalInvoiceLines(); updateTotalsDisplay(); });
 
-    function updateTotalsDisplay() {
-        const cid = $('#invoice-customer-select').val(); const cust = getData('customers').find(c => String(c.id) === String(cid)); const comp = getData('companyInfo');
-        const rows = window.tempInvoiceLines.filter(l => l.productName.toLowerCase() !== 'rivalsa bollo');
-        const bollo = window.tempInvoiceLines.find(l => l.productName.toLowerCase() === 'rivalsa bollo');
-        const impBollo = bollo ? bollo.subtotal : 0;
-        const totPrest = rows.reduce((s, l) => s + l.subtotal, 0);
-        let riv = 0; if (cust && cust.rivalsaInps) riv = totPrest * (parseFloat(comp.aliquotaInps||0) / 100);
-        const totDoc = totPrest + riv + impBollo;
-        $('#invoice-total').text(`€ ${totDoc.toFixed(2)}`);
-        $('#invoice-tax-details').text(`(Imp: € ${(totPrest+riv).toFixed(2)} - Bollo: € ${impBollo.toFixed(2)})`);
-        return { totPrest, riv, impBollo, totImp: totPrest+riv, totDoc };
+    // ===============================
+// Calcolo totali fattura
+// ===============================
+function updateTotalsDisplay() {
+    const cid  = $('#invoice-customer-select').val();
+    const cust = getData('customers').find(c => String(c.id) === String(cid));
+    const comp = getData('companyInfo');
+
+    // Righe diverse dalla "Rivalsa Bollo"
+    const rows = window.tempInvoiceLines.filter(l =>
+        l.productName &&
+        l.productName.toLowerCase() !== 'rivalsa bollo'
+    );
+
+    // Righe "Rivalsa Bollo"
+    const bolloRows = window.tempInvoiceLines.filter(l =>
+        l.productName &&
+        l.productName.toLowerCase() === 'rivalsa bollo'
+    );
+
+    const impBollo = bolloRows.reduce((s, l) => s + (l.subtotal || 0), 0);
+
+    // Totale prestazioni (senza bollo)
+    const totPrest = rows.reduce((s, l) => s + (l.subtotal || 0), 0);
+
+    // Rivalsa INPS solo se il cliente ha la spunta
+    let riv = 0;
+    if (cust && cust.rivalsaInps) {
+        const aliqInps = parseFloat(comp.aliquotaInps || '0');
+        riv = totPrest * (aliqInps / 100);
     }
-    $('#invoice-customer-select').change(updateTotalsDisplay);
+
+    const totImp = totPrest + riv;
+    const totDoc = totImp + impBollo;
+
+    // Aggiornamento UI
+    $('#invoice-total').text(`€ ${totDoc.toFixed(2)}`);
+    $('#invoice-tax-details').text(
+        `(Imp: € ${totImp.toFixed(2)} - Bollo: € ${impBollo.toFixed(2)})`
+    );
+
+    // Valori usati per salvare la fattura
+    return {
+        totPrest,
+        riv,
+        impBollo,
+        totImp,
+        totDoc
+    };
+}
+
+// Ricalcola quando cambio cliente
+$('#invoice-customer-select').change(updateTotalsDisplay);
+
+
 
 // Quando seleziono un servizio dalla tendina, compilo automaticamente la riga
 $('#invoice-product-select').on('change', function() {
@@ -711,55 +832,68 @@ $('#invoice-year-filter').on('change', function() { renderInvoicesTable(); });
     $('#invoice-date').change(function() { $('#invoice-dataRiferimento').val($(this).val()); updateInvoiceNumber($('#document-type').val(), $(this).val().substring(0, 4)); });
     $('#invoice-dataRiferimento, #invoice-giorniTermini').on('input', function() { const d = $('#invoice-dataRiferimento').val(); const g = parseInt($('#invoice-giorniTermini').val()); if(d && !isNaN(g)) { const dt = new Date(d); dt.setDate(dt.getDate() + g); $('#invoice-dataScadenza').val(dt.toISOString().split('T')[0]); } });
 
-    $('#new-invoice-form').submit(async function(e) {
+    $('#new-invoice-form').submit(async function (e) {
     e.preventDefault();
+
     const cid = $('#invoice-customer-select').val();
     if (!cid || window.tempInvoiceLines.length === 0) {
         alert("Dati incompleti.");
         return;
     }
 
-    const type = $('#document-type').val();
-    const calcs = updateTotalsDisplay();
+    const type  = $('#document-type').val();
+    const calcs = updateTotalsDisplay();      // ← usa la funzione sopra
+    const comp  = getData('companyInfo');
+
+    // Oggetto rivalsa: solo se esiste importo
+    const rivImporto = calcs.riv || 0;
+    const rivObj = (rivImporto > 0)
+        ? {
+            aliquota: parseFloat(comp.aliquotaInps || '0'),
+            importo:  rivImporto
+          }
+        : {};
+
     const data = {
         number: $('#invoice-number').val(),
-        date: $('#invoice-date').val(),
+        date:   $('#invoice-date').val(),
         customerId: cid,
         type: type,
         lines: window.tempInvoiceLines,
+
+        // Campi economici coerenti con la versione offline
         totalePrestazioni: calcs.totPrest,
-        importoBollo: calcs.impBollo,
-        rivalsa: { importo: calcs.riv },
-        totaleImponibile: calcs.totImp,
-        total: calcs.totDoc,
+        importoBollo:      calcs.impBollo,
+        rivalsa:           rivObj,
+        totaleImponibile:  calcs.totImp,
+        total:             calcs.totDoc,
+
         status: (type === 'Fattura' ? 'Da Incassare' : 'Emessa'),
         dataScadenza: $('#invoice-dataScadenza').val(),
         condizioniPagamento: $('#invoice-condizioniPagamento').val(),
-        modalitaPagamento: $('#invoice-modalitaPagamento').val(),
+        modalitaPagamento:   $('#invoice-modalitaPagamento').val(),
         linkedInvoice: $('#linked-invoice').val(),
-        reason: $('#reason').val()
+        reason:        $('#reason').val()
     };
 
+    // Se sto modificando, mantengo lo stato precedente
     if (CURRENT_EDITING_INVOICE_ID) {
-        const old = getData('invoices').find(i => String(i.id) === CURRENT_EDITING_INVOICE_ID);
+        const old = getData('invoices').find(
+            i => String(i.id) === CURRENT_EDITING_INVOICE_ID
+        );
         if (old) data.status = old.status;
     }
 
-    let id = CURRENT_EDITING_INVOICE_ID
+    const id = CURRENT_EDITING_INVOICE_ID
         ? CURRENT_EDITING_INVOICE_ID
         : String(getNextId(getData('invoices')));
 
     await saveDataToCloud('invoices', data, id);
-
-    // 👇 AGGIUNGI QUESTA RIGA
-    renderInvoicesTable();
-
     alert("Salvato!");
 
-    // e poi vai all’elenco
+    // Torno all'elenco fatture
     $('.sidebar .nav-link[data-target="elenco-fatture"]').click();
 });
-
     $('#invoices-table-body').on('click', '.btn-edit-invoice', function () {
     const id = $(this).attr('data-id');
     const inv = getData('invoices').find(i => String(i.id) === String(id));
