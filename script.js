@@ -120,6 +120,20 @@ $(document).ready(function() {
         if (typeof str !== 'string') return ''; 
         return str.replace(/[<>&'"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '\'': '&apos;', '"': '&quot;' })[c]); 
     }
+    function normalizeCountryCode(raw) {
+        if (!raw) return 'IT';
+        const t = String(raw).trim().toUpperCase();
+
+        // se è già un codice a 2 lettere lo uso così com'è
+        if (t.length === 2) return t;
+
+        // casi più probabili digitati a mano
+        if (t === 'ITALIA' || t === 'ITALY') return 'IT';
+
+        // fallback sicuro
+        return 'IT';
+    }
+
 
     function getNextId(items) { 
         if (!items || items.length === 0) return 1;
@@ -1223,8 +1237,7 @@ ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase
       `<CAP>${escapeXML(customer.cap || "")}</CAP>` +
       `<Comune>${escapeXML(customer.comune || "")}</Comune>` +
       `<Provincia>${sedeProvinciaDest}</Provincia>` +
-      `<Nazione>${escapeXML(customer.nazione || "IT")}</Nazione>` +
-    `</Sede>` +
+      `<Provincia>${escapeXML(customer.provincia)}</Provincia><Nazione>${normalizeCountryCode(customer.nazione)}</Nazione></Sede>` +
   `</CessionarioCommittente>` +
 `</FatturaElettronicaHeader>` +
 `<FatturaElettronicaBody>` +
@@ -1284,116 +1297,52 @@ ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase
 
 
     // VIEW (Dettaglio Fattura)
-    $('#invoices-table-body').on('click', '.btn-view-invoice', function() {
-        const id = $(this).attr('data-id');
-        const inv = getData('invoices').find(i => String(i.id) === String(id));
-        if (!inv) return;
+    $('#invoices-table-body').on('click', '.btn-view-invoice', function () {
+    const id = $(this).attr('data-id');
+    const inv = getData('invoices').find(i => String(i.id) === String(id));
+    if (!inv) return;
 
-        const c = getData('customers').find(x => String(x.id) === String(inv.customerId)) || {};
-        const comp = getData('companyInfo');
+    const c = getData('customers').find(x => String(x.id) === String(inv.customerId)) || {};
 
-        // Per il pulsante "Esporta XML" nel modal
-        $('#export-xml-btn').data('invoiceId', inv.id);
-        $('#invoiceDetailModalTitle').text(`${inv.type || 'Fattura'} N. ${inv.number}`);
+    // collega il pulsante XML alla fattura corrente
+    $('#export-xml-btn').data('invoiceId', inv.id);
+    $('#invoiceDetailModalTitle').text(`${inv.type} ${inv.number}`);
 
-        // Righe della fattura
-        let rowsHtml = '';
-        (inv.lines || []).forEach(l => {
-            rowsHtml += `
+    let h = `
+        <h5>${escapeXML(c.name || '')}</h5>
+        <table class="table table-sm">
+            <thead>
                 <tr>
-                    <td>${l.productName}</td>
-                    <td class="text-end">${(parseFloat(l.qty) || 0).toFixed(2)}</td>
-                    <td class="text-end">€ ${(parseFloat(l.price) || 0).toFixed(2)}</td>
-                    <td class="text-end">€ ${(parseFloat(l.subtotal) || 0).toFixed(2)}</td>
-                </tr>`;
-        });
+                    <th>Descrizione</th>
+                    <th class="text-end">Totale</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
 
-        // Totali salvati sulla fattura (gli stessi usati per l'XML)
-        const totPrest = safeFloat(inv.totalePrestazioni);
-        const bollo = safeFloat(inv.importoBollo);
-        const riv = inv.rivalsa ? safeFloat(inv.rivalsa.importo) : 0;
-        const totImp = safeFloat(inv.totaleImponibile) || (totPrest + riv);
-        const totDoc = safeFloat(inv.total) || (totImp + bollo);
-
-        // Tabella riepilogo importi
-        let riepilogoImporti = `
-            <tr>
-                <th colspan="3" class="text-end">Totale prestazioni</th>
-                <th class="text-end">€ ${totPrest.toFixed(2)}</th>
-            </tr>`;
-
-        if (riv > 0) {
-            const aliqRiv = safeFloat(comp.aliquotaInps || 0);
-            riepilogoImporti += `
-            <tr>
-                <th colspan="3" class="text-end">Rivalsa INPS ${aliqRiv ? aliqRiv.toFixed(2) + '%' : ''}</th>
-                <th class="text-end">€ ${riv.toFixed(2)}</th>
-            </tr>`;
-        }
-
-        riepilogoImporti += `
-            <tr>
-                <th colspan="3" class="text-end">Totale imponibile</th>
-                <th class="text-end">€ ${totImp.toFixed(2)}</th>
-            </tr>`;
-
-        if (bollo > 0) {
-            riepilogoImporti += `
-            <tr>
-                <th colspan="3" class="text-end">Marca da bollo</th>
-                <th class="text-end">€ ${bollo.toFixed(2)}</th>
-            </tr>`;
-        }
-
-        riepilogoImporti += `
-            <tr>
-                <th colspan="3" class="text-end">Totale documento</th>
-                <th class="text-end">€ ${totDoc.toFixed(2)}</th>
-            </tr>`;
-
-        const headerHtml = `
-            <div class="row">
-                <div class="col-6">
-                    <strong>Emittente</strong><br>
-                    ${escapeXML(comp.name || '')}<br>
-                    ${escapeXML(comp.address || '')}<br>
-                    P.IVA: ${escapeXML(comp.piva || '')}
-                </div>
-                <div class="col-6 text-end">
-                    <strong>Destinatario</strong><br>
-                    ${escapeXML(c.name || '')}<br>
-                    ${escapeXML(c.address || '')}<br>
-                    ${c.piva ? 'P.IVA: ' + escapeXML(c.piva) : ''}
-                </div>
-            </div>
-            <hr>`;
-
-        let h = headerHtml + `
-            <table class="table table-sm">
-                <thead>
-                    <tr>
-                        <th>Descrizione</th>
-                        <th class="text-end">Qt</th>
-                        <th class="text-end">Prezzo</th>
-                        <th class="text-end">Totale</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${rowsHtml}
-                </tbody>
-            </table>
-            <table class="table table-sm">
-                <tbody>
-                    ${riepilogoImporti}
-                </tbody>
-            </table>`;
-
-        if (inv.type === 'Nota di Credito' && inv.linkedInvoice) {
-            h += `<p class="text-danger">Rettifica fattura: ${escapeXML(inv.linkedInvoice)}</p>`;
-        }
-
-        $('#invoiceDetailModalBody').html(h);
+    (inv.lines || []).forEach(l => {
+        const desc = escapeXML(l.productName || '');
+        const tot = (parseFloat(l.subtotal) || 0).toFixed(2);
+        h += `<tr><td>${desc}</td><td class="text-end">€ ${tot}</td></tr>`;
     });
+
+    const totale = (parseFloat(inv.total) || 0).toFixed(2);
+
+    h += `
+            </tbody>
+        </table>
+        <h4 class="text-end">Totale documento: € ${totale}</h4>
+    `;
+
+    $('#invoiceDetailModalBody').html(h);
+
+    // apertura sicura della modale (anche se i data-bs-* non venissero letti)
+    const modalEl = document.getElementById('invoiceDetailModal');
+    if (modalEl && window.bootstrap && bootstrap.Modal) {
+        const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modalInstance.show();
+    }
+});
 
 
     $('#print-invoice-btn').click(()=>window.print());
