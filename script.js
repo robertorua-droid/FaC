@@ -1670,71 +1670,43 @@ function refreshInvoiceYearFilter() {
         alert("Note salvate!"); 
     });
 
-    // Export JSON (backup utente corrente)
-    $('#btn-export-json').click(function() {
-        if (!currentUser) {
-            alert("Devi essere loggato per esportare i dati.");
-            return;
-        }
-        const backup = JSON.stringify(globalData, null, 2);
-        const blob = new Blob([backup], { type: 'application/json' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        const today = new Date().toISOString().slice(0,10);
-        a.download = `gestionale-backup-${today}.json`;
-        a.click();
-    });
-
-    // Import JSON (nuovo formato multi-utente)
-    $('#import-json-input').on('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = async function(ev) {
-            try {
-                const data = JSON.parse(ev.target.result);
-                if (!currentUser) {
-                    alert("Devi essere loggato per importare i dati.");
-                    return;
-                }
-
-                if (data.companyInfo) {
-                    await saveDataToCloud('companyInfo', data.companyInfo, 'companyInfo');
-                }
-                if (Array.isArray(data.products)) {
-                    for (const p of data.products) {
-                        const id = p.id || ('PRD' + new Date().getTime());
-                        await saveDataToCloud('products', p, id);
-                    }
-                }
-                if (Array.isArray(data.customers)) {
-                    for (const c of data.customers) {
-                        const id = c.id || String(getNextId(getData('customers')));
-                        await saveDataToCloud('customers', c, id);
-                    }
-                }
-                if (Array.isArray(data.invoices)) {
-                    for (const inv of data.invoices) {
-                        const id = inv.id || String(getNextId(getData('invoices')));
-                        await saveDataToCloud('invoices', inv, id);
-                    }
-                }
-                if (Array.isArray(data.notes)) {
-                    for (const n of data.notes) {
-                        const id = n.id || currentUser.uid;
-                        await saveDataToCloud('notes', n, id);
-                    }
-                }
-
-                await loadAllDataFromCloud();
-                renderAll();
-                alert("Importazione completata con successo!");
-            } catch (err) {
-                console.error("Errore import JSON:", err);
-                alert("Errore durante l'importazione del JSON: " + err.message);
+    // =========================================================
+    // BACKUP JSON DAL CLOUD (UTENTE CORRENTE)
+    // =========================================================
+    $('#export-cloud-json-btn').on('click', async function () {
+        try {
+            if (!currentUser) {
+                alert('Devi prima effettuare il login.');
+                return;
             }
-        };
-        reader.readAsText(file);
+
+            // Mi assicuro di avere i dati aggiornati dal Cloud
+            await loadAllDataFromCloud();
+
+            const backup = {
+                userId: currentUser.uid,
+                companyInfo: globalData.companyInfo || {},
+                products: globalData.products || [],
+                customers: globalData.customers || [],
+                invoices: globalData.invoices || [],
+                notes: globalData.notes || []
+            };
+
+            const blob = new Blob(
+                [JSON.stringify(backup, null, 2)],
+                { type: 'application/json' }
+            );
+
+            const a = document.createElement('a');
+            const today = new Date().toISOString().slice(0, 10); // es. 2025-12-01
+            a.download = `gestionale-backup-${today}.json`;
+            a.href = URL.createObjectURL(blob);
+            a.click();
+            URL.revokeObjectURL(a.href);
+        } catch (err) {
+            console.error('Errore export backup JSON:', err);
+            alert('Errore durante il backup JSON dal Cloud.');
+        }
     });
 
     // Import dal vecchio JSON (localStorage)
