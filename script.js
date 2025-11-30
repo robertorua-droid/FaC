@@ -263,44 +263,51 @@ $(document).ready(function() {
 }
         
         // Popola la combo "Anno" in Elenco Documenti
-    function refreshInvoiceYearFilter() {
-        const $select = $('#invoice-year-filter');
-        if (!$select.length) return; // se per qualche motivo non esiste, esco
+    function renderAll() {
+    renderCompanyInfoForm();
+    updateCompanyUI();
+    renderProductsTable();
+    renderCustomersTable();
+    refreshInvoiceYearFilter();   // <- POPOLA / AGGIORNA LA COMBO ANNO
+    renderInvoicesTable();        // <- USA IL VALORE SELEZIONATO
+    populateDropdowns();
+    renderStatisticsPage();
+    renderHomePage();
+}
 
-        const previous = $select.val() || 'all';
+// Popola la combo "Anno" in Elenco Documenti
+function refreshInvoiceYearFilter() {
+    const $select = $('#invoice-year-filter');
+    if (!$select.length) return; // se per qualche motivo non esiste, esco
 
-        const invoices = getData('invoices');
-        const yearsSet = new Set();
+    const previous = $select.val() || 'all';
 
-        invoices.forEach(inv => {
-            if (inv.date && typeof inv.date === 'string' && inv.date.length >= 4) {
-                const y = inv.date.substring(0, 4);
-                if (/^\d{4}$/.test(y)) {
-                    yearsSet.add(y);
-                }
+    const invoices = getData('invoices');
+    const yearsSet = new Set();
+
+    invoices.forEach(inv => {
+        if (inv.date && typeof inv.date === 'string' && inv.date.length >= 4) {
+            const y = inv.date.substring(0, 4);
+            if (/^\d{4}$/.test(y)) {
+                yearsSet.add(y);
             }
-        });
-
-        const years = Array.from(yearsSet).sort().reverse(); // anni decrescenti
-
-        $select.empty();
-        $select.append('<option value="all">Tutti</option>');
-        years.forEach(y => {
-            $select.append(`<option value="${y}">${y}</option>`);
-        });
-
-        if (years.includes(previous)) {
-            $select.val(previous);
-        } else {
-            $select.val('all');
         }
+    });
+
+    const years = Array.from(yearsSet).sort().reverse(); // anni decrescenti
+
+    $select.empty();
+    $select.append('<option value="all">Tutti</option>');
+    years.forEach(y => {
+        $select.append(`<option value="${y}">${y}</option>`);
+    });
+
+    if (years.includes(previous)) {
+        $select.val(previous);
+    } else {
+        $select.val('all');
     }
-         
-        renderInvoicesTable();
-        populateDropdowns(); 
-        renderStatisticsPage(); 
-        renderHomePage();
-    }
+}
 
     function updateCompanyUI() { 
         const company = getData('companyInfo'); 
