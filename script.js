@@ -1296,45 +1296,133 @@ ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase
 }
 
 
-    // VIEW (Dettaglio Fattura)
-    $('#invoices-table-body').on('click', '.btn-view-invoice', function () {
+    // VIEW - Dettaglio fattura con riepilogo completo
+$('#invoices-table-body').on('click', '.btn-view-invoice', function() {
     const id = $(this).attr('data-id');
     const inv = getData('invoices').find(i => String(i.id) === String(id));
     if (!inv) return;
 
     const c = getData('customers').find(x => String(x.id) === String(inv.customerId)) || {};
 
-    // collega il pulsante XML alla fattura corrente
+    // collega il pulsante "Esporta XML" alla fattura aperta
     $('#export-xml-btn').data('invoiceId', inv.id);
-    $('#invoiceDetailModalTitle').text(`${inv.type} ${inv.number}`);
+    $('#invoiceDetailModalTitle').text(`${inv.type || 'Fattura'} ${inv.number || ''}`);
 
+    // --- Calcoli riepilogo (usiamo i dati salvati, con fallback) ---
+    const lines = Array.isArray(inv.lines) ? inv.lines : [];
+
+    const righePrestazioni = lines.filter(l =>
+        String(l.productName || '').toLowerCase() !== 'rivalsa bollo'
+    );
+    const rigaBollo = lines.find(l =>
+        String(l.productName || '').toLowerCase() === 'rivalsa bollo'
+    );
+
+    const totalePrestazioni = (typeof inv.totalePrestazioni === 'number')
+        ? inv.totalePrestazioni
+        : righePrestazioni.reduce((s, l) => s + (Number(l.subtotal) || 0), 0);
+
+    const importoRivalsa = (inv.rivalsa && typeof inv.rivalsa.importo === 'number')
+        ? inv.rivalsa.importo
+        : 0;
+
+    const importoBollo = (typeof inv.importoBollo === 'number')
+        ? inv.importoBollo
+        : (rigaBollo ? (Number(rigaBollo.subtotal) || 0) : 0);
+
+    const totaleImponibile = (typeof inv.totaleImponibile === 'number')
+        ? inv.totaleImponibile
+        : (totalePrestazioni + importoRivalsa);
+
+    const totaleDocumento = (typeof inv.total === 'number')
+        ? inv.total
+        : (totaleImponibile + importoBollo);
+
+    // --- Corpo HTML della modale ---
     let h = `
-        <h5>${escapeXML(c.name || '')}</h5>
+        <div class="mb-3">
+            <h5 class="mb-1">${c.name || ''}</h5>
+            ${c.piva ? `<div class="small text-muted">P.IVA: ${c.piva}</div>` : ''}
+            ${c.codiceFiscale ? `<div class="small text-muted">CF: ${c.codiceFiscale}</div>` : ''}
+        </div>
         <table class="table table-sm">
             <thead>
                 <tr>
                     <th>Descrizione</th>
+                    <th class="text-end">Q.tà</th>
+                    <th class="text-end">Prezzo</th>
                     <th class="text-end">Totale</th>
                 </tr>
             </thead>
             <tbody>
     `;
 
-    (inv.lines || []).forEach(l => {
-        const desc = escapeXML(l.productName || '');
-        const tot = (parseFloat(l.subtotal) || 0).toFixed(2);
-        h += `<tr><td>${desc}</td><td class="text-end">€ ${tot}</td></tr>`;
+    lines.forEach(l => {
+        h += `
+            <tr>
+                <td>${l.productName || ''}</td>
+                <td class="text-end">${(Number(l.qty) || 0).toFixed(2)}</td>
+                <td class="text-end">€ ${(Number(l.price) || 0).toFixed(2)}</td>
+                <td class="text-end">€ ${(Number(l.subtotal) || 0).toFixed(2)}</td>
+            </tr>
+        `;
     });
-
-    const totale = (parseFloat(inv.total) || 0).toFixed(2);
 
     h += `
             </tbody>
         </table>
-        <h4 class="text-end">Totale documento: € ${totale}</h4>
+        <div class="row justify-content-end mt-3">
+            <div class="col-md-6">
+                <table class="table table-sm mb-0">
+                    <tbody>
+                        <tr>
+                            <th class="text-end">Totale Prestazioni</th>
+                            <td class="text-end">€ ${totalePrestazioni.toFixed(2)}</td>
+                        </tr>
+    `;
+
+    if (importoRivalsa > 0) {
+        h += `
+                        <tr>
+                            <th class="text-end">Rivalsa INPS</th>
+                            <td class="text-end">€ ${importoRivalsa.toFixed(2)}</td>
+                        </tr>
+        `;
+    }
+
+    h += `
+                        <tr>
+                            <th class="text-end">Totale Imponibile</th>
+                            <td class="text-end">€ ${totaleImponibile.toFixed(2)}</td>
+                        </tr>
+    `;
+
+    if (importoBollo > 0) {
+        h += `
+                        <tr>
+                            <th class="text-end">Marca da bollo</th>
+                            <td class="text-end">
+                                € ${importoBollo.toFixed(2)}<br>
+                                <small class="text-muted">Marca da bollo del valore di € 2,00</small>
+                            </td>
+                        </tr>
+        `;
+    }
+
+    h += `
+                        <tr class="fw-bold">
+                            <th class="text-end">Totale Documento</th>
+                            <td class="text-end">€ ${totaleDocumento.toFixed(2)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     `;
 
     $('#invoiceDetailModalBody').html(h);
+});
+
 
     // apertura sicura della modale (anche se i data-bs-* non venissero letti)
     const modalEl = document.getElementById('invoiceDetailModal');
