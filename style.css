@@ -187,3 +187,37 @@ tr.invoice-paid .btn {
         display: none !important;
     }
 }
+
+/* ============================================
+   COLORI RIGHE ELENCO DOCUMENTI (SOLO CSS)
+   ============================================ */
+
+/* Tipo documento: Fattura (badge blu in prima colonna) */
+#invoices-table-body tr:has(> td:first-child .badge.bg-primary) {
+    background-color: #e3f2fd; /* azzurrino */
+}
+
+/* Tipo documento: Nota di Credito (badge giallo/bordato in prima colonna) */
+#invoices-table-body tr:has(> td:first-child .badge.bg-warning.border.border-dark) {
+    background-color: #fff3cd; /* giallino */
+}
+
+/* Stato: Pagata (badge verde in colonna "Stato") */
+#invoices-table-body tr:has(> td:nth-child(7) .badge.bg-success) {
+    border-left: 4px solid #198754; /* bordo verde a sinistra */
+}
+
+/* Stato: Da Incassare (badge giallo in colonna "Stato") */
+#invoices-table-body tr:has(> td:nth-child(7) .badge.bg-warning) {
+    border-left: 4px solid #ffc107; /* bordo giallo */
+}
+
+/* Stato: Emessa (Note di credito emesse - badge azzurro) */
+#invoices-table-body tr:has(> td:nth-child(7) .badge.bg-info) {
+    border-left: 4px solid #0dcaf0; /* bordo azzurro */
+}
+
+/* Stato: Bozza (se mai la usi per NdC) */
+#invoices-table-body tr:has(> td:nth-child(7) .badge.bg-secondary) {
+    border-left: 4px solid #6c757d; /* bordo grigio */
+}
