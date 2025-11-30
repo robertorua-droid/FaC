@@ -1482,6 +1482,13 @@ ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase
         `;
 
         $('#invoiceDetailModalBody').html(h);
+        
+        // apertura sicura della modale (anche se i data-bs-* non venissero letti)
+    const modalEl = document.getElementById('invoiceDetailModal');
+    if (modalEl && window.bootstrap && bootstrap.Modal) {
+        const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modalInstance.show();
+    }
     });
 
 
