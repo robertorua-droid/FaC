@@ -1,0 +1,110 @@
+{
+  "companyInfo": {
+    "name": "Studio Rossi Consulenze",
+    "cognome": "Rossi",
+    "nome": "Mario",
+    "address": "Via Roma",
+    "numeroCivico": "10",
+    "city": "Torino",
+    "zip": "10121",
+    "province": "TO",
+    "nazione": "Italia",
+    "piva": "12345678901",
+    "codiceFiscale": "RSSMRA80A01H501Z",
+    "regimeFiscale": "Regime Forfettario",
+    "codiceRegimeFiscale": "RF19",
+    "coefficienteRedditivita": "67",
+    "aliquotaSostitutiva": "15",
+    "aliquotaContributi": "25.72",
+    "aliquotaInps": "4",
+    "contributiVersati": "0",
+    "banca": "Banca di Prova S.p.A.",
+    "iban": "IT60X0542811101000000123456"
+  },
+  "products": [
+    {
+      "description": "Rivalsa Bollo",
+      "code": "",
+      "salePrice": "2.00",
+      "iva": "0",
+      "esenzioneIva": "N2.1",
+      "id": "PRD1"
+    },
+    {
+      "id": "PRD2",
+      "description": "Consulenza informatica oraria",
+      "code": "",
+      "salePrice": "50.00",
+      "iva": "0",
+      "esenzioneIva": "N2.2"
+    },
+    {
+      "id": "PRD3",
+      "description": "Formazione in aula (mezza giornata)",
+      "code": "",
+      "salePrice": "200.00",
+      "iva": "0",
+      "esenzioneIva": "N2.2"
+    },
+    {
+      "id": "PRD4",
+      "description": "Supporto remoto pacchetto mensile",
+      "code": "",
+      "salePrice": "300.00",
+      "iva": "0",
+      "esenzioneIva": "N2.2"
+    }
+  ],
+  "customers": [
+    {
+      "id": 1,
+      "name": "Alfa S.r.l.",
+      "piva": "11111111111",
+      "codiceFiscale": "",
+      "sdi": "ABCDEF1",
+      "address": "Via Garibaldi 5",
+      "comune": "Torino",
+      "provincia": "TO",
+      "cap": "10122",
+      "nazione": "IT",
+      "rivalsaInps": true
+    },
+    {
+      "id": 2,
+      "name": "Beta Consulting S.p.A.",
+      "piva": "22222222222",
+      "codiceFiscale": "",
+      "sdi": "ABCDEF2",
+      "address": "Corso Francia 100",
+      "comune": "Collegno",
+      "provincia": "TO",
+      "cap": "10093",
+      "nazione": "IT",
+      "rivalsaInps": false
+    },
+    {
+      "id": 3,
+      "name": "Gamma Servizi SRL",
+      "piva": "33333333333",
+      "codiceFiscale": "",
+      "sdi": "ABCDEF3",
+      "address": "Via Po 20",
+      "comune": "Torino",
+      "provincia": "TO",
+      "cap": "10123",
+      "nazione": "Italia",
+      "rivalsaInps": true
+    }
+  ],
+  "users": [
+    {
+      "id": 1,
+      "surname": "Rossi",
+      "name": "Mario",
+      "password": "gestionale",
+      "role": "Admin"
+    }
+  ],
+  "invoices": [],
+  "notes": []
+}
