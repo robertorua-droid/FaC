@@ -1297,52 +1297,192 @@ ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase
 
 
     // VIEW (Dettaglio Fattura)
-    $('#invoices-table-body').on('click', '.btn-view-invoice', function () {
-    const id = $(this).attr('data-id');
-    const inv = getData('invoices').find(i => String(i.id) === String(id));
-    if (!inv) return;
+    // VIEW
+    $('#invoices-table-body').on('click', '.btn-view-invoice', function() {
+        const id = $(this).attr('data-id');
+        const inv = getData('invoices').find(i => String(i.id) === String(id));
+        if (!inv) return;
 
-    const c = getData('customers').find(x => String(x.id) === String(inv.customerId)) || {};
+        const company = getData('companyInfo') || {};
+        const customer = getData('customers').find(x => String(x.id) === String(inv.customerId)) || {};
 
-    // collega il pulsante XML alla fattura corrente
-    $('#export-xml-btn').data('invoiceId', inv.id);
-    $('#invoiceDetailModalTitle').text(`${inv.type} ${inv.number}`);
+        // Imposta il pulsante XML sul documento corrente
+        $('#export-xml-btn').data('invoiceId', inv.id);
+        $('#invoiceDetailModalTitle').text(`${inv.type} ${inv.number}`);
 
-    let h = `
-        <h5>${escapeXML(c.name || '')}</h5>
+        // --- RICALCOLO IMPORTI PER VISUALIZZAZIONE (non tocca i dati salvati) ---
+        const rowsSenzaBollo = (inv.lines || []).filter(l =>
+            (l.productName || '').toLowerCase() !== 'rivalsa bollo'
+        );
+        const rigaBollo = (inv.lines || []).find(l =>
+            (l.productName || '').toLowerCase() === 'rivalsa bollo'
+        );
+
+        const totPrest = rowsSenzaBollo.reduce((s, l) => s + (l.subtotal || 0), 0);
+        const impBollo = rigaBollo ? (rigaBollo.subtotal || 0) : 0;
+
+        const aliquotaInps = parseFloat(company.aliquotaInps || 0);
+        const hasRivInpsFlag = !!(customer && customer.rivalsaInps);
+        const rivInps = hasRivInpsFlag ? (totPrest * (aliquotaInps / 100)) : 0;
+
+        const totImponibile = totPrest + rivInps;
+        const totDocumento = totImponibile + impBollo;
+
+        const hasRivInps = hasRivInpsFlag && rivInps > 0;
+        const hasBollo = impBollo > 0;
+
+        let h = '';
+
+        // --- HEADER: CEDENTE / CESSIONARIO ---
+        h += `
+        <div class="row mb-3">
+            <div class="col-6">
+                <h5 class="mb-1">Cedente / Prestatore</h5>
+                <div><strong>${escapeXML(company.name || '')}</strong></div>
+                ${company.piva ? `<div>P.IVA: ${escapeXML(company.piva)}</div>` : ''}
+                ${company.codiceFiscale ? `<div>C.F.: ${escapeXML(company.codiceFiscale)}</div>` : ''}
+                ${company.address ? `<div>${escapeXML(company.address)}${company.numeroCivico ? ', ' + escapeXML(company.numeroCivico) : ''}</div>` : ''}
+                ${(company.zip || company.city || company.province)
+                    ? `<div>${escapeXML(company.zip || '')} ${escapeXML(company.city || '')} ${escapeXML(company.province || '')}</div>`
+                    : ''}
+            </div>
+            <div class="col-6 text-end">
+                <h5 class="mb-1">Cessionario / Committente</h5>
+                <div><strong>${escapeXML(customer.name || '')}</strong></div>
+                ${customer.piva ? `<div>P.IVA: ${escapeXML(customer.piva)}</div>` : ''}
+                ${customer.codiceFiscale ? `<div>C.F.: ${escapeXML(customer.codiceFiscale)}</div>` : ''}
+                ${customer.address ? `<div>${escapeXML(customer.address)}</div>` : ''}
+                ${(customer.cap || customer.comune || customer.provincia)
+                    ? `<div>${escapeXML(customer.cap || '')} ${escapeXML(customer.comune || '')} ${escapeXML(customer.provincia || '')}</div>`
+                    : ''}
+            </div>
+        </div>
+        `;
+
+        // --- DATI DOCUMENTO (numero, data, tipo) ---
+        h += `
+        <div class="row mb-3">
+            <div class="col-6">
+                <div><strong>Numero:</strong> ${escapeXML(inv.number || '')}</div>
+                <div><strong>Data:</strong> ${formatDateForDisplay(inv.date)}</div>
+            </div>
+            <div class="col-6 text-end">
+                <div><strong>Tipo documento:</strong> ${inv.type || 'Fattura'}</div>
+            </div>
+        </div>
+        `;
+
+        // --- DETTAGLIO RIGHE ---
+        h += `
         <table class="table table-sm">
             <thead>
                 <tr>
                     <th>Descrizione</th>
+                    <th class="text-end">Q.tà</th>
+                    <th class="text-end">Prezzo</th>
                     <th class="text-end">Totale</th>
                 </tr>
             </thead>
             <tbody>
-    `;
+        `;
+        (inv.lines || []).forEach(l => {
+            const qty = typeof l.qty === 'number' ? l.qty : parseFloat(l.qty || 0) || 0;
+            const price = typeof l.price === 'number' ? l.price : parseFloat(l.price || 0) || 0;
+            const subtotal = typeof l.subtotal === 'number' ? l.subtotal : parseFloat(l.subtotal || 0) || (qty * price);
 
-    (inv.lines || []).forEach(l => {
-        const desc = escapeXML(l.productName || '');
-        const tot = (parseFloat(l.subtotal) || 0).toFixed(2);
-        h += `<tr><td>${desc}</td><td class="text-end">€ ${tot}</td></tr>`;
-    });
-
-    const totale = (parseFloat(inv.total) || 0).toFixed(2);
-
-    h += `
+            h += `
+                <tr>
+                    <td>${escapeXML(l.productName || '')}</td>
+                    <td class="text-end">${qty.toFixed(2)}</td>
+                    <td class="text-end">€ ${price.toFixed(2)}</td>
+                    <td class="text-end">€ ${subtotal.toFixed(2)}</td>
+                </tr>
+            `;
+        });
+        h += `
             </tbody>
         </table>
-        <h4 class="text-end">Totale documento: € ${totale}</h4>
-    `;
+        `;
 
-    $('#invoiceDetailModalBody').html(h);
+        // --- RIEPILOGO IMPORTI ---
+        h += `
+        <div class="row justify-content-end">
+            <div class="col-md-5">
+                <table class="table table-sm mb-0">
+                    <tbody>
+                        <tr>
+                            <th>Totale Prestazioni</th>
+                            <td class="text-end">€ ${totPrest.toFixed(2)}</td>
+                        </tr>
+                        ${hasRivInps ? `
+                        <tr>
+                            <th>Rivalsa INPS</th>
+                            <td class="text-end">€ ${rivInps.toFixed(2)}</td>
+                        </tr>` : ''}
+                        <tr>
+                            <th>Totale Imponibile</th>
+                            <td class="text-end">€ ${totImponibile.toFixed(2)}</td>
+                        </tr>
+                        ${hasBollo ? `
+                        <tr>
+                            <th>Marca da bollo</th>
+                            <td class="text-end">€ ${impBollo.toFixed(2)}</td>
+                        </tr>` : ''}
+                        <tr class="table-light fw-bold">
+                            <th>Totale Documento</th>
+                            <td class="text-end">€ ${totDocumento.toFixed(2)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        `;
 
-    // apertura sicura della modale (anche se i data-bs-* non venissero letti)
-    const modalEl = document.getElementById('invoiceDetailModal');
-    if (modalEl && window.bootstrap && bootstrap.Modal) {
-        const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
-        modalInstance.show();
-    }
-});
+        // --- FOOTER: TESTO FISCALE + DATI PAGAMENTO ---
+        const condizioni = inv.condizioniPagamento || '';
+        const modalita = inv.modalitaPagamento || '';
+        const scadenza = inv.dataScadenza ? formatDateForDisplay(inv.dataScadenza) : '';
+        const banca = company.banca || '';
+        const iban = company.iban || '';
+
+        h += `
+        <div class="mt-3 small">
+            <p>
+                Operazione senza applicazione dell’IVA ai sensi dell’art. 1, commi da 54 a 89, Legge n. 190/2014 (Regime Forfettario).
+                Si richiede la non applicazione della ritenuta alla fonte a titolo d’acconto ai sensi dell’art. 1, comma 67, Legge n. 190/2014.
+            </p>
+        </div>
+        <div class="mt-2">
+            <h6>Dati di pagamento</h6>
+            <table class="table table-sm mb-0">
+                <tbody>
+                    <tr>
+                        <th>Condizioni</th>
+                        <td>${escapeXML(condizioni)}</td>
+                    </tr>
+                    <tr>
+                        <th>Modalità</th>
+                        <td>${escapeXML(modalita)}</td>
+                    </tr>
+                    <tr>
+                        <th>Scadenza</th>
+                        <td>${scadenza}</td>
+                    </tr>
+                    <tr>
+                        <th>Banca</th>
+                        <td>${escapeXML(banca)}</td>
+                    </tr>
+                    <tr>
+                        <th>IBAN</th>
+                        <td>${escapeXML(iban)}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        `;
+
+        $('#invoiceDetailModalBody').html(h);
+    });
 
 
     $('#print-invoice-btn').click(()=>window.print());
