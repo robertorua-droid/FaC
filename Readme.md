@@ -1,81 +1,113 @@
-==================================================================
-DOCUMENTAZIONE TECNICA E FUNZIONALE
-Gestionale Semplice per Professionisti (v6.4 - Stabile)
-==================================================================
+# Gestionale Cloud – Professionisti (Regime Forfettario)
 
-1. ARCHITETTURA E FILOSOFIA DEL PROGETTO
-------------------------------------------------------------------
+Versione: **v9.7 – Stable Cloud**
 
-L'applicazione è una Single-Page Application (SPA) costruita interamente con tecnologie front-end.
+Gestionale didattico per la fatturazione di professionisti in regime forfettario, pensato per esercitazioni in aula con più gruppi di studenti in ambiente **multi‑utenza** tramite Firebase Authentication + Firestore.
 
--   **Stack Tecnologico**: HTML5, Bootstrap 5, Font Awesome, jQuery.
--   **Persistenza dei Dati**: I dati sono salvati nel `localStorage` e gestiti tramite le funzioni `getData(key)` e `saveData(key, data)`. Le chiavi principali sono: `companyInfo`, `products`, `customers`, `users`, `invoices`, `notes`.
+L’app è una **Single Page Application** HTML/JS/CSS che gira completamente lato client, con persistenza dati su Firebase.
 
-==================================================================
-2. FLUSSO DI AVVIO E SISTEMA DI LOGIN
-==================================================================
--   **Inizializzazione**: La funzione `checkAndSeedData()` popola il `localStorage` con `sampleData` al primo avvio.
--   **Autenticazione**: L'evento `submit` del form `#login-form` verifica le credenziali contro l'array `users`. Una logica di emergenza crea l'utente `admin`/`gestionale` se l'array è vuoto.
+---
 
-==================================================================
-3. GESTIONE DEI DOCUMENTI (Fatture e Note di Credito)
-------------------------------------------------------------------
+## 1. Funzionalità principali
 
-3.1. CREAZIONE DI UN NUOVO DOCUMENTO
-------------------------------------------------------------------
-- **Flusso Fattura**:
-    1.  Il click sul link `#menu-nuova-fattura` apre il modale `#newInvoiceChoiceModal`.
-    2.  La funzione associata a `show.bs.modal` popola il menu a tendina `#copy-from-invoice-select` con le fatture esistenti (documenti con `type: 'Fattura'` o `type` non definito per retrocompatibilità).
-    3.  Il click su `#btn-create-new-blank-invoice` apre il form dei documenti in modalità "Fattura vuota".
-    4.  Il click su `#btn-copy-from-invoice` chiama la funzione `loadInvoiceForEditing(id, true)`, che popola il form con i dati della fattura scelta ma lo tratta come un nuovo documento (non imposta l'ID di modifica e ricalcola il numero).
-- **Flusso Nota di Credito**:
-    1.  Il click su `#menu-nuova-nota-credito` chiama direttamente `prepareDocumentForm('Nota di Credito')`.
-- **Preparazione Form (`prepareDocumentForm(type)`)**:
-    -   Imposta il valore dell'input nascosto `#document-type`.
-    -   Mostra o nasconde la sezione `#credit-note-fields` in base al tipo.
-    -   Aggiorna i titoli (`#document-title`) e il testo dei pulsanti (`#save-invoice-btn`).
-    -   Chiama `populateDropdowns()` per inizializzare i campi comuni.
+- **Multi‑utente**:
+  - Accesso tramite email/password Firebase.
+  - Ogni utente vede e modifica solo i propri dati (azienda, clienti, servizi, documenti, note).
 
-3.2. NUMERAZIONE E SALVATAGGIO
-------------------------------------------------------------------
-- **Numerazione (`updateInvoiceNumber`)**: Viene attivata al cambio di `#invoice-date`. Chiama `generateNextDocumentNumber(type, year)` che filtra l'array `invoices` per `type` e `year` per calcolare il progressivo corretto (es. `FATT-` o `NC-`).
-- **Salvataggio**: Al `submit` di `#new-invoice-form`, il codice:
-    1.  Legge il tipo da `#document-type`.
-    2.  Crea un oggetto `invoiceData` con tutti i campi del form. Aggiunge la proprietà `type`.
-    3.  Se `docType` è 'Nota di Credito', aggiunge anche le proprietà `linkedInvoice` e `reason`.
-    4.  Controlla `#editing-invoice-id`: se presente, aggiorna il documento esistente; altrimenti, crea un nuovo documento assegnando un nuovo `id` e uno `status` di default (`Da Incassare` o `Bozza`).
+- **Anagrafiche**:
+  - **Azienda (cedente)** con tutti i dati fiscali: P.IVA, CF, indirizzo, città, CAP, provincia, nazione, banca, IBAN, regime fiscale, coefficiente di redditività, aliquota imposta sostitutiva, aliquota INPS, aliquota rivalsa INPS, ecc. :contentReference[oaicite:0]{index=0}
+  - **Clienti (cessionari)** con indirizzo completo, P.IVA/CF, codice SdI, nazione, flag “Rivalsa INPS”.
+  - **Servizi/Prodotti** con codice, descrizione, prezzo, aliquota IVA ed eventuale natura di esenzione. :contentReference[oaicite:1]{index=1}  
 
-3.3. ELENCO E STATI DEI DOCUMENTI
-------------------------------------------------------------------
-- **Render (`renderInvoicesTable`)**: Itera sull'array `invoices`. Per ogni documento:
-    -   Legge la proprietà `type` per mostrare un badge (`Fatt.` o `N.C.`).
-    -   Legge la proprietà `status` (`Pagata`, `Emessa`, `Da Incassare`, `Bozza`) per mostrare un badge di stato e disabilitare il pulsante di modifica `.btn-edit-invoice`.
-- **Gestione Stato**: Il click su `.btn-mark-paid` aggiorna lo `status` del documento a 'Pagata' (per le fatture) o 'Emessa' (per le note di credito) e ridisegna la tabella.
+- **Documenti Emessi**:
+  - **Fatture** e **Note di Credito**.
+  - Numerazione automatica con prefissi tipo `FATT-YYYY-NN` e `NC-YYYY-NN`.
+  - Inserimento righe documento tramite servizi presenti in anagrafica.
+  - Gestione speciale di:
+    - **Rivalsa INPS** (se il cliente ha il flag attivo).
+    - **Rivalsa Bollo** (servizio dedicato, marca da bollo 2 €).
+  - Campi pagamento: condizioni, modalità, data riferimento, giorni scadenza, data scadenza. :contentReference[oaicite:2]{index=2}  
 
-==================================================================
-4. STATISTICHE E SIMULAZIONE FISCALE
-==================================================================
-- **Logica**: La funzione `renderStatisticsPage()` viene eseguita all'accesso alla sezione.
-- **Calcolo Fatturato**: La funzione filtra l'array `invoices` per includere solo i documenti che sono fatture (`type: 'Fattura'` o `type` non definito) ed escludere le note di credito.
-- **Simulazione Fiscale (`renderTaxSimulation`)**:
-    -   **Fatturato Netto**: Calcola separatamente la somma degli imponibili delle fatture e delle note di credito, per ottenere il `grossRevenue` (Fatturato - Note di Credito).
-    -   **Reddito Imponibile**: Applica il `coefficienteRedditivita` al `grossRevenue`.
-    -   **Contributi Dovuti**: Applica l'`aliquotaContributi` al reddito imponibile.
-    -   **Imposta Dovuta**: Sottrae i contributi dovuti dal reddito imponibile e applica l'`aliquotaSostitutiva`.
+- **Stati documento**:
+  - `Da Incassare`, `Pagata` per le fatture.
+  - `Bozza`, `Emessa` per le note di credito.
+  - Le fatture **Pagate** non sono più modificabili né cancellabili (pulsanti disabilitati). :contentReference[oaicite:3]{index=3}  
 
-==================================================================
-5. ESPORTAZIONE XML (CONFORME A FATTURAPA)
-------------------------------------------------------------------
-- **Funzione Chiave**: `generateInvoiceXML(invoiceId)` è stata pesantemente modificata per la conformità.
-- **Logica Chiave Implementata**:
-    1.  **Tipo Documento**: Imposta `<TipoDocumento>` a `TD04` se `invoice.type` è 'Nota di Credito', altrimenti `TD01`.
-    2.  **Campi Condizionali per NC**: Aggiunge i blocchi `<DatiFattureCollegate>` e `<Causale>` se il documento è una nota di credito.
-    3.  **Riepilogo per Natura**: La logica del riepilogo è stata riscritta. Crea un oggetto `summaryByNature` che usa il codice natura (es. 'N2.2', 'N4') come chiave per raggruppare gli imponibili. Successivamente, itera su questo oggetto per generare un blocco `<DatiRiepilogo>` distinto per ogni natura, garantendo la coerenza richiesta dal validatore.
-    4.  **Correzioni Minori**: Converte le province in maiuscolo (`.toUpperCase()`), gestisce correttamente l'anagrafica del cedente come persona fisica e include i dati bancari nel blocco `<DatiPagamento>`.
-    5.  **Nome File**: Il nome del file viene generato con un progressivo alfanumerico casuale di 5 caratteri per imitare il formato SdI.
+- **Elenco Documenti**:
+  - Tabella con tipo, numero, data, cliente, totale, scadenza, stato, azioni.   
+  - Pulsanti:
+    - **Visualizza** (apre una modale con layout pronto per stampa PDF).
+    - **Modifica** (solo se non pagata / non emessa).
+    - **XML** (genera file elettronico).
+    - **Segna come pagata**.
+    - **Elimina** (non disponibile per documenti pagati).
 
-==================================================================
-6. FUNZIONI AVANZATE E COMPATIBILITÀ
-==================================================================
-- **Backup/Ripristino**: Gestito tramite serializzazione JSON dell'intero `localStorage`.
-- **Compatibilità Dati**: L'applicazione è resiliente a campi mancanti nelle versioni precedenti dei dati. L'interfaccia utente guida l'utente a compilare le nuove informazioni (es. in Anagrafica Azienda), che vengono poi integrate nella struttura dati al primo salvataggio.
+- **Filtro per anno** (Elenco Documenti):
+  - Combo che permette di filtrare i documenti per anno (es. 2025, 2026, …), per evitare elenchi troppo lunghi durante le esercitazioni.
+
+- **XML Fattura Elettronica**:
+  - Generazione del file `.xml` conforme allo schema SdI, validato con FatturaCheck.
+  - Nome file nel formato:  
+    `IT<PartitaIVA>_<5caratteriRandom>.xml`  
+    (es. `IT12442600016_ai5yv.xml`)  
+  - Gestione corretta di:
+    - Cedente/prestatore (azienda).
+    - Cessionario/committente (cliente).
+    - Linee di dettaglio con natura IVA.
+    - Riepilogo IVA coerente con le nature utilizzate (inclusa rivalsa INPS in natura N4).
+    - Marca da bollo nei casi previsti.
+
+- **Statistiche & Simulazione fiscale**:
+  - Riepilogo fatturato per cliente (fatture – note di credito).
+  - Simulazione automatica:
+    - Reddito imponibile forfettario (coefficiente).
+    - Contributi INPS (aliquota).
+    - Imposta sostitutiva.
+    - Totale uscite stimate e acconti. :contentReference[oaicite:5]{index=5}  
+
+- **Home / Dashboard**:
+  - Calendario mensile.
+  - Block‑notes salvato su Cloud per utente.
+  - Data/ora aggiornate in tempo reale.   
+
+- **Backup / Migrazione**:
+  - Import da **vecchia versione locale** (file JSON) verso il Cloud.
+  - Backup JSON dal Cloud per l’**utente corrente**.
+  - Import JSON nel nuovo formato Cloud (sovrascrive / aggiorna solo i dati dell’utente corrente).
+
+- **Timeout di inattività**:
+  - Dopo ~5 minuti senza interazioni (click, keypress, mousemove) la sessione viene chiusa con `auth.signOut()` e l’utente viene riportato alla schermata di login.
+
+---
+
+## 2. Architettura Tecnica
+
+- Frontend:
+  - **HTML5** + **Bootstrap 5** per layout e componenti.
+  - **Font Awesome 6** per le icone.   
+  - **CSS custom** (`style.css`) per rifiniture grafiche (sidebar, tabelle, stampa). :contentReference[oaicite:8]{index=8}  
+  - **jQuery 3.7** per la gestione degli eventi e del DOM.
+
+- Backend (as a service):
+  - **Firebase Authentication (Email/Password)**.
+  - **Firebase Firestore** (modalità compat) per i dati:
+    - `settings/companyInfo`
+    - `products`
+    - `customers`
+    - `invoices`
+    - `notes`
+
+- Hosting:
+  - Qualsiasi hosting statico: GitHub Pages, Firebase Hosting, server scolastico, ecc.
+
+Il file `index.html` carica i CSS, Bootstrap, Font Awesome e, a fine pagina, jQuery, Bootstrap JS e Firebase SDK compat, poi `script.js` con tutta la logica.   
+
+---
+
+## 3. Struttura del progetto
+
+```text
+/
+├─ index.html      # Struttura SPA (login + app) e modali
+├─ style.css       # Stili custom (layout, sidebar, tabelle, stampa)
+└─ script.js       # Tutta la logica dell’app (Firebase, UI, calcoli, XML)
