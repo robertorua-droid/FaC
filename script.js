@@ -1430,7 +1430,6 @@ $('#invoices-table-body').on('click', '.btn-view-invoice', function() {
         const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
         modalInstance.show();
     }
-});
 
 
     $('#print-invoice-btn').click(()=>window.print());
