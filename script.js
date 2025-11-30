@@ -1296,24 +1296,87 @@ ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase
 }
 
 
-    // VIEW (Dettaglio Fattura)
-    $('#invoices-table-body').on('click', '.btn-view-invoice', function () {
+    $('#invoices-table-body').on('click', '.btn-view-invoice', function() {
     const id = $(this).attr('data-id');
     const inv = getData('invoices').find(i => String(i.id) === String(id));
     if (!inv) return;
 
+    const company = getData('companyInfo') || {};
     const c = getData('customers').find(x => String(x.id) === String(inv.customerId)) || {};
 
-    // collega il pulsante XML alla fattura corrente
+    // per il pulsante XML
     $('#export-xml-btn').data('invoiceId', inv.id);
-    $('#invoiceDetailModalTitle').text(`${inv.type} ${inv.number}`);
+    $('#invoiceDetailModalTitle').text(`${inv.type || 'Fattura'} ${inv.number || ''}`);
 
-    let h = `
-        <h5>${escapeXML(c.name || '')}</h5>
+    const invoiceDate = inv.date ? formatDateForDisplay(inv.date) : '';
+    const dueDate = inv.dataScadenza ? formatDateForDisplay(inv.dataScadenza) : '';
+
+    // Totali (già calcolati e salvati nella fattura)
+    const totalePrestazioni = safeFloat(inv.totalePrestazioni);
+    const rivalsaImporto = inv.rivalsa && typeof inv.rivalsa.importo !== 'undefined'
+        ? safeFloat(inv.rivalsa.importo)
+        : 0;
+    const importoBollo = safeFloat(inv.importoBollo);
+    const totaleImponibile = safeFloat(inv.totaleImponibile || (totalePrestazioni + rivalsaImporto));
+    const totaleDocumento = safeFloat(inv.total);
+
+    const inpsRate = safeFloat(company.aliquotaInps || company.aliquotaContributi);
+    const showRivalsa = rivalsaImporto > 0;
+
+    // HEADER: denominazione e cedente/cessionario
+    let headerHtml = `
+        <div class="mb-3 text-center">
+            <h4 class="mb-1">${company.name || ''}</h4>
+            ${company.address ? `<div>${company.address} ${company.numeroCivico || ''}</div>` : ''}
+            ${(company.zip || company.city) ? `<div>${company.zip || ''} ${company.city || ''} ${company.province ? '(' + company.province + ')' : ''}</div>` : ''}
+            ${(company.piva || company.codiceFiscale)
+                ? `<div>P.IVA ${company.piva || ''}${company.codiceFiscale ? ' - C.F. ' + company.codiceFiscale : ''}</div>`
+                : ''
+            }
+        </div>
+        <hr class="my-3">
+        <div class="row mb-3">
+            <div class="col-6">
+                <h6 class="fw-bold">Cedente / Prestatore</h6>
+                <div>${company.name || ''}</div>
+                ${company.address ? `<div>${company.address} ${company.numeroCivico || ''}</div>` : ''}
+                ${(company.zip || company.city) ? `<div>${company.zip || ''} ${company.city || ''} ${company.province ? '(' + company.province + ')' : ''}</div>` : ''}
+                ${company.pec ? `<div>PEC: ${company.pec}</div>` : ''}
+            </div>
+            <div class="col-6 text-end">
+                <h6 class="fw-bold">Cessionario / Committente</h6>
+                <div>${c.name || ''}</div>
+                ${c.address ? `<div>${c.address}</div>` : ''}
+                ${(c.cap || c.comune || c.provincia)
+                    ? `<div>${c.cap || ''} ${c.comune || ''}${c.provincia ? ' (' + String(c.provincia).toUpperCase() + ')' : ''}</div>`
+                    : ''
+                }
+                ${(c.piva || c.codiceFiscale)
+                    ? `<div>P.IVA ${c.piva || ''}${c.codiceFiscale ? ' - C.F. ' + c.codiceFiscale : ''}</div>`
+                    : ''
+                }
+                ${c.pec ? `<div>PEC: ${c.pec}</div>` : ''}
+                ${c.sdi ? `<div>Codice SDI: ${c.sdi}</div>` : ''}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-6">
+                <strong>${inv.type || 'Fattura'} n.</strong> ${inv.number || ''}
+            </div>
+            <div class="col-6 text-end">
+                <strong>Data:</strong> ${invoiceDate || ''}
+            </div>
+        </div>
+    `;
+
+    // DETTAGLIO RIGHE
+    let linesHtml = `
         <table class="table table-sm">
             <thead>
                 <tr>
                     <th>Descrizione</th>
+                    <th class="text-center">Q.tà</th>
+                    <th class="text-end">Prezzo</th>
                     <th class="text-end">Totale</th>
                 </tr>
             </thead>
@@ -1321,20 +1384,81 @@ ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase
     `;
 
     (inv.lines || []).forEach(l => {
-        const desc = escapeXML(l.productName || '');
-        const tot = (parseFloat(l.subtotal) || 0).toFixed(2);
-        h += `<tr><td>${desc}</td><td class="text-end">€ ${tot}</td></tr>`;
+        const qty = safeFloat(l.qty);
+        const price = safeFloat(l.price);
+        const sub = safeFloat(l.subtotal);
+        linesHtml += `
+            <tr>
+                <td>${l.productName || ''}</td>
+                <td class="text-center">${qty.toFixed(2)}</td>
+                <td class="text-end">€ ${price.toFixed(2)}</td>
+                <td class="text-end">€ ${sub.toFixed(2)}</td>
+            </tr>
+        `;
     });
 
-    const totale = (parseFloat(inv.total) || 0).toFixed(2);
-
-    h += `
+    linesHtml += `
             </tbody>
         </table>
-        <h4 class="text-end">Totale documento: € ${totale}</h4>
     `;
 
-    $('#invoiceDetailModalBody').html(h);
+    // RIEPILOGO TOTALI
+    let totalsHtml = `
+        <div class="row justify-content-end mt-3">
+            <div class="col-md-6">
+                <table class="table table-sm">
+                    <tbody>
+                        <tr>
+                            <th class="text-end">Totale Prestazioni</th>
+                            <td class="text-end">€ ${totalePrestazioni.toFixed(2)}</td>
+                        </tr>
+                        ${showRivalsa ? `
+                        <tr>
+                            <th class="text-end">Rivalsa INPS${inpsRate ? ' ' + inpsRate + '%' : ''}</th>
+                            <td class="text-end">€ ${rivalsaImporto.toFixed(2)}</td>
+                        </tr>` : ''}
+                        <tr>
+                            <th class="text-end">Totale Imponibile</th>
+                            <td class="text-end">€ ${totaleImponibile.toFixed(2)}</td>
+                        </tr>
+                        ${importoBollo > 0 ? `
+                        <tr>
+                            <th class="text-end">Marca da bollo</th>
+                            <td class="text-end">€ ${importoBollo.toFixed(2)}</td>
+                        </tr>` : ''}
+                        <tr class="fw-bold border-top">
+                            <th class="text-end">TOTALE DOCUMENTO</th>
+                            <td class="text-end">€ ${totaleDocumento.toFixed(2)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    // TESTO FISCALE + DATI PAGAMENTO / BANCA
+    const legalText = `
+        <div class="mt-4">
+            <p class="small mb-2">
+                Operazione senza applicazione dell’IVA ai sensi dell’art. 1, commi da 54 a 89, Legge n. 190/2014 (Regime Forfettario).<br>
+                Si richiede la non applicazione della ritenuta alla fonte a titolo d’acconto ai sensi dell’art. 1, comma 67, Legge n. 190/2014.
+            </p>
+            <div class="row small">
+                <div class="col-md-6">
+                    <p class="mb-1"><strong>Condizioni di pagamento:</strong> ${inv.condizioniPagamento || '-'}</p>
+                    <p class="mb-1"><strong>Modalità di pagamento:</strong> ${inv.modalitaPagamento || '-'}</p>
+                    <p class="mb-1"><strong>Scadenza pagamento:</strong> ${dueDate || '-'}</p>
+                </div>
+                <div class="col-md-6">
+                    <p class="mb-1"><strong>Banca:</strong> ${company.banca || '-'}</p>
+                    <p class="mb-1"><strong>IBAN:</strong> ${company.iban || '-'}</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    $('#invoiceDetailModalBody').html(headerHtml + linesHtml + totalsHtml + legalText);
+});
 
     // apertura sicura della modale (anche se i data-bs-* non venissero letti)
     const modalEl = document.getElementById('invoiceDetailModal');
