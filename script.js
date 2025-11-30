@@ -254,7 +254,42 @@ $(document).ready(function() {
         renderCompanyInfoForm(); 
         updateCompanyUI(); 
         renderProductsTable(); 
-        renderCustomersTable(); 
+        renderCustomersTable();
+        
+        // Popola la combo "Anno" in Elenco Documenti
+    function refreshInvoiceYearFilter() {
+        const $select = $('#invoice-year-filter');
+        if (!$select.length) return; // se per qualche motivo non esiste, esco
+
+        const previous = $select.val() || 'all';
+
+        const invoices = getData('invoices');
+        const yearsSet = new Set();
+
+        invoices.forEach(inv => {
+            if (inv.date && typeof inv.date === 'string' && inv.date.length >= 4) {
+                const y = inv.date.substring(0, 4);
+                if (/^\d{4}$/.test(y)) {
+                    yearsSet.add(y);
+                }
+            }
+        });
+
+        const years = Array.from(yearsSet).sort().reverse(); // anni decrescenti
+
+        $select.empty();
+        $select.append('<option value="all">Tutti</option>');
+        years.forEach(y => {
+            $select.append(`<option value="${y}">${y}</option>`);
+        });
+
+        if (years.includes(previous)) {
+            $select.val(previous);
+        } else {
+            $select.val('all');
+        }
+    }
+         
         renderInvoicesTable();
         populateDropdowns(); 
         renderStatisticsPage(); 
@@ -468,67 +503,94 @@ ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase
 
     function renderInvoicesTable() {
         const table = $('#invoices-table-body').empty();
-        const selectedYear = getInvoiceFilterYear();
 
-        let invoices = getData('invoices') || [];
-        invoices = invoices.sort((a, b) => (b.number || '').localeCompare(a.number || ''));
+        // Elenco completo, ordinato come prima
+        const allInvoices = getData('invoices')
+            .slice()
+            .sort((a, b) => (b.number || '').localeCompare(a.number || ''));
 
+        // Aggiorna la combo anni senza perdere la selezione attuale
+        refreshInvoiceYearFilter();
+
+        // Leggo il valore selezionato nella combo
+        const selectedYear = ($('#invoice-year-filter').val() || 'all');
+
+        // Applico il filtro per anno, se selezionato
+        let invoices = allInvoices;
         if (selectedYear !== 'all') {
-            invoices = invoices.filter(inv => 
-                inv.date && String(inv.date).startsWith(String(selectedYear))
-            );
+            invoices = allInvoices.filter(inv => {
+                if (!inv.date) return false;
+                return String(inv.date).substring(0, 4) === String(selectedYear);
+            });
         }
 
+        // Render come prima
         invoices.forEach(inv => {
-            const c = getData('customers').find(cust => String(cust.id) === String(inv.customerId)) || { name: 'Sconosciuto' };
+            const c = getData('customers').find(cust => String(cust.id) === String(inv.customerId)) || { name: 'Sconosciuto' }; 
             const isPaid = inv.status === 'Pagata' || inv.status === 'Emessa';
-            const badge = inv.type === 'Nota di Credito' ? 'NdC' : 'Fatt.';
+            
+            const badge = inv.type === 'Nota di Credito'
+                ? '<span class="badge bg-warning text-dark border border-dark">NdC</span>'
+                : '<span class="badge bg-primary">Fatt.</span>';
 
-            let statusBadge = 'Da Incassare';
-            if (inv.type === 'Nota di Credito') statusBadge = isPaid ? 'Emessa' : 'Bozza';
-            else statusBadge = isPaid ? 'Pagata' : 'Da Incassare';
-
-            const disableActions = (inv.status === 'Pagata');
-
-            const payClass = isPaid ? 'btn-secondary disabled' : 'btn-success';
-            const editClass = disableActions ? 'btn-secondary disabled' : 'btn-outline-secondary';
-            const deleteClass = disableActions ? 'btn-secondary disabled' : 'btn-outline-danger';
-
-            const btnDelete = `
-<button class="btn btn-sm ${deleteClass} btn-delete-invoice" data-id="${inv.id}" ${disableActions ? 'disabled' : ''}>
-  <i class="fas fa-trash"></i>
-</button>`;
+            let statusBadge = '<span class="badge bg-warning text-dark">Da Incassare</span>';
+            if (inv.type === 'Nota di Credito') {
+                statusBadge = isPaid
+                    ? '<span class="badge bg-info text-dark">Emessa</span>'
+                    : '<span class="badge bg-secondary">Bozza</span>';
+            } else {
+                statusBadge = isPaid
+                    ? '<span class="badge bg-success">Pagata</span>'
+                    : '<span class="badge bg-warning text-dark">Da Incassare</span>';
+            }
+            
+            const payClass  = isPaid ? 'btn-secondary disabled'   : 'btn-success';
+            const editClass = isPaid ? 'btn-secondary disabled'   : 'btn-outline-secondary';
+            const btnDelete = `<button class="btn btn-sm btn-danger btn-delete-invoice" data-id="${inv.id}" title="Elimina"><i class="fas fa-trash"></i></button>`;
 
             const btns = `
-<div class="btn-group btn-group-sm" role="group">
-  <button class="btn ${editClass} btn-edit-invoice" data-id="${inv.id}" ${disableActions ? 'disabled' : ''}>
-    <i class="fas fa-edit"></i>
-  </button>
-  <button class="btn btn-outline-info btn-view-invoice" data-id="${inv.id}">
-    <i class="fas fa-eye"></i>
-  </button>
-  <button class="btn ${payClass} btn-mark-paid" data-id="${inv.id}" ${isPaid ? 'disabled' : ''}>
-    <i class="fas fa-euro-sign"></i>
-  </button>
-  <button class="btn btn-outline-warning btn-export-xml-row" data-id="${inv.id}">
-    <i class="fas fa-file-code"></i>
-  </button>
-  ${btnDelete}
-</div>`;
+                <div class="d-flex justify-content-end gap-1">
+                    <button class="btn btn-sm btn-info btn-view-invoice text-white"
+                            data-id="${inv.id}"
+                            data-bs-toggle="modal"
+                            data-bs-target="#invoiceDetailModal"
+                            title="Vedi">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-sm ${editClass} btn-edit-invoice"
+                            data-id="${inv.id}"
+                            title="Modifica"
+                            ${isPaid ? 'disabled' : ''}>
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-warning btn-export-xml-row"
+                            data-id="${inv.id}"
+                            title="XML">
+                        <i class="fas fa-file-code"></i>
+                    </button>
+                    <button class="btn btn-sm ${payClass} btn-mark-paid"
+                            data-id="${inv.id}"
+                            title="Stato"
+                            ${isPaid ? 'disabled' : ''}>
+                        <i class="fas fa-check"></i>
+                    </button>
+                    ${btnDelete}
+                </div>`.trim();
 
             const total = (parseFloat(inv.total) || 0).toFixed(2);
 
             table.append(`
-<tr class="${inv.status === 'Pagata' ? 'invoice-paid' : ''}">
-  <td>${badge}</td>
-  <td>${inv.number || ''}</td>
-  <td>${formatDateForDisplay(inv.date)}</td>
-  <td>${c.name}</td>
-  <td class="text-end">€ ${total}</td>
-  <td>${formatDateForDisplay(inv.dataScadenza)}</td>
-  <td>${statusBadge}</td>
-  <td class="text-end">${btns}</td>
-</tr>`);
+                <tr class="${isPaid ? 'table-light text-muted' : ''}">
+                    <td>${badge}</td>
+                    <td class="fw-bold">${inv.number}</td>
+                    <td>${formatDateForDisplay(inv.date)}</td>
+                    <td>${c.name}</td>
+                    <td class="text-end">€ ${total}</td>
+                    <td class="text-end small">${formatDateForDisplay(inv.dataScadenza)}</td>
+                    <td>${statusBadge}</td>
+                    <td class="text-end">${btns}</td>
+                </tr>
+            `);
         });
     }
 
@@ -619,6 +681,11 @@ ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase
             // signOut risolve -> lo stato auth.onAuthStateChanged farà il resto
             location.reload();
         });
+    });
+    
+    // Cambio anno → rendo di nuovo l'elenco documenti filtrato
+    $('#invoice-year-filter').on('change', function () {
+        renderInvoicesTable();
     });
 
     // NAVIGAZIONE
