@@ -1710,7 +1710,7 @@ function refreshInvoiceYearFilter() {
     });
 
     // Import dal vecchio JSON (localStorage)
-    $('#import-old-json-input').on('change', function(e) {
+    $('#import-file-input').on('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
