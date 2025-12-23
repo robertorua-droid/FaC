@@ -1398,7 +1398,13 @@ function refreshInvoiceYearFilter() {
       `<Divisa>EUR</Divisa>` +
       `<Data>${dataFattura}</Data>` +
       `<Numero>${escapeXML(invoice.number || "")}</Numero>` +
-      datiBolloXml +
+      // Sempre presente su TUTTE le FATTURE (TD01), indipendente dalle righe
+      const datiBolloXml = (tipoDocumento === "TD01")
+        ? `<DatiBollo>` +
+            `<BolloVirtuale>SI</BolloVirtuale>` +
+            `<ImportoBollo>2.00</ImportoBollo>` +
+          `</DatiBollo>`
+        : ``;
       datiCassaXml +
       `<ImportoTotaleDocumento>${totaleDocumento.toFixed(2)}</ImportoTotaleDocumento>` +
     `</DatiGeneraliDocumento>` +
