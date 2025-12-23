@@ -1299,11 +1299,13 @@ function refreshInvoiceYearFilter() {
     // 4. Dati Bollo (se presente)
     // -----------------------------
     let datiBolloXml = "";
-    if (importoBollo > 0) {
+    // Per richiesta didattica: il bollo virtuale deve essere presente su TUTTE le FATTURE (TD01)
+    // indipendentemente dalla presenza della riga "Rivalsa Bollo" nel dettaglio.
+    if (tipoDocumento === "TD01") {
         datiBolloXml =
             `<DatiBollo>` +
                 `<BolloVirtuale>SI</BolloVirtuale>` +
-                `<ImportoBollo>${importoBollo.toFixed(2)}</ImportoBollo>` +
+                `<ImportoBollo>2.00</ImportoBollo>` +
             `</DatiBollo>`;
     }
 
