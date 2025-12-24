@@ -565,52 +565,25 @@ ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase
 
         const payClass = isPaid ? 'btn-secondary disabled' : 'btn-success';
         const editClass = isLocked ? 'btn-secondary disabled' : 'btn-outline-secondary';
-        const btnDelete = `
-                <button class="btn btn-sm ${isLocked ? 'btn-secondary' : 'btn-outline-danger'} btn-delete-invoice"
-                        data-id="${inv.id}"
-                        title="Elimina"
-                        ${isLocked ? 'disabled' : ''}>
-                    <i class="fas fa-trash"></i>
-                </button>
-            `;
+        const btnDelete = `<button class="btn btn-sm btn-danger btn-delete-invoice ${isLocked ? 'disabled' : ''}" data-id="${inv.id}" title="Elimina" ${isLocked ? 'disabled' : ''}><i class="fas fa-trash"></i></button>`;
 
         const btns = `
             <div class="d-flex justify-content-end gap-1">
-                <button class="btn btn-sm btn-info btn-view-invoice text-white"
-                        data-id="${inv.id}"
-                        data-bs-toggle="modal"
-                        data-bs-target="#invoiceDetailModal"
-                        title="Vedi">
+                <button class="btn btn-sm btn-info btn-view-invoice text-white" data-id="${inv.id}" data-bs-toggle="modal" data-bs-target="#invoiceDetailModal" title="Vedi">
                     <i class="fas fa-eye"></i>
                 </button>
-
-                <button class="btn btn-sm ${editClass} btn-edit-invoice"
-                        data-id="${inv.id}"
-                        title="Modifica"
-                        ${isLocked ? 'disabled' : ''}>
+                <button class="btn btn-sm ${editClass} btn-edit-invoice" data-id="${inv.id}" title="Modifica" ${isPaid ? 'disabled' : ''}>
                     <i class="fas fa-edit"></i>
                 </button>
-
-                <button class="btn btn-sm btn-warning btn-export-xml-row"
-                        data-id="${inv.id}"
-                        title="XML">
+                <button class="btn btn-sm btn-warning btn-export-xml-row" data-id="${inv.id}" title="XML">
                     <i class="fas fa-file-code"></i>
                 </button>
-
-                <button class="btn btn-sm ${isSent ? 'btn-dark' : 'btn-outline-dark'} btn-mark-sent"
-                        data-id="${inv.id}"
-                        title="${isSent ? 'Inviata ad ADE (bloccata)' : 'Segna come Inviata ad ADE'}"
-                        ${isSent ? 'disabled' : ''}>
-                    <i class="fas fa-paper-plane"></i>
+                <button class=\"btn btn-sm ${isSent ? 'btn-dark' : 'btn-outline-dark'} btn-mark-sent\" data-id=\"${inv.id}\" title=\"${isSent ? 'Segnato come Inviato (clic per annullare)' : 'Segna come Inviato'}\">
+                    <i class=\"fas fa-paper-plane\"></i>
                 </button>
-
-                <button class="btn btn-sm ${payClass} btn-mark-paid"
-                        data-id="${inv.id}"
-                        title="Segna come pagata"
-                        ${isLocked ? 'disabled' : ''}>
+                <button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="Stato" ${isPaid ? 'disabled' : ''}>
                     <i class="fas fa-check"></i>
                 </button>
-
                 ${btnDelete}
             </div>
         `;
@@ -1256,32 +1229,26 @@ function refreshInvoiceYearFilter() {
             }, id); 
             renderInvoicesTable(); 
         } 
-    });
 
-    // Flag "Inviata ad ADE": blocca modifica/cancellazione (irreversibile)
+    // Flag "Inviata ad ADE": blocca modifica/cancellazione
     $('#invoices-table-body').on('click', '.btn-mark-sent', async function() {
         const id = $(this).attr('data-id');
         const inv = getData('invoices').find(i => String(i.id) === String(id));
         if (!inv) return;
 
-        // Solo per fatture (non note di credito)
-        if (inv.type === 'Nota di Credito') {
-            alert("Il flag 'Inviata ad ADE' è previsto solo per le fatture.");
-            return;
-        }
+        const currentlySent = inv.sentToAgenzia === true;
 
-        if (inv.sentToAgenzia === true) {
-            alert("Questa fattura è già marcata come inviata all'Agenzia delle Entrate e non può più essere sbloccata.");
-            return;
-        }
+        const msg = currentlySent
+            ? "Vuoi rimuovere il flag 'Inviata ad ADE' per questo documento? (Tornerà modificabile e cancellabile)"
+            : "Confermi che questo documento è stato inviato all'Agenzia delle Entrate?\n\nDopo il flag, il documento NON potrà più essere modificato o eliminato.";
 
-        const msg = "Sei sicuro?\n\nUna volta inviata la fattura non potrà più essere modificata o eliminata.";
         if (!confirm(msg)) return;
 
-        await saveDataToCloud('invoices', { sentToAgenzia: true }, id);
+        await saveDataToCloud('invoices', { sentToAgenzia: !currentlySent }, id);
         renderInvoicesTable();
     });
 
+    });
 
     // XML
     $('#invoices-table-body, #invoiceDetailModal').on('click', '.btn-export-xml, #export-xml-btn, .btn-export-xml-row', function() { 
@@ -1373,9 +1340,13 @@ function refreshInvoiceYearFilter() {
     // 4. Dati Bollo (se presente)
     // -----------------------------
     let datiBolloXml = "";
-    // Per richiesta didattica: il bollo virtuale deve essere presente su TUTTE le FATTURE (TD01)
-    // indipendentemente dalla presenza della riga "Rivalsa Bollo" nel dettaglio.
-    if (tipoDocumento === "TD01") {
+
+    // Regola:
+    // - TD01 (Fattura): bollo sempre
+    // - TD04 (Nota di Credito): bollo solo se importo (valore assoluto) > 77,47 €
+    const importoDocAssoluto = Math.abs(totaleDocumento);
+
+    if (tipoDocumento === "TD01" || (tipoDocumento === "TD04" && importoDocAssoluto > 77.47)) {
         datiBolloXml =
             `<DatiBollo>` +
                 `<BolloVirtuale>SI</BolloVirtuale>` +
