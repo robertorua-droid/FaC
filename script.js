@@ -538,10 +538,10 @@ ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase
             cust => String(cust.id) === String(inv.customerId)
         ) || { name: 'Sconosciuto' };
 
-        const isPaid = inv.status === 'Pagata' || inv.status === 'Emessa';
-
+        const isCredit = inv.type === 'Nota di Credito';
+        const isPaid = (!isCredit) && (inv.status === 'Pagata');
         const isSent = inv.sentToAgenzia === true;
-        const isLocked = isPaid || isSent;
+        const isLocked = isSent || ((!isCredit) && isPaid);
 
         const badge = inv.type === 'Nota di Credito'
             ? '<span class="badge bg-warning text-dark border border-dark">NdC</span>'
@@ -549,18 +549,17 @@ ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase
 
         let statusBadge = '<span class="badge bg-warning text-dark">Da Incassare</span>';
         if (inv.type === 'Nota di Credito') {
-            statusBadge = isPaid
-                ? '<span class="badge bg-info text-dark">Emessa</span>'
-                : '<span class="badge bg-secondary">Bozza</span>';
+            // Le note di credito restano 'Emessa' finché non vengono marcate come inviate ad ADE.
+            statusBadge = '<span class="badge bg-info text-dark">Emessa</span>';
         } else {
             statusBadge = isPaid
                 ? '<span class="badge bg-success">Pagata</span>'
                 : '<span class="badge bg-warning text-dark">Da Incassare</span>';
         }
 
-        // Se marcata come inviata (solo fatture), aggiunge un badge informativo
-        if (inv.type !== 'Nota di Credito' && isSent) {
-            statusBadge += ' <span class=\"badge bg-dark\">Inviata</span>';
+        // Se marcata come inviata ad ADE, aggiunge un badge informativo
+        if (isSent) {
+            statusBadge += ' <span class="badge bg-dark">Inviata</span>';
         }
 
         const payClass = isPaid ? 'btn-secondary disabled' : 'btn-success';
@@ -572,7 +571,7 @@ ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase
                 <button class="btn btn-sm btn-info btn-view-invoice text-white" data-id="${inv.id}" data-bs-toggle="modal" data-bs-target="#invoiceDetailModal" title="Vedi">
                     <i class="fas fa-eye"></i>
                 </button>
-                <button class="btn btn-sm ${editClass} btn-edit-invoice" data-id="${inv.id}" title="Modifica" ${isPaid ? 'disabled' : ''}>
+                <button class="btn btn-sm ${editClass} btn-edit-invoice" data-id="${inv.id}" title="Modifica" ${isLocked ? 'disabled' : ''}>
                     <i class="fas fa-edit"></i>
                 </button>
                 <button class="btn btn-sm btn-warning btn-export-xml-row" data-id="${inv.id}" title="XML">
@@ -581,7 +580,7 @@ ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase
                 <button class=\"btn btn-sm ${isSent ? 'btn-dark' : 'btn-outline-dark'} btn-mark-sent\" data-id=\"${inv.id}\" title=\"${isSent ? 'Segnato come Inviato (clic per annullare)' : 'Segna come Inviato'}\">
                     <i class=\"fas fa-paper-plane\"></i>
                 </button>
-                <button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="Stato" ${isPaid ? 'disabled' : ''}>
+                <button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="Stato" ${isLocked ? 'disabled' : ''}>
                     <i class="fas fa-check"></i>
                 </button>
                 ${btnDelete}
@@ -1236,15 +1235,16 @@ function refreshInvoiceYearFilter() {
         const inv = getData('invoices').find(i => String(i.id) === String(id));
         if (!inv) return;
 
-        const currentlySent = inv.sentToAgenzia === true;
+        // Irreversibile: una volta inviato non si può più tornare indietro
+        if (inv.sentToAgenzia === true) {
+            alert("Questo documento è già marcato come inviato all'Agenzia delle Entrate. L'operazione è irreversibile.");
+            return;
+        }
 
-        const msg = currentlySent
-            ? "Vuoi rimuovere il flag 'Inviata ad ADE' per questo documento? (Tornerà modificabile e cancellabile)"
-            : "Confermi che questo documento è stato inviato all'Agenzia delle Entrate?\n\nDopo il flag, il documento NON potrà più essere modificato o eliminato.";
-
+        const msg = "Sei sicuro? Una volta inviata la fattura/nota di credito non potrà più essere modificata o eliminata.";
         if (!confirm(msg)) return;
 
-        await saveDataToCloud('invoices', { sentToAgenzia: !currentlySent }, id);
+        await saveDataToCloud('invoices', { sentToAgenzia: true }, id);
         renderInvoicesTable();
     });
 
