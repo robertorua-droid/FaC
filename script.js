@@ -16,9 +16,9 @@ window.tempInvoiceLines = [];
 $(document).ready(function() {
 
     // =========================================================
-    // TIMEOUT DI INATTIVITÀ (30 minuti)
+    // TIMEOUT DI INATTIVITÀ (5 minuti)
     // =========================================================
-    const INACTIVITY_LIMIT_MS = 30 * 60 * 1000; // 5 minuti
+    const INACTIVITY_LIMIT_MS = 5 * 60 * 1000; // 5 minuti
     let inactivityTimer = null;
     let inactivityHandlersBound = false;
 
@@ -800,6 +800,10 @@ function refreshInvoiceYearFilter() {
             } else prepareDocumentForm('Fattura'); 
         } 
         if(target === 'statistiche') renderStatisticsPage();
+
+        if(target === 'avanzate') {
+            refreshDeleteDocumentsYearSelect();
+        }
 
         if (target === 'elenco-fatture') {
             renderInvoicesTable();
@@ -1828,6 +1832,102 @@ $('#invoices-table-body').on('click', '.btn-mark-sent', async function() {
         } catch (err) {
             console.error('Errore export backup JSON:', err);
             alert('Errore durante il backup JSON dal Cloud.');
+        }
+    });
+
+
+    // =========================================================
+    // ELIMINAZIONE DOCUMENTI PER ANNO (UTENTE CORRENTE) - SOLO MIGRAZIONE
+    // =========================================================
+    function refreshDeleteDocumentsYearSelect() {
+        const $sel = $('#delete-year-select');
+        if ($sel.length === 0) return;
+
+        const years = new Set();
+        const currentYear = String(new Date().getFullYear());
+        years.add(currentYear);
+
+        const invs = getData('invoices') || [];
+        invs.forEach(inv => {
+            const d = (inv && inv.date) ? String(inv.date) : '';
+            if (d.length >= 4) years.add(d.substring(0, 4));
+        });
+
+        const sorted = Array.from(years)
+            .filter(y => /^\d{4}$/.test(y))
+            .sort((a, b) => b.localeCompare(a));
+
+        const prev = $sel.val() || '';
+        $sel.empty().append('<option value="">Seleziona...</option>');
+        sorted.forEach(y => $sel.append(`<option value="${y}">${y}</option>`));
+
+        // default: anno corrente se presente, altrimenti il primo disponibile
+        if (sorted.includes(currentYear)) $sel.val(currentYear);
+        else if (sorted.length) $sel.val(sorted[0]);
+        else $sel.val(prev);
+    }
+
+    // Popola la select quando apro la pagina Migrazione
+    // (non impatta altre sezioni)
+    $('#delete-documents-year-btn').on('click', async function () {
+        try {
+            if (!currentUser) {
+                alert('Devi prima effettuare il login.');
+                return;
+            }
+
+            const year = $('#delete-year-select').val();
+            if (!year || !/^\d{4}$/.test(year)) {
+                alert('Seleziona un anno valido.');
+                return;
+            }
+
+            const msg1 = `Sei sicuro di voler eliminare TUTTI i documenti (fatture e note di credito) dell'anno ${year}?`;
+            if (!confirm(msg1)) return;
+
+            const msg2 = 'OPERAZIONE IRREVERSIBILE. Consigliato: fai prima un Backup JSON.\n\nConfermi eliminazione?';
+            if (!confirm(msg2)) return;
+
+            const userRef = getUserDocRef();
+            const snap = await userRef.collection('invoices').get();
+
+            const toDelete = snap.docs.filter(doc => {
+                const data = doc.data() || {};
+                const d = data.date ? String(data.date) : '';
+                return d.substring(0, 4) === year;
+            });
+
+            if (toDelete.length === 0) {
+                alert(`Nessun documento trovato per l'anno ${year}.`);
+                return;
+            }
+
+            // Firestore batch max 500
+            let deleted = 0;
+            for (let i = 0; i < toDelete.length; i += 450) {
+                const batch = db.batch();
+                const chunk = toDelete.slice(i, i + 450);
+                chunk.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+                deleted += chunk.length;
+            }
+
+            // aggiorna cache locale
+            globalData.invoices = (getData('invoices') || []).filter(inv => {
+                const d = inv && inv.date ? String(inv.date) : '';
+                return d.substring(0, 4) !== year;
+            });
+
+            // refresh UI collegati ai documenti
+            if (typeof renderInvoicesTable === 'function') renderInvoicesTable();
+            if (typeof refreshInvoiceYearFilter === 'function') refreshInvoiceYearFilter();
+            if (typeof refreshStatsYearFilter === 'function') refreshStatsYearFilter();
+            refreshDeleteDocumentsYearSelect();
+
+            alert(`Eliminati ${deleted} documenti dell'anno ${year}.`);
+        } catch (err) {
+            console.error('Errore eliminazione documenti per anno:', err);
+            alert('Errore durante l\'eliminazione dei documenti. Controlla la console.');
         }
     });
 

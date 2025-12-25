@@ -273,6 +273,22 @@
 <button type="button" class="btn btn-success" id="export-cloud-json-btn">
     <i class="fas fa-cloud-download-alt"></i> Scarica Backup JSON
 </button>
+
+<hr class="my-4">
+<h5 class="card-title mt-3 text-danger">Elimina Documenti per Anno (utente corrente)</h5>
+<p class="card-text text-danger">
+    Questa operazione elimina dal Cloud <strong>Fatture</strong> e <strong>Note di Credito</strong> dell'anno selezionato
+    per l'utente connesso. È <strong>irreversibile</strong> (consigliato: fai prima un Backup JSON).
+</p>
+<div class="d-flex flex-wrap align-items-center gap-2">
+    <label for="delete-year-select" class="form-label mb-0">Anno</label>
+    <select id="delete-year-select" class="form-select form-select-sm" style="max-width:160px">
+        <option value="">Seleziona...</option>
+    </select>
+    <button type="button" class="btn btn-outline-danger btn-sm" id="delete-documents-year-btn">
+        <i class="fas fa-trash"></i> Elimina Documenti Anno
+    </button>
+</div>
                     </div>
                 </div>
             </div>
