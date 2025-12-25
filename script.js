@@ -16,9 +16,9 @@ window.tempInvoiceLines = [];
 $(document).ready(function() {
 
     // =========================================================
-    // TIMEOUT DI INATTIVITÀ (5 minuti)
+    // TIMEOUT DI INATTIVITÀ (30 minuti)
     // =========================================================
-    const INACTIVITY_LIMIT_MS = 5 * 60 * 1000; // 5 minuti
+    const INACTIVITY_LIMIT_MS = 30 * 60 * 1000; // 5 minuti
     let inactivityTimer = null;
     let inactivityHandlersBound = false;
 
@@ -258,6 +258,7 @@ $(document).ready(function() {
     refreshInvoiceYearFilter();   // <- POPOLA / AGGIORNA LA COMBO ANNO
     renderInvoicesTable();        // <- USA IL VALORE SELEZIONATO
     populateDropdowns();
+    refreshStatsYearFilter();     // <- POPOLA / AGGIORNA LA COMBO ANNO STATISTICHE
     renderStatisticsPage();
     renderHomePage();
 }
@@ -271,6 +272,7 @@ $(document).ready(function() {
     refreshInvoiceYearFilter();   // <- POPOLA / AGGIORNA LA COMBO ANNO
     renderInvoicesTable();        // <- USA IL VALORE SELEZIONATO
     populateDropdowns();
+    refreshStatsYearFilter();
     renderStatisticsPage();
     renderHomePage();
 }
@@ -308,6 +310,46 @@ function refreshInvoiceYearFilter() {
         $select.val('all');
     }
 }
+
+
+function refreshStatsYearFilter() {
+    const $select = $('#stats-year-filter');
+    if (!$select.length) return;
+
+    const previous = $select.val() || '';
+
+    const invoices = getData('invoices');
+    const yearsSet = new Set();
+
+    invoices.forEach(inv => {
+        if (inv.date && typeof inv.date === 'string' && inv.date.length >= 4) {
+            const y = inv.date.substring(0, 4);
+            if (/^\d{4}$/.test(y)) yearsSet.add(y);
+        }
+    });
+
+    const currentYear = String(new Date().getFullYear());
+    yearsSet.add(currentYear);
+
+    const years = Array.from(yearsSet).sort().reverse();
+
+    $select.empty();
+    $select.append('<option value="all">Tutti</option>');
+    years.forEach(y => $select.append(`<option value="${y}">${y}</option>`));
+
+    // Default: anno corrente (se presente), altrimenti primo anno disponibile, altrimenti "Tutti"
+    if (years.includes(previous) && previous !== '') {
+        $select.val(previous);
+    } else if (years.includes(currentYear)) {
+        $select.val(currentYear);
+    } else if (years.length > 0) {
+        $select.val(years[0]);
+    } else {
+        $select.val('all');
+    }
+}
+
+
 
     function updateCompanyUI() { 
         const company = getData('companyInfo'); 
@@ -377,8 +419,13 @@ ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase
 
     function renderStatisticsPage() {
         const container = $('#stats-table-container').empty();
-        const facts = getData('invoices').filter(i => i.type === 'Fattura' || i.type === undefined || i.type === '');
-        const notes = getData('invoices').filter(i => i.type === 'Nota di Credito');
+        const selectedYear = ($('#stats-year-filter').length ? ($('#stats-year-filter').val() || 'all') : 'all');
+        const inSelectedYear = (inv) => {
+            if (selectedYear === 'all') return true;
+            return (inv.date && typeof inv.date === 'string' && inv.date.substring(0,4) === String(selectedYear));
+        };
+        const facts = getData('invoices').filter(i => inSelectedYear(i) && (i.type === 'Fattura' || i.type === undefined || i.type === ''));
+        const notes = getData('invoices').filter(i => inSelectedYear(i) && i.type === 'Nota di Credito');
         
         if(facts.length === 0) { 
             container.html('<div class="alert alert-info">Nessun dato.</div>'); 
@@ -541,9 +588,13 @@ ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase
         const isCredit = inv.type === 'Nota di Credito';
         const isPaid = (!isCredit) && (inv.status === 'Pagata');
         const isSent = inv.sentToAgenzia === true;
-        const isLocked = isSent || ((!isCredit) && isPaid);
 
-        const badge = inv.type === 'Nota di Credito'
+        // Blocchi:
+        // - Modifica/Elimina: bloccati se Pagata (solo fatture) oppure se marcata Inviata ad ADE
+        // - Pagata: deve restare cliccabile anche se "Inviata", finché non è Pagata. (Per NdC è sempre disabilitato)
+        const lockEditDelete = isSent || ((!isCredit) && isPaid);
+        const lockPaidButton = isCredit || isPaid;
+const badge = inv.type === 'Nota di Credito'
             ? '<span class="badge bg-warning text-dark border border-dark">NdC</span>'
             : '<span class="badge bg-primary">Fatt.</span>';
 
@@ -562,16 +613,16 @@ ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase
             statusBadge += ' <span class="badge bg-dark">Inviata</span>';
         }
 
-        const payClass = isPaid ? 'btn-secondary disabled' : 'btn-success';
-        const editClass = isLocked ? 'btn-secondary disabled' : 'btn-outline-secondary';
-        const btnDelete = `<button class="btn btn-sm btn-danger btn-delete-invoice ${isLocked ? 'disabled' : ''}" data-id="${inv.id}" title="Elimina" ${isLocked ? 'disabled' : ''}><i class="fas fa-trash"></i></button>`;
+        const payClass = lockPaidButton ? 'btn-secondary disabled' : 'btn-success';
+        const editClass = lockEditDelete ? 'btn-secondary disabled' : 'btn-outline-secondary';
+        const btnDelete = `<button class="btn btn-sm btn-danger btn-delete-invoice ${lockEditDelete ? 'disabled' : ''}" data-id="${inv.id}" title="Elimina" ${lockEditDelete ? 'disabled' : ''}><i class="fas fa-trash"></i></button>`;
 
         const btns = `
             <div class="d-flex justify-content-end gap-1">
                 <button class="btn btn-sm btn-info btn-view-invoice text-white" data-id="${inv.id}" data-bs-toggle="modal" data-bs-target="#invoiceDetailModal" title="Vedi">
                     <i class="fas fa-eye"></i>
                 </button>
-                <button class="btn btn-sm ${editClass} btn-edit-invoice" data-id="${inv.id}" title="Modifica" ${isLocked ? 'disabled' : ''}>
+                <button class="btn btn-sm ${editClass} btn-edit-invoice" data-id="${inv.id}" title="Modifica" ${lockEditDelete ? 'disabled' : ''}>
                     <i class="fas fa-edit"></i>
                 </button>
                 <button class="btn btn-sm btn-warning btn-export-xml-row" data-id="${inv.id}" title="XML">
@@ -580,7 +631,7 @@ ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase
                 <button class=\"btn btn-sm ${isSent ? 'btn-dark' : 'btn-outline-dark'} btn-mark-sent\" data-id=\"${inv.id}\" title=\"${isSent ? 'Segnato come Inviato (clic per annullare)' : 'Segna come Inviato'}\">
                     <i class=\"fas fa-paper-plane\"></i>
                 </button>
-                <button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="Stato" ${isLocked ? 'disabled' : ''}>
+                <button class="btn btn-sm ${payClass} btn-mark-paid" data-id="${inv.id}" title="Stato" ${lockPaidButton ? 'disabled' : ''}>
                     <i class="fas fa-check"></i>
                 </button>
                 ${btnDelete}
@@ -589,7 +640,7 @@ ${firstDay.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).toUpperCase
 
         const total = (parseFloat(inv.total) || 0).toFixed(2);
         table.append(`
-            <tr class="${isLocked ? 'table-light text-muted' : ''}">
+            <tr class="${lockEditDelete ? 'table-light text-muted' : ''}">
                 <td>${badge}</td>
                 <td class="fw-bold">${inv.number}</td>
                 <td>${formatDateForDisplay(inv.date)}</td>
@@ -729,6 +780,11 @@ function refreshInvoiceYearFilter() {
     // Cambio anno → rendo di nuovo l'elenco documenti filtrato
     $('#invoice-year-filter').on('change', function () {
         renderInvoicesTable();
+    });
+
+    // filtro anno STATISTICHE
+    $('#stats-year-filter').on('change', function () {
+        renderStatisticsPage();
     });
 
     // NAVIGAZIONE
@@ -1219,18 +1275,29 @@ function refreshInvoiceYearFilter() {
         deleteDataFromCloud('invoices', id); 
     });
 
-    $('#invoices-table-body').on('click', '.btn-mark-paid', async function() { 
-        const id = $(this).attr('data-id'); 
-        const inv = getData('invoices').find(i => String(i.id) === String(id)); 
-        if(confirm("Confermi cambio stato?")) { 
-            await saveDataToCloud('invoices', { 
-                status: inv.type === 'Nota di Credito' ? 'Emessa' : 'Pagata' 
-            }, id); 
-            renderInvoicesTable(); 
-        } 
+    $('#invoices-table-body').on('click', '.btn-mark-paid', async function() {
+        const id = $(this).attr('data-id');
+        const inv = getData('invoices').find(i => String(i.id) === String(id));
+        if (!inv) return;
+
+        // Le note di credito non hanno lo stato "Pagata"
+        if (inv.type === 'Nota di Credito') {
+            alert("Le note di credito non possono essere marcate come 'Pagata'.");
+            return;
+        }
+
+        // Se già pagata, non fare nulla
+        if (inv.status === 'Pagata') return;
+
+        const msg = "Sei sicuro? Una volta marcata come PAGATA, la fattura non potrà più essere modificata.\n\nLo stato 'Inviata' (se presente) non viene modificato.";
+        if (!confirm(msg)) return;
+
+        await saveDataToCloud('invoices', { status: 'Pagata' }, id);
+        renderInvoicesTable();
+    });
 
     // Flag "Inviata ad ADE": blocca modifica/cancellazione
-    $('#invoices-table-body').on('click', '.btn-mark-sent', async function() {
+$('#invoices-table-body').on('click', '.btn-mark-sent', async function() {
         const id = $(this).attr('data-id');
         const inv = getData('invoices').find(i => String(i.id) === String(id));
         if (!inv) return;
@@ -1248,7 +1315,6 @@ function refreshInvoiceYearFilter() {
         renderInvoicesTable();
     });
 
-    });
 
     // XML
     $('#invoices-table-body, #invoiceDetailModal').on('click', '.btn-export-xml, #export-xml-btn, .btn-export-xml-row', function() { 
