@@ -1,0 +1,1596 @@
+<!DOCTYPE html>
+
+<html lang="it">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Gestionale Cloud - Professionisti</title>
+<!-- Bootstrap CSS -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+<!-- Font Awesome CSS -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"/>
+<!-- Stile personalizzato -->
+<link href="css/style.css" rel="stylesheet"/>
+</head>
+<body>
+<!-- Schermata di Login -->
+<div class="container" id="login-container">
+<div class="row justify-content-center align-items-center vh-100">
+<div class="col-md-4">
+<div class="card">
+<div class="card-body">
+<h3 class="card-title text-center mb-4">Accesso Cloud</h3>
+<form id="login-form">
+<div class="mb-3">
+<label class="form-label" for="email">Email</label>
+<input class="form-control" id="email" required="" type="email"/>
+</div>
+<div class="mb-3">
+<label class="form-label" for="password">Password</label>
+<input class="form-control" id="password" required="" type="password"/>
+</div>
+<div class="text-danger mb-3 d-none" id="login-error">Credenziali errate.</div>
+<button class="btn btn-primary w-100" id="btn-login-submit" type="submit">
+<span aria-hidden="true" class="spinner-border spinner-border-sm d-none" id="login-spinner" role="status"></span>
+                                Accedi
+                            </button>
+</form>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Schermata Caricamento -->
+<div class="d-flex justify-content-center align-items-center vh-100 d-none bg-white" id="loading-screen" style="position:fixed; top:0; left:0; width:100%; z-index:2000;">
+<div class="text-center">
+<div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+<p class="mt-3 lead">Sincronizzazione Cloud...</p>
+</div>
+</div>
+<!-- Applicazione Principale -->
+<div class="d-none" id="main-app">
+<div class="sidebar">
+<h4 class="text-center my-3" id="company-name-sidebar">MIO STUDIO</h4>
+<p class="text-center text-white-50 small" id="user-name-sidebar"></p>
+<p class="text-center text-white-50" id="version-sidebar" style="font-size: 0.7rem;">v11.08 (Stable Cloud)</p>
+<ul class="nav flex-column">
+<li class="nav-item"><a class="nav-link active" data-target="home" href="#"><i class="fas fa-home"></i> Home</a></li>
+<li class="nav-item"><a class="nav-link" data-target="dashboard" href="#"><i class="fas fa-gauge-high"></i> Dashboard</a></li>
+<li class="nav-item"><a class="nav-link" data-target="statistiche" href="#"><i class="fas fa-chart-line"></i> Statistiche</a></li>
+<li class="nav-item"><a class="nav-link" id="menu-registri-iva" data-target="registri-iva" href="#"><i class="fas fa-book"></i> Registri IVA</a></li>
+<li class="nav-item"><a class="nav-link" data-target="simulazione-ordinario" href="#" id="menu-simulazione-ordinario"><i class="fas fa-scale-balanced"></i> Simulazione Redditi (Ordinario)</a></li>
+<li class="nav-item"><a class="nav-link" data-target="simulazione-lm" href="#" id="menu-simulazione-lm"><i class="fas fa-calculator"></i> Simulazione Fiscale (LM)</a></li>
+<li class="nav-item"><h6 class="nav-section-title">Anagrafiche</h6></li>
+<li class="nav-item menu-item"><a class="nav-link" data-target="anagrafica-clienti" href="#"><i class="fas fa-users"></i> Clienti</a></li><li class="nav-item menu-item"><a class="nav-link" id="menu-fornitori" data-target="anagrafica-fornitori" href="#"><i class="fas fa-truck"></i> Fornitori</a></li>
+<li class="nav-item"><a class="nav-link" data-target="anagrafica-prodotti" href="#"><i class="fas fa-box"></i> Servizi</a></li>
+<li class="nav-item"><h6 class="nav-section-title">Documenti</h6></li>
+<li class="nav-item menu-item"><a class="nav-link" data-bs-target="#newInvoiceChoiceModal" data-bs-toggle="modal" href="#" id="menu-nuova-fattura"><i class="fas fa-file-invoice-dollar"></i> Nuova Fattura</a></li>
+<li class="nav-item menu-item"><a class="nav-link" data-target="nuova-fattura-accompagnatoria" href="#" id="menu-nuova-nota-credito"><i class="fas fa-file-download"></i> Nuova Nota Credito</a></li>
+<li class="nav-item menu-item"><a class="nav-link" data-target="elenco-fatture" href="#"><i class="fas fa-list-ol"></i> Elenco Documenti</a></li><li class="nav-item" id="menu-acquisti-title"><h6 class="nav-section-title">Acquisti</h6></li><li class="nav-item menu-item"><a class="nav-link" id="menu-nuovo-acquisto" data-target="nuovo-acquisto" href="#"><i class="fas fa-file-circle-plus"></i> Nuovo Acquisto</a></li><li class="nav-item menu-item"><a class="nav-link" id="menu-elenco-acquisti" data-target="elenco-acquisti" href="#"><i class="fas fa-list"></i> Elenco Acquisti</a></li>
+<li class="nav-item menu-item"><a class="nav-link" data-target="scadenziario" href="#"><i class="fas fa-calendar-check"></i> Scadenziario</a></li>
+<li class="nav-item"><h6 class="nav-section-title">Commesse</h6></li>
+<li class="nav-item menu-item"><a class="nav-link" data-target="commesse" href="#"><i class="fas fa-briefcase"></i> Commesse</a></li>
+<li class="nav-item menu-item"><a class="nav-link" data-target="progetti" href="#"><i class="fas fa-diagram-project"></i> Progetti</a></li>
+<li class="nav-item menu-item"><a class="nav-link" data-target="timesheet" href="#"><i class="fas fa-clock"></i> Timesheet</a></li>
+<li class="nav-item menu-item"><a class="nav-link" data-target="export-timesheet" href="#"><i class="fas fa-file-export"></i> Export Timesheet</a></li>
+<li class="nav-item"><h6 class="nav-section-title">Impostazioni</h6></li>
+<li class="nav-item menu-item"><a class="nav-link" data-target="anagrafica-azienda" href="#"><i class="fas fa-building"></i> Azienda</a></li>
+<li class="nav-item menu-item"><a class="nav-link" id="menu-uso-dati" data-target="uso-dati" href="#"><i class="fas fa-database"></i> Uso dati (stima)</a></li>
+<li class="nav-item"><a class="nav-link" data-target="avanzate" href="#"><i class="fas fa-cloud-upload-alt"></i> Gestione Dati</a></li>
+<li class="nav-item mt-auto"><a class="nav-link" href="#" id="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+</ul>
+</div>
+<div class="main-content">
+<!-- HOME -->
+<div class="content-section" id="home">
+<h2 id="welcome-message">Benvenuto</h2>
+<p class="lead" id="current-datetime"></p>
+<hr/>
+<div class="row mt-4">
+<div class="col-md-6 col-lg-5 mb-4"><div id="calendar-widget"></div></div>
+<div class="col-md-6 col-lg-5 mb-4">
+<div class="card" id="notes-widget">
+<div class="card-body">
+<h5><i class="fas fa-clipboard"></i> Block-notes Cloud</h5>
+<textarea class="form-control" id="notes-textarea" placeholder="Scrivi qui i tuoi appunti..." rows="8"></textarea>
+<button class="btn btn-primary btn-sm mt-2" id="save-notes-btn">Salva note</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- DASHBOARD -->
+<div class="content-section d-none" id="dashboard">
+  <h2>Dashboard</h2>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <div class="row g-2 align-items-end">
+        <div class="col-12 col-md-3">
+          <label class="form-label">Periodo</label>
+          <select id="dash-mode" class="form-select">
+            <option value="year" selected>Annuale</option>
+            <option value="month">Mensile</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label">Anno</label>
+          <select id="dash-year" class="form-select"></select>
+        </div>
+        <div class="col-6 col-md-3" id="dash-month-wrap" style="display:none;">
+          <label class="form-label">Mese</label>
+          <select id="dash-month" class="form-select"></select>
+        </div>
+        <div class="col-12 col-md-2">
+          <button id="dash-refresh-btn" class="btn btn-primary w-100">Aggiorna</button>
+        </div>
+      </div>
+      <div class="small text-muted mt-2">
+        Suggerimento: in modalità Annuale la tabella sotto mostra il dettaglio mensile; in modalità Mensile mostra il dettaglio giornaliero.
+      </div>
+    </div>
+  </div>
+
+  <div id="dashboard-container"></div>
+</div>
+
+<!-- STATISTICHE -->
+<div class="content-section d-none" id="statistiche">
+<h2>Riepilogo Fatturato</h2>
+<div class="d-flex align-items-center gap-2 mb-3">
+<label class="form-label mb-0" for="stats-year-filter">Anno</label>
+<select class="form-select form-select-sm" id="stats-year-filter" style="max-width:160px">
+<option value="all">Tutti</option>
+</select>
+</div>
+<div id="stats-table-container"></div>
+<div id="tax-simulation-section">
+<hr class="my-4"/>
+<h2>Simulazione Fiscale</h2>
+<div id="tax-simulation-container"></div>
+</div>
+</div>
+<!-- REGISTRI IVA -->
+<div class="content-section d-none" id="registri-iva">
+  <h2>Registri IVA</h2>
+  <p class="text-muted">Totali IVA su vendite e acquisti per periodo (mese o trimestre). Il totale da versare è calcolato come <b>IVA Vendite - IVA Acquisti</b>.</p>
+  <div class="row g-2 align-items-end mb-3">
+    <div class="col-md-2">
+      <label class="form-label mb-0" for="iva-year-filter">Anno</label>
+      <select class="form-select form-select-sm" id="iva-year-filter" style="max-width:160px">
+        <option value="all">Tutti</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label mb-0" for="iva-period-filter">Raggruppa per</label>
+      <select class="form-select form-select-sm" id="iva-period-filter" style="max-width:220px">
+        <option value="mensile">Mensile</option>
+        <option value="trimestrale">Trimestrale</option>
+      </select>
+    </div>
+  </div>
+    <div class="d-flex flex-wrap gap-2 mb-2">
+    <button class="btn btn-outline-secondary btn-sm" id="iva-export-totals-csv-btn" type="button"><i class="fas fa-file-csv"></i> Esporta Totali</button>
+    <button class="btn btn-outline-secondary btn-sm" id="iva-export-registro-vendite-btn" type="button"><i class="fas fa-file-csv"></i> Registro Vendite</button>
+    <button class="btn btn-outline-secondary btn-sm" id="iva-export-registro-acquisti-btn" type="button"><i class="fas fa-file-csv"></i> Registro Acquisti</button>
+  </div>
+<div id="iva-registers-container"></div>
+</div>
+
+<!-- SIMULAZIONE REDDITI (ORDINARIO) -->
+<div class="content-section d-none" id="simulazione-ordinario">
+  <h2>Simulazione Redditi (Ordinario)</h2>
+  <div class="alert alert-warning" style="font-size:0.95em;">
+    <b>Didattico</b>: questa sezione fornisce una stima indicativa di IRPEF/INPS e della ripartizione <b>Saldo</b> / <b>Acconti</b>.
+    Non include addizionali regionali/comunali e altre particolarita'.
+  </div>
+
+  <div class="row g-3 align-items-end mb-3">
+    <div class="col-md-3">
+      <label class="form-label">Anno</label>
+      <select class="form-select" id="ord-year-select"></select>
+    </div>
+    <div class="col-md-3">
+      <div class="form-check mt-4">
+        <input class="form-check-input" id="ord-only-paid" type="checkbox"/>
+        <label class="form-check-label" for="ord-only-paid">Solo documenti "Pagata" / acquisti "Pagata"</label>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="form-check mt-4">
+        <input class="form-check-input" id="ord-include-bollo" type="checkbox"/>
+        <label class="form-check-label" for="ord-include-bollo">Includi bollo nei compensi</label>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <button class="btn btn-primary w-100" id="ord-refresh-btn">Aggiorna</button>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-3">
+      <label class="form-label">Aliquota INPS Gestione Separata %</label>
+      <input class="form-control" id="ord-inps-aliquota" type="number" step="0.01" placeholder="26.07"/>
+      <div class="form-text">Default: 26,07% se non impostata (salvata anche in Azienda).</div>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Contributi INPS gia' versati (€)</label>
+      <input class="form-control" id="ord-inps-versati" type="number" step="0.01" value="0"/>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Detrazioni IRPEF (stima) (€)</label>
+      <input class="form-control" id="ord-detrazioni" type="number" step="0.01" value="0"/>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Crediti IRPEF (stima) (€)</label>
+      <input class="form-control" id="ord-crediti" type="number" step="0.01" value="0"/>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-3">
+      <label class="form-label">Acconti IRPEF gia' versati (€)</label>
+      <input class="form-control" id="ord-acconti-irpef" type="number" step="0.01" value="0"/>
+    </div>
+  </div>
+
+  <div class="border rounded p-3 bg-light" id="ord-output"></div>
+</div>
+
+<!-- CLIENTI -->
+<!-- SIMULAZIONE FISCALE (LM) -->
+<div class="content-section d-none" id="simulazione-lm">
+<h2>Simulazione Fiscale (Quadro LM)</h2>
+<p class="text-muted">Calcolo indicativo basato sui documenti dell'anno selezionato (fatture e note di credito).</p>
+<div class="row g-3 align-items-end mb-3">
+<div class="col-md-3">
+<label class="form-label">Anno</label>
+<select class="form-select" id="lm-year-select"></select>
+</div>
+<div class="col-md-3">
+<div class="form-check mt-4">
+<input class="form-check-input" id="lm-only-paid" type="checkbox"/>
+<label class="form-check-label" for="lm-only-paid">Solo documenti “Pagata”</label>
+</div>
+</div>
+<div class="col-md-3">
+<div class="form-check mt-4">
+<input class="form-check-input" id="lm-include-bollo" type="checkbox"/>
+<label class="form-check-label" for="lm-include-bollo">Includi bollo nei compensi</label>
+</div>
+</div>
+<div class="col-md-3">
+<button class="btn btn-primary w-100" id="lm-refresh-btn">Aggiorna</button>
+</div>
+</div>
+<div class="border rounded p-3 bg-light" id="lm-output"></div>
+</div>
+<div class="content-section d-none" id="anagrafica-clienti">
+<h2>Anagrafica Clienti <button class="btn btn-success float-end" id="newCustomerBtn"><i class="fas fa-plus"></i> Nuovo Cliente</button></h2>
+
+<div class="row g-2 align-items-end mb-2">
+  <div class="col-md-4">
+    <label class="form-label">Cerca</label>
+    <input class="form-control" id="customers-search-filter" placeholder="Ragione sociale / P.IVA / indirizzo">
+  </div>
+  <div class="col-md-2">
+    <button class="btn btn-outline-secondary w-100" id="customers-reset-search-btn" type="button">
+      <i class="fas fa-undo"></i> Reset
+    </button>
+  </div>
+</div>
+<table class="table table-hover"><thead><tr><th>Ragione Sociale</th><th>P.IVA / C.F.</th><th>S.d.I.</th><th>Indirizzo</th><th class="text-end">Azioni</th></tr></thead><tbody id="customers-table-body"></tbody></table>
+</div>
+<!-- SERVIZI -->
+<div class="content-section d-none" id="anagrafica-prodotti">
+<h2>Anagrafica Servizi <button class="btn btn-success float-end" id="newProductBtn"><i class="fas fa-plus"></i> Nuovo Servizio</button></h2>
+<table class="table table-hover"><thead><tr><th>Codice</th><th class="col-description">Descrizione</th><th class="text-end-numbers col-price pe-5">Prezzo</th><th class="text-end-numbers">IVA</th><th class="text-end col-actions">Azioni</th></tr></thead><tbody id="products-table-body"></tbody></table>
+</div><div class="content-section d-none" id="anagrafica-fornitori">
+<h2>Anagrafica Fornitori 
+    <button class="btn btn-success float-end" id="newSupplierBtn"><i class="fas fa-plus"></i> Nuovo Fornitore</button>
+</h2>
+
+<div class="row g-2 align-items-end mb-2">
+  <div class="col-md-4">
+    <label class="form-label">Cerca</label>
+    <input class="form-control" id="suppliers-search-filter" placeholder="Ragione sociale / P.IVA / PEC">
+  </div>
+  <div class="col-md-2">
+    <button class="btn btn-outline-secondary w-100" id="suppliers-reset-search-btn" type="button">
+      <i class="fas fa-undo"></i> Reset
+    </button>
+  </div>
+</div>
+<table class="table table-hover">
+<thead>
+<tr>
+<th>Ragione Sociale</th>
+<th>P.IVA</th>
+<th>PEC</th>
+<th class="text-end">Azioni</th>
+</tr>
+</thead>
+<tbody id="suppliers-table-body"></tbody>
+</table>
+</div><div class="content-section d-none" id="nuovo-acquisto">
+<h2>Nuovo Acquisto</h2>
+<div class="d-flex flex-wrap gap-2 mb-2">
+  <input type="file" id="purchase-xml-file" accept=".xml,text/xml,application/xml" class="d-none"/>
+  <button type="button" class="btn btn-sm btn-outline-secondary" id="purchase-import-xml-btn" data-bs-toggle="tooltip" title="Importa una fattura fornitore da file XML (FatturaPA)" aria-label="Importa XML">
+    <i class="fas fa-file-import me-1"></i> Importa XML
+  </button>
+  <span class="text-muted small align-self-center" id="purchase-import-xml-status"></span>
+</div>
+<div class="card">
+<div class="card-body">
+<form id="purchaseForm" onsubmit="return false;">
+<input id="purchase-id" type="hidden" value="Nuovo"/>
+<div class="row g-2">
+<div class="col-md-4">
+<label class="form-label">Fornitore</label>
+<select class="form-select" id="purchase-supplier-select"></select>
+</div>
+<div class="col-md-2">
+<label class="form-label">Numero</label>
+<input class="form-control" id="purchase-number" placeholder="es. 15/2026" type="text"/>
+</div>
+<div class="col-md-2">
+<label class="form-label">Data Documento</label>
+<input class="form-control" id="purchase-date" type="date"/>
+</div>
+<div class="col-md-2">
+<label class="form-label">Data Riferimento</label>
+<input class="form-control" id="purchase-dataRiferimento" type="date"/>
+</div>
+<div class="col-md-1">
+<label class="form-label">Giorni</label>
+<input class="form-control" id="purchase-giorniTermini" type="number" value="30"/>
+</div>
+<div class="col-md-1">
+<label class="form-label">Scadenza</label>
+<input class="form-control" id="purchase-dataScadenza" readonly="" type="date"/>
+</div>
+</div>
+<div class="row g-2 mt-2">
+<div class="col-md-3">
+<label class="form-label">Stato</label>
+<select class="form-select" id="purchase-status">
+<option value="Da Pagare">Da Pagare</option>
+<option value="Pagata">Pagata</option>
+</select>
+</div>
+<div class="col-md-9">
+<label class="form-label">Note</label>
+<input class="form-control" id="purchase-notes" placeholder="Note interne" type="text"/>
+</div>
+</div>
+<hr/>
+<h5>Righe Documento</h5>
+<div class="row align-items-end g-2 bg-light p-2 rounded">
+<div class="col-lg-5">
+<label class="form-label small">Descrizione</label>
+<input class="form-control form-control-sm" id="purchase-line-description" placeholder="Descrizione riga" type="text"/>
+</div>
+<div class="col-lg-1">
+<label class="form-label small">Qtà</label>
+<input class="form-control form-control-sm" id="purchase-line-qty" type="number" value="1"/>
+</div>
+<div class="col-lg-2">
+<label class="form-label small">Prezzo</label>
+<input class="form-control form-control-sm" id="purchase-line-price" type="number"/>
+</div>
+<div class="col-lg-1">
+<label class="form-label small">IVA</label>
+<select class="form-select form-select-sm" id="purchase-line-iva">
+<option value="0">0%</option>
+<option value="4">4%</option>
+<option value="10">10%</option>
+<option selected="" value="22">22%</option>
+</select>
+</div>
+<div class="col-lg-2 d-none" id="purchase-esenzione-iva-container">
+<label class="form-label small">Natura</label>
+<select class="form-select form-select-sm" id="purchase-line-esenzione-iva">
+<option value="N2.2">N2.2</option>
+<option value="N4">N4</option>
+</select>
+</div>
+<div class="col-lg-1 text-end">
+<button class="btn btn-sm btn-primary" id="add-purchase-line-btn" type="button" data-bs-toggle="tooltip" title="Aggiungi riga" aria-label="Aggiungi riga">
+<i class="fas fa-plus"></i>
+</button>
+</div>
+</div>
+<table class="table table-sm mt-2">
+<thead>
+<tr>
+<th>Descrizione</th>
+<th class="text-end">Qtà</th>
+<th class="text-end">Prezzo</th>
+<th class="text-end">IVA</th>
+<th class="text-end">Totale</th>
+<th class="text-end">Azioni</th>
+</tr>
+</thead>
+<tbody id="purchase-lines-tbody"></tbody>
+</table>
+<div class="text-end mt-3 p-3 bg-light border rounded">
+<div>Imponibile: <span id="purchase-imponibile">€ 0.00</span></div>
+<div>IVA: <span id="purchase-iva">€ 0.00</span></div>
+<h5 class="mt-2 mb-0">Totale Documento: <span class="text-primary" id="purchase-totale">€ 0.00</span></h5>
+</div>
+<button class="btn btn-primary mt-3" id="savePurchaseBtn" type="button" data-bs-toggle="tooltip" title="Salva acquisto" aria-label="Salva acquisto">
+<i class="fas fa-save"></i> Salva Acquisto
+        </button>
+</form>
+</div>
+</div>
+</div><div class="content-section d-none" id="elenco-acquisti">
+<h2>Elenco Acquisti</h2>
+<div class="row g-2 align-items-end">
+<div class="col-md-2">
+  <label class="form-label">Anno</label>
+  <select class="form-select" id="purchase-year-filter"></select>
+</div>
+<div class="col-md-3">
+  <label class="form-label">Fornitore</label>
+  <select class="form-select" id="purchase-supplier-filter"></select>
+</div>
+<div class="col-md-2">
+  <label class="form-label">Stato</label>
+  <select class="form-select" id="purchase-status-filter"></select>
+</div>
+<div class="col-md-3">
+  <label class="form-label">Cerca</label>
+  <input class="form-control" id="purchase-search-filter" placeholder="Numero / fornitore / note">
+</div>
+<div class="col-md-2 text-end">
+  <button class="btn btn-outline-secondary w-100" id="purchase-reset-filters-btn" type="button">
+    <i class="fas fa-undo"></i> Reset
+  </button>
+</div>
+</div>
+<table class="table table-hover mt-3">
+<thead>
+<tr>
+<th>Numero</th>
+<th>Data</th>
+<th>Fornitore</th>
+<th class="text-end">Totale</th>
+<th>Scadenza</th>
+<th>Stato</th>
+<th class="text-end">Azioni</th>
+</tr>
+</thead>
+<tbody id="purchases-table-body"></tbody>
+</table>
+</div>
+<!-- ELENCO FATTURE -->
+<div class="content-section d-none" id="scadenziario">
+  <h2>Scadenziario</h2>
+  <p class="text-muted">Incassi fatture, pagamenti acquisti e scadenze IVA (mensile/trimestrale da Anagrafica Azienda).</p>
+
+  <div class="text-end mb-2">
+    <button class="btn btn-outline-secondary btn-sm" id="scad-export-csv-btn" type="button">
+      <i class="fas fa-file-csv"></i> Esporta CSV
+    </button>
+  </div>
+
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label">Da</label>
+      <input class="form-control" type="date" id="scad-from">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">A</label>
+      <input class="form-control" type="date" id="scad-to">
+    </div>
+    <div class="col-md-6">
+      <div class="d-flex flex-wrap gap-3">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="scad-show-incassi" checked>
+          <label class="form-check-label" for="scad-show-incassi">Incassi fatture</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="scad-show-pagamenti" checked>
+          <label class="form-check-label" for="scad-show-pagamenti">Pagamenti acquisti</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="scad-show-iva" checked>
+          <label class="form-check-label" for="scad-show-iva">Scadenze IVA</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="scad-show-iva-crediti">
+          <label class="form-check-label" for="scad-show-iva-crediti">Mostra crediti IVA</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="scad-show-chiuse">
+          <label class="form-check-label" for="scad-show-chiuse">Mostra pagate</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-responsive mt-3">
+    <table class="table table-hover align-middle">
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Tipo</th>
+          <th>Soggetto</th>
+          <th>Documento</th>
+          <th class="text-end">Importo</th>
+          <th>Stato</th>
+          <th class="text-end">Azioni</th>
+        </tr>
+      </thead>
+      <tbody id="scadenziario-table-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="content-section d-none" id="elenco-fatture">
+<h2>Documenti Emessi</h2>
+<div class="row g-2 align-items-end">
+  <div class="col-md-2">
+    <label class="form-label">Anno</label>
+    <select class="form-select" id="invoice-year-filter"></select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">Cliente</label>
+    <select class="form-select" id="invoice-customer-filter"></select>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label">Stato</label>
+    <select class="form-select" id="invoice-status-filter"></select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">Cerca</label>
+    <input class="form-control" id="invoice-search-filter" placeholder="Numero / cliente">
+  </div>
+  <div class="col-md-2 text-end">
+    <button class="btn btn-outline-secondary w-100" id="invoice-reset-filters-btn" type="button">
+      <i class="fas fa-undo"></i> Reset
+    </button>
+  </div>
+</div>
+<table class="table table-hover"><thead><tr><th>Tipo</th><th>Numero</th><th>Data</th><th>Cliente</th><th class="text-end-numbers">Totale</th><th class="text-end-numbers">Scadenza</th><th>Stato</th><th class="text-end col-actions">Azioni</th></tr></thead><tbody id="invoices-table-body"></tbody></table>
+</div>
+<!-- NUOVA FATTURA / NOTA CREDITO -->
+<div class="content-section d-none" id="nuova-fattura-accompagnatoria">
+<h2 id="document-title">Nuovo Documento</h2>
+<form id="new-invoice-form">
+<!-- ID SISTEMA VISIBILE -->
+<div class="mb-3 p-2 bg-light border rounded">
+<div class="row">
+<div class="col-md-6">
+<label class="small text-muted fw-bold">ID Interno (Sistema)</label>
+<input class="form-control-plaintext fw-bold" id="invoice-id" placeholder="Nuovo Documento" readonly="" type="text"/>
+</div>
+<div class="col-md-6">
+<label class="small text-muted fw-bold">Tipo Documento</label>
+<input class="form-control-plaintext" id="document-type" readonly="" type="text" value="Fattura"/>
+</div>
+</div>
+</div>
+<div class="row d-none bg-warning-subtle p-3 rounded mb-3 border border-warning" id="credit-note-fields">
+<div class="col-md-6 mb-3"><label class="form-label">Fattura da Rettificare</label><input class="form-control" id="linked-invoice" placeholder="Es. FATT-2025-01" type="text"/></div>
+<div class="col-md-6 mb-3"><label class="form-label">Causale</label><input class="form-control" id="reason" type="text"/></div>
+</div>
+<div class="row">
+<div class="col-md-6 mb-3"><label class="form-label">Cliente</label><select class="form-select" id="invoice-customer-select" required=""></select></div>
+<div class="col-md-3 mb-3"><label class="form-label">Data Documento</label><input class="form-control" id="invoice-date" required="" type="date"/></div>
+<div class="col-md-3 mb-3"><label class="form-label">Numero Documento</label><input class="form-control" id="invoice-number" type="text"/></div>
+</div>
+<div class="row">
+  <div class="col-12 mb-2">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="invoice-isDraft">
+      <label class="form-check-label" for="invoice-isDraft">
+        Salva come <strong>Bozza</strong> (visibile in elenco, ma esclusa da XML / Inviata / Pagata)
+      </label>
+    </div>
+  </div>
+</div>
+<hr/>
+<!-- Riga inserimento prodotti -->
+<h5>Righe Documento</h5>
+<div class="d-flex justify-content-end gap-2 mb-2">
+  <button type="button" class="btn btn-outline-secondary btn-sm" id="invoice-import-timesheet-btn" title="Importa ore dal Timesheet">
+    <i class="fas fa-clock"></i> Importa ore
+  </button>
+  <button type="button" class="btn btn-outline-danger btn-sm d-none" id="invoice-remove-imported-timesheet-btn" title="Rimuovi tutte le righe importate dal Timesheet">
+    <i class="fas fa-undo"></i> Rimuovi import
+  </button>
+</div>
+<div class="row align-items-end g-2 bg-light p-2 rounded">
+<div class="col-lg-3"><label class="form-label small">Seleziona Servizio</label><select class="form-select form-select-sm" id="invoice-product-select"></select></div>
+<div class="col-lg-3"><label class="form-label small">Descrizione</label><input class="form-control form-select-sm" id="invoice-product-description" readonly="" type="text"/></div>
+<div class="col-lg-1"><label class="form-label small">Qtà</label><input class="form-control form-select-sm" id="invoice-product-qty" type="number" value="1"/></div>
+<div class="col-lg-2"><label class="form-label small">Prezzo</label><input class="form-control form-select-sm" id="invoice-product-price" type="number"/></div>
+<div class="col-lg-1"><label class="form-label small">IVA</label><select class="form-select form-select-sm" id="invoice-product-iva"><option value="0">0%</option><option value="4">4%</option><option value="5">5%</option><option value="10">10%</option><option value="22">22%</option></select></div>
+<div class="col-lg-1 d-none" id="invoice-esenzione-iva-container"><label class="form-label small">Esenzione</label><select class="form-select form-select-sm" disabled="" id="invoice-product-esenzioneIva"><option value="N2.1">N2.1</option><option value="N2.2">N2.2</option><option value="N4">N4</option></select></div>
+<div class="col-lg-1"><button class="btn btn-success w-100 btn-sm" id="add-product-to-invoice-btn" type="button"><i class="fas fa-plus"></i></button></div>
+</div>
+<table class="table mt-3 table-bordered table-sm">
+<thead class="table-light"><tr><th>Descrizione</th><th class="text-end">Qtà</th><th class="text-end">Prezzo</th><th class="text-end">IVA</th><th class="text-end">Totale</th><th class="text-center" style="width: 50px;">Del</th></tr></thead>
+<tbody id="invoice-lines-tbody"></tbody>
+</table>
+<div class="small text-muted mb-2">Suggerimento: puoi modificare <strong>Qtà</strong>, <strong>Prezzo</strong> e <strong>IVA</strong> direttamente nella tabella.</div>
+<div class="row mt-4">
+  <div class="col-md-4 mb-3">
+    <label class="form-label">Condizioni Pagamento</label>
+    <input class="form-control" id="invoice-condizioniPagamento" type="text"/>
+  </div>
+  <div class="col-md-4 mb-3">
+    <label class="form-label">Modalità Pagamento</label>
+    <select class="form-select" id="invoice-modalitaPagamento">
+      <option value="Bonifico Bancario">Bonifico Bancario</option>
+      <option value="Assegno">Assegno</option>
+      <option value="Contanti">Contanti</option>
+    </select>
+  </div>
+  <div class="col-md-4 mb-3" id="invoice-bank-container">
+    <label class="form-label">Banca</label>
+    <select class="form-select" id="invoice-bank-select"></select>
+    <div class="form-text">Disponibile solo per Bonifico Bancario.</div>
+  </div>
+</div>
+<div class="row">
+  <div class="col-md-3 mb-3"><label class="form-label">Data Riferimento</label><input class="form-control" id="invoice-dataRiferimento" type="date"/></div>
+
+  <div class="col-md-2 mb-3" id="invoice-due-days-container">
+    <label class="form-label">Giorni Scadenza</label>
+    <input class="form-control" id="invoice-giorniTermini" type="number"/>
+    <div class="form-text">Solo per Bonifico Bancario.</div>
+  </div>
+
+  <div class="col-md-2 mb-3" id="invoice-finemese-container">
+    <label class="form-label d-block">Fine Mese</label>
+    <div class="form-check mt-2">
+      <input class="form-check-input" id="invoice-fineMese" type="checkbox"/>
+      <label class="form-check-label" for="invoice-fineMese">Applica</label>
+    </div>
+    <div class="form-text">Solo per Bonifico.</div>
+  </div>
+
+  <div class="col-md-2 mb-3" id="invoice-giornofisso-container">
+    <label class="form-label d-block">Giorno Fisso</label>
+    <div class="d-flex align-items-center gap-2">
+      <div class="form-check m-0">
+        <input class="form-check-input" id="invoice-giornoFissoEnabled" type="checkbox"/>
+        <label class="form-check-label" for="invoice-giornoFissoEnabled">Sì</label>
+      </div>
+      <input class="form-control" id="invoice-giornoFissoValue" type="number" min="1" max="31" style="width: 90px;" disabled/>
+    </div>
+    <div class="form-text">1–31. Solo per Bonifico.</div>
+  </div>
+
+  <div class="col-md-3 mb-3"><label class="form-label">Data Scadenza</label><input class="form-control" id="invoice-dataScadenza" type="date"/></div>
+</div>
+<div class="text-end mt-3 p-3 bg-light border rounded">
+<h4 class="mb-1">Totale Documento: <span class="text-primary" id="invoice-total">€ 0.00</span></h4>
+<div class="fs-6">Netto da incassare: <span class="fw-bold" id="invoice-netto">€ 0.00</span></div>
+<small class="text-muted" id="invoice-tax-details">(Imponibile: € 0.00 - IVA: € 0.00 - Ritenuta: € 0.00)</small>
+<div class="mt-2 small" id="invoice-iva-breakdown"></div>
+</div>
+<button class="btn btn-primary mt-3 btn-lg w-100" type="submit"><i class="fas fa-save"></i> Salva Documento</button>
+</form>
+</div>
+<!-- AZIENDA -->
+<div class="content-section d-none" id="anagrafica-azienda">
+<h2>Dati Azienda</h2>
+<form id="company-info-form">
+<div class="row">
+<div class="col-md-6 mb-3"><label class="form-label">Ragione Sociale</label><input class="form-control" id="company-name" type="text"/></div>
+<div class="col-md-3 mb-3"><label class="form-label">Cognome</label><input class="form-control" id="company-cognome" type="text"/></div>
+<div class="col-md-3 mb-3"><label class="form-label">Nome</label><input class="form-control" id="company-nome" type="text"/></div>
+</div>
+<div class="row">
+<div class="col-md-8 mb-3"><label class="form-label">Indirizzo</label><input class="form-control" id="company-address" type="text"/></div>
+<div class="col-md-4 mb-3"><label class="form-label">Civico</label><input class="form-control" id="company-numeroCivico" type="text"/></div>
+</div>
+<div class="row">
+<div class="col-md-4 mb-3"><label class="form-label">Città</label><input class="form-control" id="company-city" type="text"/></div>
+<div class="col-md-2 mb-3"><label class="form-label">CAP</label><input class="form-control" id="company-zip" type="text"/></div>
+<div class="col-md-2 mb-3"><label class="form-label">Prov</label><input class="form-control" id="company-province" type="text"/></div>
+<div class="col-md-4 mb-3"><label class="form-label">Nazione</label><input class="form-control" id="company-nazione" type="text" value="Italia"/></div>
+</div>
+<hr/>
+
+<div class="row">
+  <div class="col-md-6 mb-3"><label class="form-label">P.IVA</label><input class="form-control" id="company-piva" type="text"/></div>
+  <div class="col-md-6 mb-3"><label class="form-label">C.F.</label><input class="form-control" id="company-codiceFiscale" type="text"/></div>
+</div>
+<div class="row">
+  <div class="col-md-4 mb-3">
+    <label class="form-label">Regime fiscale (gestionale) <span class="text-danger">*</span></label>
+    <select class="form-select" id="company-taxRegime" required>
+      <option value="">Seleziona...</option>
+      <option value="ordinario">Ordinario</option>
+      <option value="forfettario">Forfettario</option>
+    </select>
+    <div class="form-text">Obbligatorio. Determina le sezioni visibili (es. Quadro LM solo forfettario).</div>
+  </div>
+  <div class="col-md-4 mb-3">
+    <label class="form-label">Cod. Regime</label>
+    <input class="form-control" id="company-codiceRegimeFiscale" type="text" value="RF19"/>
+    <div class="form-text">Usato per l'XML FatturaPA.</div>
+  </div>
+</div>
+
+
+<div class="row">
+<div class="col-md-3 mb-3"><label class="form-label">Codice ATECO</label><input class="form-control" id="company-ateco" placeholder="es. 62.01.00" type="text"/></div>
+</div>
+<div class="row">
+<div class="col-md-3 mb-3 forfettario-only"><label class="form-label">Coeff. Redditività %</label><input class="form-control" id="company-coefficienteRedditivita" type="number"/></div>
+<div class="col-md-3 mb-3 forfettario-only"><label class="form-label">Imposta Sostitutiva %</label><input class="form-control" id="company-aliquotaSostitutiva" type="number"/></div>
+<div class="col-md-3 mb-3 forfettario-only"><label class="form-label">INPS %</label><input class="form-control" id="company-aliquotaContributi" type="number"/></div>
+<div class="col-md-3 mb-3 ordinario-only"><label class="form-label">Aliquota Gestione Separata %</label><input class="form-control" id="company-aliquotaGestioneSeparata" type="number" step="0.01" placeholder="26.07"/></div>
+</div>
+<div class="row">
+<div class="col-md-3 mb-3"><label class="form-label">Rivalsa INPS %</label><input class="form-control" id="company-aliquotaInps" type="number"/></div>
+</div><div class="row"><div class="col-md-3 mb-3 ordinario-only"><label class="form-label">Aliquota IVA %</label><input class="form-control" id="company-aliquotaIva" step="0.01" type="number" value="22"/></div><div class="col-md-3 mb-3"><label class="form-label">Ritenuta d'acconto %</label><input class="form-control" id="company-aliquotaRitenuta" step="0.01" type="number" value="20"/>
+</div>
+<div class="col-md-3 mb-3 ordinario-only">
+  <label class="form-label" for="company-ivaPeriodicita">Periodicità IVA</label>
+  <select class="form-select" id="company-ivaPeriodicita">
+    <option value="mensile" selected>MENSILE</option>
+    <option value="trimestrale">TRIMESTRALE</option>
+  </select>
+  <div class="form-text">Scadenze IVA (Scadenziario).</div>
+</div></div>
+<div class="row">
+<div class="col-md-6 mb-3">
+<label class="form-label">PEC (opzionale)</label>
+<input class="form-control" id="company-pec" placeholder="nomeazienda@pec.it" type="email"/>
+</div>
+</div>
+<div class="row">
+  <div class="col-md-4 mb-3 forfettario-only">
+    <label class="form-label">Contributi INPS già versati (€)</label>
+    <input class="form-control" id="company-contributiVersati" type="number" step="0.01"/>
+    <div class="form-text">Usato nella simulazione (RR): riduce il saldo INPS stimato.</div>
+  </div>
+  <div class="col-md-4 mb-3 forfettario-only">
+    <label class="form-label">Acconti imposta già versati (€)</label>
+    <input class="form-control" id="company-accontiImpostaVersati" type="number" step="0.01"/>
+    <div class="form-text">Riduce il saldo dell’anno (RX).</div>
+  </div>
+  <div class="col-md-4 mb-3 forfettario-only">
+    <label class="form-label">Crediti/compensazioni disponibili (€)</label>
+    <input class="form-control" id="company-creditiImposta" type="number" step="0.01"/>
+    <div class="form-text">Credito compensabile in F24 (RX).</div>
+  </div>
+</div>
+<hr/>
+<div class="row">
+<div class="col-md-6 mb-3"><label class="form-label">Banca 1</label><input class="form-control" id="company-banca" type="text"/></div>
+<div class="col-md-6 mb-3"><label class="form-label">IBAN 1</label><input class="form-control" id="company-iban" type="text"/></div>
+</div>
+<div class="row">
+<div class="col-md-6 mb-3"><label class="form-label">Banca 2</label><input class="form-control" id="company-banca2" type="text"/></div>
+<div class="col-md-6 mb-3"><label class="form-label">IBAN 2</label><input class="form-control" id="company-iban2" type="text"/></div>
+</div>
+<button class="btn btn-primary mt-3" type="submit"><i class="fas fa-save"></i> Salva Dati Azienda</button>
+</form>
+</div>
+
+<!-- USO DATI (STIMA) -->
+<div class="content-section d-none" id="uso-dati">
+  <h2>Uso dati (stima)</h2>
+  <p class="text-muted">
+    Stima basata sulla dimensione JSON dei dati caricati dal Cloud (Firestore) nell'app.
+    La quota di riferimento è <b>1 GiB</b> (Spark). Non include overhead Firestore, indici o Firebase Storage.
+  </p>
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+    <button class="btn btn-outline-primary btn-sm" id="data-usage-refresh-btn" type="button">
+      <i class="fas fa-sync-alt"></i> Ricalcola
+    </button>
+    <span class="text-muted small" id="data-usage-updated-at"></span>
+  </div>
+  <div id="data-usage-table-container"></div>
+  <div class="progress mt-3" style="height:22px">
+    <div class="progress-bar" id="data-usage-progress" role="progressbar" style="width:0%" aria-valuemin="0" aria-valuemax="100">0%</div>
+  </div>
+</div>
+
+<!-- COMMESSE -->
+<div class="content-section d-none" id="commesse">
+  <h2>Commesse <button class="btn btn-success float-end" id="btn-new-commessa"><i class="fas fa-plus"></i> Nuova Commessa</button></h2>
+  <p class="text-muted">Gestisci le commesse (cliente finale, azienda a cui fatturi, stato). I progetti e il timesheet si agganciano alle commesse.</p>
+  <table class="table table-hover">
+    <thead>
+      <tr>
+        <th style="width:70px">ID</th>
+        <th>Nome</th>
+        <th>Cliente Finale</th>
+        <th>Fatturo a</th>
+        <th style="width:110px">Stato</th>
+        <th class="text-end" style="width:120px">Azioni</th>
+      </tr>
+    </thead>
+    <tbody id="commesse-table-body"></tbody>
+  </table>
+</div>
+
+<!-- PROGETTI -->
+<div class="content-section d-none" id="progetti">
+  <h2>Progetti <button class="btn btn-success float-end" id="btn-new-project"><i class="fas fa-plus"></i> Nuovo Progetto</button></h2>
+  <div class="row g-2 align-items-end mb-2">
+    <div class="col-md-4">
+      <label class="form-label mb-0" for="projects-commessa-filter">Commessa</label>
+      <select class="form-select form-select-sm" id="projects-commessa-filter" style="max-width:360px"></select>
+    </div>
+  </div>
+  <table class="table table-hover">
+    <thead>
+      <tr>
+        <th style="width:70px">ID</th>
+        <th>Commessa</th>
+        <th>Progetto</th>
+        <th>Servizio</th>
+        <th class="text-end" style="width:110px">€/h</th>
+        <th style="width:90px">Tipo</th>
+        <th style="width:130px">Stato</th>
+        <th class="text-end" style="width:120px">Azioni</th>
+      </tr>
+    </thead>
+    <tbody id="projects-table-body"></tbody>
+  </table>
+</div>
+
+<!-- TIMESHEET -->
+<div class="content-section d-none" id="timesheet">
+  <h2>Timesheet</h2>
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="row g-2 align-items-end">
+        <input type="hidden" id="ts-id" />
+        <div class="col-md-2">
+          <label class="form-label mb-0">Data</label>
+          <input type="date" class="form-control form-control-sm" id="ts-date" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label mb-0">Commessa</label>
+          <select class="form-select form-select-sm" id="ts-commessa"></select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label mb-0">Progetto</label>
+          <select class="form-select form-select-sm" id="ts-project"></select>
+        </div>
+        <div class="col-md-1">
+          <label class="form-label mb-0">Ore</label>
+          <input type="number" min="0" class="form-control form-control-sm" id="ts-hours" value="0" />
+        </div>
+        <div class="col-md-1">
+          <label class="form-label mb-0">Min</label>
+          <input type="number" min="0" max="59" class="form-control form-control-sm" id="ts-minutes" value="0" />
+        </div>
+        <div class="col-md-1">
+          <div class="form-check" style="margin-top:28px">
+            <input class="form-check-input" type="checkbox" id="ts-billable" checked />
+            <label class="form-check-label" for="ts-billable">Fatt.</label>
+          </div>
+        </div>
+        <div class="col-md-1 text-end">
+          <button class="btn btn-primary btn-sm w-100" type="button" id="ts-save-btn"><i class="fas fa-save"></i> Salva</button>
+        </div>
+      </div>
+      <div class="row g-2 mt-2 align-items-end">
+        <div class="col-md-10">
+          <label class="form-label mb-0">Nota</label>
+          <input type="text" class="form-control form-control-sm" id="ts-note" placeholder="(opzionale)" />
+        </div>
+        <div class="col-md-2 text-end">
+          <button class="btn btn-outline-secondary btn-sm w-100 d-none" type="button" id="ts-cancel-edit-btn"><i class="fas fa-times"></i> Annulla</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-2">
+          <label class="form-label mb-0">Dal</label>
+          <input type="date" class="form-control form-control-sm" id="ts-filter-from" />
+        </div>
+        <div class="col-md-2">
+          <label class="form-label mb-0">Al</label>
+          <input type="date" class="form-control form-control-sm" id="ts-filter-to" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label mb-0">Commessa</label>
+          <select class="form-select form-select-sm" id="ts-commessa-filter"></select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label mb-0">Progetto</label>
+          <select class="form-select form-select-sm" id="ts-project-filter"></select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label mb-0">Fatturabile</label>
+          <select class="form-select form-select-sm" id="ts-billable-filter">
+            <option value="all">Tutti</option>
+            <option value="billable">Solo fatturabili</option>
+            <option value="nonbillable">Solo non fatturabili</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row g-2 align-items-end mt-2">
+        <div class="col-md-3">
+          <label class="form-label mb-0">Fatturazione</label>
+          <select class="form-select form-select-sm" id="ts-invoiced-filter">
+            <option value="all">Tutti</option>
+            <option value="uninvoiced">Solo non fatturati</option>
+            <option value="invoiced">Solo fatturati</option>
+          </select>
+                </div>
+        <div class="col-md-9 text-end">
+          <button class="btn btn-outline-warning btn-sm" type="button" id="ts-unlock-selected-btn" disabled title="Sblocca i worklog selezionati (rimuove il collegamento alla fattura)">
+            <i class="fas fa-unlink"></i> Sblocca selezionati
+          </button>
+        </div>
+      </div>
+      <div class="mt-2 text-muted small">Totale filtro: <b><span id="ts-total-hours">0.00</span></b> ore (<span id="ts-total-minutes">0</span> minuti)</div>
+    </div>
+  </div>
+
+  <table class="table table-hover">
+    <thead>
+      <tr>
+      <th class="text-center" style="width:36px"><input class="form-check-input" type="checkbox" id="ts-select-all-invoiced" title="Seleziona tutti i worklog fatturati visibili" /></th>
+        <th style="width:120px">Data</th>
+        <th>Commessa</th>
+        <th>Progetto</th>
+        <th class="text-end" style="width:110px">Minuti</th>
+        <th class="text-end" style="width:110px">Ore</th>
+        <th style="width:120px">Fattura</th>
+        <th style="width:90px">Fatturabile</th>
+        <th>Nota</th>
+        <th class="text-end" style="width:120px">Azioni</th>
+      </tr>
+    </thead>
+    <tbody id="worklogs-table-body"></tbody>
+  </table>
+</div>
+
+<!-- EXPORT TIMESHEET -->
+<div class="content-section d-none" id="export-timesheet">
+  <h2>Export Timesheet (CSV)</h2>
+  <p class="text-muted">Esporta le ore/minuti filtrate in CSV (separatore <code>;</code>) con opzioni di raggruppamento.</p>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-2">
+          <label class="form-label mb-0">Dal</label>
+          <input type="date" class="form-control form-control-sm" id="ts-exp-from" />
+        </div>
+        <div class="col-md-2">
+          <label class="form-label mb-0">Al</label>
+          <input type="date" class="form-control form-control-sm" id="ts-exp-to" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label mb-0">Fatturo a</label>
+          <select class="form-select form-select-sm" id="ts-exp-billto"></select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label mb-0">Commessa</label>
+          <select class="form-select form-select-sm" id="ts-exp-commessa"></select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label mb-0">Progetto</label>
+          <select class="form-select form-select-sm" id="ts-exp-project"></select>
+        </div>
+      </div>
+
+      <div class="row g-2 align-items-end mt-2">
+        <div class="col-md-3">
+          <label class="form-label mb-0">Fatturazione</label>
+          <select class="form-select form-select-sm" id="ts-exp-invoiced-filter">
+            <option value="all">Tutti</option>
+            <option value="uninvoiced">Solo non fatturati</option>
+            <option value="invoiced">Solo fatturati</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row g-2 align-items-end mt-2">
+        <div class="col-md-3">
+          <label class="form-label mb-0">Fatturabile</label>
+          <select class="form-select form-select-sm" id="ts-exp-billable">
+            <option value="all">Tutti</option>
+            <option value="billable">Solo fatturabili</option>
+            <option value="nonbillable">Solo non fatturabili</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label mb-0">Raggruppa per</label>
+          <select class="form-select form-select-sm" id="ts-exp-groupby">
+            <option value="detail">Dettaglio</option>
+            <option value="day_pivot">Giorno (progetti in colonne)</option>
+            <option value="day_project">Giorno + Progetto</option>
+            <option value="project">Progetto</option>
+            <option value="commessa">Commessa</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <div class="text-muted small" style="margin-top:28px">
+            Righe: <b><span id="ts-exp-preview-count">0</span></b> — Totale: <b><span id="ts-exp-preview-hours">0.00</span></b> ore (<span id="ts-exp-preview-minutes">0</span> min)
+          </div>
+        </div>
+        <div class="col-md-3 text-end">
+          <button class="btn btn-success w-100" type="button" id="ts-export-btn"><i class="fas fa-file-export"></i> Esporta CSV</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- GESTIONE DATI -->
+<div class="content-section d-none" id="avanzate">
+<h2>Gestione Dati</h2>
+<div class="card mt-4">
+<div class="card-body">
+<h5 class="card-title mt-3">Backup dal Cloud (utente corrente)</h5>
+<p class="card-text">
+    Scarica un file <code>.json</code> con <strong>TUTTI</strong> i dati attuali salvati nel Cloud per l'utente connesso
+    (azienda, anagrafiche, documenti, acquisti, commesse/progetti, worklog/timesheet e note).
+</p>
+<button class="btn btn-success" id="export-cloud-json-btn" type="button">
+<i class="fas fa-cloud-download-alt"></i> Scarica Backup JSON
+</button>
+
+<hr class="my-4"/>
+
+<h5 class="card-title">Importa Backup JSON</h5>
+<p class="card-text">Carica un file <code>.json</code> creato con <strong>Scarica Backup JSON</strong> per ripristinare/aggiornare <strong>TUTTI</strong> i dati nel Cloud (utente corrente).</p>
+<label class="btn btn-warning" for="import-file-input"><i class="fas fa-cloud-upload-alt"></i> Carica Backup JSON</label>
+<input accept=".json" class="d-none" id="import-file-input" type="file"/>
+
+<hr class="my-4"/>
+
+<h5 class="card-title mt-3 text-danger">Elimina Documenti per Anno (utente corrente)</h5>
+<p class="card-text text-danger">
+    Questa operazione elimina dal Cloud <strong>Fatture</strong> e <strong>Note di Credito</strong> dell'anno selezionato
+    per l'utente connesso. È <strong>irreversibile</strong> (consigliato: fai prima un Backup JSON).
+</p>
+<div class="d-flex flex-wrap align-items-center gap-2">
+<label class="form-label mb-0" for="delete-year-select">Anno</label>
+<select class="form-select form-select-sm" id="delete-year-select" style="max-width:160px">
+<option value="">Seleziona...</option>
+</select>
+<button class="btn btn-outline-danger btn-sm" id="delete-documents-year-btn" type="button">
+<i class="fas fa-trash"></i> Elimina Documenti Anno
+    </button>
+</div>
+
+<hr class="my-4"/>
+
+<h5 class="card-title mt-3 text-danger">Elimina Acquisti per Anno (utente corrente)</h5>
+<p class="card-text text-danger">
+    Questa operazione elimina dal Cloud i <strong>Documenti di acquisto</strong> dell'anno selezionato per l'utente connesso.
+    È <strong>irreversibile</strong> (consigliato: fai prima un Backup JSON).
+</p>
+<div class="d-flex flex-wrap align-items-center gap-2">
+  <label class="form-label mb-0" for="delete-purchases-year-select">Anno</label>
+  <select class="form-select form-select-sm" id="delete-purchases-year-select" style="max-width:160px">
+    <option value="">Seleziona...</option>
+  </select>
+  <button class="btn btn-outline-danger btn-sm" id="delete-purchases-year-btn" type="button">
+    <i class="fas fa-trash"></i> Elimina Acquisti Anno
+  </button>
+</div>
+
+<hr class="my-4"/>
+
+<h5 class="card-title mt-3 text-danger">Ripristino totale da Backup JSON</h5>
+<p class="card-text text-danger">Questa operazione <strong>cancella tutti i dati</strong> nel Cloud dell'utente corrente (incluse eventuali impostazioni future in <code>settings</code>) e poi importa il backup. È <strong>irreversibile</strong> (consigliato: fai prima un Backup JSON).</p>
+<label class="btn btn-danger" for="restore-file-input"><i class="fas fa-exclamation-triangle"></i> Ripristino totale (Reset + Import)</label>
+<input accept=".json" class="d-none" id="restore-file-input" type="file"/>
+
+<hr class="my-4"/>
+
+<h5 class="card-title mt-3 text-danger">Reset totale dati (Reset classe)</h5>
+<p class="card-text text-danger">Elimina dal Cloud <strong>tutti</strong> i dati dell'utente corrente (anagrafiche, documenti, acquisti, commesse, progetti, worklog/timesheet e <code>settings</code>). È <strong>irreversibile</strong>.</p>
+<button class="btn btn-danger" id="reset-all-data-btn" type="button"><i class="fas fa-trash-alt"></i> Reset totale dati</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- MODALE COMMESSA -->
+<div class="modal fade" id="commessaModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="commessaModalLabel">Commessa</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+      </div>
+      <div class="modal-body">
+        <form onsubmit="return false;">
+          <input type="hidden" id="commessa-id" />
+          <div class="row g-2">
+            <div class="col-md-8">
+              <label class="form-label">Nome Commessa</label>
+              <input class="form-control" id="commessa-name" type="text" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Stato</label>
+              <select class="form-select" id="commessa-status">
+                <option value="attiva">Attiva</option>
+                <option value="chiusa">Chiusa</option>
+              </select>
+            </div>
+          </div>
+          <div class="row g-2 mt-2">
+            <div class="col-md-6">
+              <label class="form-label">Cliente finale</label>
+              <input class="form-control" id="commessa-endCustomer" type="text" placeholder="es. Cliente 01" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Fatturo a (cliente in anagrafica)</label>
+              <select class="form-select" id="commessa-billToCustomer"></select>
+            </div>
+          </div>
+          <div class="row g-2 mt-2">
+            <div class="col-md-12">
+              <label class="form-label">Note</label>
+              <input class="form-control" id="commessa-notes" type="text" />
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Chiudi</button>
+        <button type="button" class="btn btn-primary" id="commessa-save-btn"><i class="fas fa-save"></i> Salva</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE PROGETTO -->
+<div class="modal fade" id="projectModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="projectModalLabel">Progetto</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+      </div>
+      <div class="modal-body">
+        <form onsubmit="return false;">
+          <input type="hidden" id="project-id" />
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">Commessa</label>
+              <select class="form-select" id="project-commessa"></select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Stato</label>
+              <select class="form-select" id="project-status">
+                <option value="attivo">Attivo</option>
+                <option value="archiviato">Archiviato</option>
+              </select>
+            </div>
+          </div>
+          <div class="row g-2 mt-2">
+            <div class="col-md-12">
+              <label class="form-label">Nome Progetto</label>
+              <input class="form-control" id="project-name" type="text" />
+            </div>
+          </div>
+
+          <div class="row g-2 mt-2">
+            <div class="col-md-7">
+              <label class="form-label">Servizio di fatturazione default</label>
+              <select class="form-select" id="project-default-product"></select>
+              <div class="form-text">Usato come default quando importi ore in fattura.</div>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label">Tariffa oraria €/h (opzionale)</label>
+              <input class="form-control" id="project-hourly-rate" type="number" step="0.01" />
+              <div class="form-text">Se vuoto, usa il prezzo del servizio.</div>
+            </div>
+          </div>
+
+          <div class="row g-2 mt-2">
+            <div class="col-md-12">
+              <label class="form-label d-block">Tipo Progetto</label>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="project-isLavoro" checked />
+                <label class="form-check-label" for="project-isLavoro">Lavoro</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="project-isCosto" />
+                <label class="form-check-label" for="project-isCosto">Costo</label>
+              </div>
+              <div class="form-text">Se “Costo”, le righe importate non entrano nel montante rivalsa INPS.</div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Chiudi</button>
+        <button type="button" class="btn btn-primary" id="project-save-btn"><i class="fas fa-save"></i> Salva</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE IMPORT TIMESHEET IN FATTURA -->
+<div class="modal fade" id="timesheetImportModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Importa ore dal Timesheet</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+      </div>
+      <div class="modal-body">
+        <div id="tsimp-alert" class="alert alert-info py-2 d-none"></div>
+
+        <div class="row g-2 align-items-end">
+          <div class="col-md-2">
+            <label class="form-label mb-0">Dal</label>
+            <input type="date" class="form-control form-control-sm" id="tsimp-from" />
+          </div>
+          <div class="col-md-2">
+            <label class="form-label mb-0">Al</label>
+            <input type="date" class="form-control form-control-sm" id="tsimp-to" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label mb-0">Commessa</label>
+            <select class="form-select form-select-sm" id="tsimp-commessa"></select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label mb-0">Progetto</label>
+            <select class="form-select form-select-sm" id="tsimp-project"></select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label mb-0">Raggruppa</label>
+            <select class="form-select form-select-sm" id="tsimp-grouping">
+              <option value="project" selected>Per Progetto</option>
+              <option value="project_month">Per Progetto + Mese</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row g-2 align-items-end mt-2">
+          <div class="col-md-3">
+            <label class="form-label mb-0">Servizio default (fallback)</label>
+            <select class="form-select form-select-sm" id="tsimp-default-product"></select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label mb-0">Tariffa default €/h</label>
+            <input type="number" step="0.01" class="form-control form-control-sm" id="tsimp-default-rate" placeholder="(opzionale)" />
+          </div>
+          <div class="col-md-3">
+            <div class="form-check" style="margin-top:28px">
+              <input class="form-check-input" type="checkbox" id="tsimp-only-billable" checked />
+              <label class="form-check-label" for="tsimp-only-billable">Solo ore fatturabili</label>
+            </div>
+          </div>
+          <div class="col-md-4 text-end" style="margin-top:28px">
+            <span class="small text-muted">Le righe importate saranno marcate come <strong>TS</strong> e puoi rimuoverle con “Rimuovi import”.</span>
+          </div>
+        </div>
+
+        <hr/>
+
+        <h6 class="mb-2">Anteprima righe da importare</h6>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Commessa</th>
+                <th>Progetto</th>
+                <th style="width:120px">Periodo</th>
+                <th class="text-end" style="width:90px">Ore</th>
+                <th style="width:260px">Servizio</th>
+                <th class="text-end" style="width:110px">€/h</th>
+                <th style="width:90px">Tipo</th>
+                <th class="text-end" style="width:120px">Importo</th>
+              </tr>
+            </thead>
+            <tbody id="tsimp-preview-tbody"></tbody>
+          </table>
+        </div>
+        <div class="d-flex justify-content-end">
+          <div class="small text-muted">Totale ore: <span id="tsimp-preview-total-hours">0.00</span> — Totale importo: € <span id="tsimp-preview-total-amount">0.00</span></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+        <button type="button" class="btn btn-primary" id="tsimp-confirm-btn"><i class="fas fa-check"></i> Importa in fattura</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE SCELTA FATTURA -->
+<div class="modal fade" id="newInvoiceChoiceModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Crea Nuova Fattura</h5><button class="btn-close" data-bs-dismiss="modal" type="button"></button></div><div class="modal-body"><button class="btn btn-primary w-100 mb-3" id="btn-create-new-blank-invoice">Crea Nuova Vuota</button><hr/><div class="input-group"><select class="form-select" id="copy-from-invoice-select"><option selected="">Copia da esistente...</option></select><button class="btn btn-secondary" id="btn-copy-from-invoice">Copia</button></div></div></div></div></div>
+<!-- MODALE CLIENTE (FIXED ID VISIBLE) -->
+<div class="modal fade" id="customerModal" tabindex="-1">
+<div class="modal-dialog modal-lg">
+<div class="modal-content">
+<div class="modal-header"><h5 class="modal-title" id="customerModalTitle">Cliente</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+<div class="modal-body">
+<form id="customerForm">
+<div class="mb-3 p-2 bg-light border rounded">
+<label class="small text-muted fw-bold">ID Scheda (Sistema)</label>
+<input class="form-control-plaintext fw-bold" id="customer-id" placeholder="Nuovo (Generato al salvataggio)" readonly="" type="text"/>
+</div>
+<div class="mb-3"><label class="form-label">Ragione Sociale</label><input class="form-control" id="customer-name" required="" type="text"/></div>
+<div class="row">
+<div class="col-md-6 mb-3"><label class="form-label">P.IVA</label><input class="form-control" id="customer-piva" type="text"/></div>
+<div class="col-md-6 mb-3"><label class="form-label">Codice Fiscale</label><input class="form-control" id="customer-codiceFiscale" type="text"/></div>
+</div>
+<div class="mb-3">
+  <label class="form-label">Codice S.d.I.</label>
+  <div class="d-flex flex-wrap align-items-center gap-3">
+    <input class="form-control" id="customer-sdi" type="text" style="max-width: 240px;"/>
+    <div class="form-check m-0">
+      <input class="form-check-input" id="customer-sdi-privato" type="checkbox"/>
+      <label class="form-check-label" for="customer-sdi-privato">Privato</label>
+    </div>
+    <div class="form-check m-0">
+      <input class="form-check-input" id="customer-sdi-estero" type="checkbox"/>
+      <label class="form-check-label" for="customer-sdi-estero">Estero</label>
+    </div>
+  </div>
+  <div class="form-text">Privato = 0000000 • Estero = XXXXXXX</div>
+</div>
+<div class="mb-3">
+<label class="form-label">PEC (opzionale)</label>
+<input class="form-control" id="customer-pec" placeholder="cliente@pec.it" type="email"/>
+</div>
+<div class="mb-3"><label class="form-label">Indirizzo</label><input class="form-control" id="customer-address" type="text"/></div>
+<div class="row">
+<div class="col-md-5 mb-3"><label class="form-label">Città</label><input class="form-control" id="customer-comune" type="text"/></div>
+<div class="col-md-2 mb-3"><label class="form-label">Prov</label><input class="form-control" id="customer-provincia" type="text" maxlength="2" placeholder="es. TO"/></div>
+<div class="col-md-2 mb-3"><label class="form-label">CAP</label><input class="form-control" id="customer-cap" type="text"/></div>
+<div class="col-md-3 mb-3"><label class="form-label">Nazione</label><input class="form-control" id="customer-nazione" type="text" value="Italia" required="" placeholder="Italia / IT / codice paese (2 lettere)"/></div>
+</div>
+<div class="form-check">
+<input class="form-check-input" id="customer-rivalsaInps" type="checkbox"/>
+<label class="form-check-label">Applica Rivalsa INPS</label>
+</div>
+<div class="form-check mt-2">
+<input class="form-check-input" id="customer-sostitutoImposta" type="checkbox"/>
+<label class="form-check-label">Cliente sostituto d’imposta (applica ritenuta 20%)</label>
+</div>
+
+<hr class="my-3"/>
+
+<div class="p-2 bg-light border rounded">
+  <div class="fw-bold mb-2">Termini di pagamento (default)</div>
+  <div class="row">
+    <div class="col-md-3 mb-3">
+      <label class="form-label">Giorni</label>
+      <input class="form-control" id="customer-giorniTermini" type="number" min="0" step="1" placeholder="es. 30"/>
+    </div>
+    <div class="col-md-3 mb-3">
+      <label class="form-label d-block">Fine Mese</label>
+      <div class="form-check mt-2">
+        <input class="form-check-input" id="customer-fineMese" type="checkbox"/>
+        <label class="form-check-label" for="customer-fineMese">Applica</label>
+      </div>
+    </div>
+    <div class="col-md-6 mb-3">
+      <label class="form-label d-block">Giorno Fisso</label>
+      <div class="d-flex align-items-center gap-2">
+        <div class="form-check m-0">
+          <input class="form-check-input" id="customer-giornoFissoEnabled" type="checkbox"/>
+          <label class="form-check-label" for="customer-giornoFissoEnabled">Sì</label>
+        </div>
+        <input class="form-control" id="customer-giornoFissoValue" type="number" min="1" max="31" style="width: 90px;" disabled/>
+      </div>
+      <div class="form-text">Esempio: 15 = primo giorno 15 utile dopo la maturazione.</div>
+    </div>
+  </div>
+</div>
+</form>
+</div>
+<div class="modal-footer">
+<button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Annulla</button>
+<button class="btn btn-primary" id="saveCustomerBtn" type="button">Salva Cliente</button>
+</div>
+</div>
+</div>
+</div>
+<!-- MODALE PRODOTTO (FIXED ID VISIBLE) -->
+<div class="modal fade" id="productModal" tabindex="-1">
+<div class="modal-dialog modal-lg">
+<div class="modal-content">
+<div class="modal-header"><h5 class="modal-title" id="productModalTitle">Servizio / Prodotto</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+<div class="modal-body">
+<form id="productForm">
+<div class="mb-3 p-2 bg-light border rounded">
+<label class="small text-muted fw-bold">ID Scheda (Sistema)</label>
+<input class="form-control-plaintext fw-bold" id="product-id" placeholder="Nuovo (Generato al salvataggio)" readonly="" type="text"/>
+</div>
+<div class="row">
+<div class="col-md-8 mb-3"><label class="form-label">Descrizione</label><input class="form-control" id="product-description" required="" type="text"/></div>
+<div class="col-md-4 mb-3"><label class="form-label">Codice</label><input class="form-control" id="product-code" type="text"/></div>
+</div>
+<div class="row">
+<div class="col-md-4 mb-3"><label class="form-label">Prezzo Vendita</label><input class="form-control" id="product-salePrice" step="0.01" type="number"/></div>
+<div class="col-md-4 mb-3"><label class="form-label">Aliquota IVA</label><select class="form-select" id="product-iva"><option value="0">0%</option><option value="4">4%</option><option value="5">5%</option><option value="10">10%</option><option value="22">22%</option></select></div>
+<div class="col-md-4 mb-3 d-none" id="esenzione-iva-container"><label class="form-label">Esenzione</label><select class="form-select" id="product-esenzioneIva"><option value="N2.1">N2.1</option><option value="N2.2">N2.2</option><option value="N4">N4</option></select></div>
+</div>
+
+<div class="row mt-2">
+  <div class="col-md-6 mb-2">
+    <div class="form-check">
+      <input class="form-check-input" id="product-isLavoro" type="checkbox" checked />
+      <label class="form-check-label" for="product-isLavoro">Lavoro (entra nel calcolo Rivalsa INPS)</label>
+    </div>
+  </div>
+  <div class="col-md-6 mb-2">
+    <div class="form-check">
+      <input class="form-check-input" id="product-isCosto" type="checkbox" />
+      <label class="form-check-label" for="product-isCosto">Costo (esclude Rivalsa INPS)</label>
+    </div>
+  </div>
+</div>
+<div class="small text-muted">Se selezioni <b>Costo</b>, questo servizio (es. spese viaggio / rimborso km) non contribuisce alla base per la rivalsa INPS.</div>
+</form>
+</div>
+<div class="modal-footer">
+<button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Annulla</button>
+<button class="btn btn-primary" id="saveProductBtn" type="button">Salva Servizio</button>
+</div>
+</div>
+</div>
+</div>
+<div aria-hidden="true" aria-labelledby="supplierModalTitle" class="modal fade" id="supplierModal" tabindex="-1">
+<div class="modal-dialog modal-lg modal-dialog-scrollable">
+<div class="modal-content">
+<div class="modal-header">
+<h5 class="modal-title" id="supplierModalTitle">Fornitore</h5>
+<button aria-label="Chiudi" class="btn-close" data-bs-dismiss="modal" type="button"></button>
+</div>
+<div class="modal-body">
+<form id="supplierForm">
+<div class="row g-2">
+<div class="col-md-8">
+<label class="form-label">Ragione Sociale</label>
+<input class="form-control" id="supplier-name" type="text"/>
+</div>
+<div class="col-md-4">
+<label class="form-label">P.IVA</label>
+<input class="form-control" id="supplier-piva" type="text"/>
+</div>
+</div>
+<div class="row g-2 mt-2">
+<div class="col-md-6">
+<label class="form-label">Codice Fiscale</label>
+<input class="form-control" id="supplier-codiceFiscale" type="text"/>
+</div>
+<div class="col-md-6">
+<label class="form-label">PEC</label>
+<input class="form-control" id="supplier-pec" type="text"/>
+</div>
+</div>
+<div class="row g-2 mt-2">
+<div class="col-md-6">
+<label class="form-label">Email</label>
+<input class="form-control" id="supplier-email" type="email"/>
+</div>
+<div class="col-md-6">
+<label class="form-label">Telefono</label>
+<input class="form-control" id="supplier-telefono" type="text"/>
+</div>
+</div>
+<div class="row g-2 mt-2">
+<div class="col-md-8">
+<label class="form-label">Indirizzo</label>
+<input class="form-control" id="supplier-indirizzo" type="text"/>
+</div>
+<div class="col-md-4">
+<label class="form-label">CAP</label>
+<input class="form-control" id="supplier-cap" type="text"/>
+</div>
+</div>
+<div class="row g-2 mt-2">
+<div class="col-md-6">
+<label class="form-label">Comune</label>
+<input class="form-control" id="supplier-comune" type="text"/>
+</div>
+<div class="col-md-3">
+<label class="form-label">Provincia</label>
+<input class="form-control" id="supplier-provincia" type="text"/>
+</div>
+<div class="col-md-3">
+<label class="form-label">Nazione</label>
+<input class="form-control" id="supplier-nazione" type="text" value="IT"/>
+</div>
+</div>
+<div class="row g-2 mt-2">
+<div class="col-md-4">
+<label class="form-label">Codice Destinatario (SDI)</label>
+<input class="form-control" id="supplier-codiceDestinatario" type="text"/>
+</div>
+<div class="col-md-8">
+<label class="form-label">Note</label>
+<input class="form-control" id="supplier-note" type="text"/>
+</div>
+</div>
+<div class="mt-3 d-flex justify-content-between align-items-center">
+<div class="text-muted small">ID: <input class="form-control-plaintext d-inline-block fw-bold" style="width:120px" id="supplier-id" type="text" readonly value="Nuovo"/></div>
+<button class="btn btn-primary" id="saveSupplierBtn" type="button">
+<i class="fas fa-save"></i> Salva
+            </button>
+</div>
+</form>
+</div>
+</div>
+</div>
+</div>
+
+<!-- MODALE DETTAGLIO FATTURA -->
+<div aria-hidden="true" aria-labelledby="invoiceDetailModalTitle" class="modal fade" id="invoiceDetailModal" tabindex="-1">
+<div class="modal-dialog modal-xl modal-dialog-scrollable">
+<div class="modal-content">
+<div class="modal-header no-print">
+<h5 class="modal-title" id="invoiceDetailModalTitle">Dettaglio Documento</h5>
+<button aria-label="Chiudi" class="btn-close" data-bs-dismiss="modal" type="button"></button>
+</div>
+<div class="modal-body" id="invoiceDetailModalBody"></div>
+<div class="modal-footer no-print">
+<button class="btn btn-outline-secondary" id="print-invoice-btn" type="button">
+<i class="fas fa-print me-1"></i> Stampa
+        </button>
+<button class="btn btn-primary" id="export-xml-btn" type="button">
+<i class="fas fa-file-export me-1"></i> Esporta XML
+        </button>
+<button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Chiudi</button>
+</div>
+</div>
+</div>
+</div>
+<!-- SCRIPTS -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<!-- App Script Unico -->
+<script src="js/core/utils.js"></script>
+<script src="js/core/form-helpers.js"></script>
+<script src="js/services/firebase-cloud.js"></script>
+<script src="js/ui/ui-render.js"></script>
+
+<script src="js/features/masterdata/masterdata-helpers.js"></script>
+<script src="js/features/auth/auth-module.js"></script>
+<script src="js/features/navigation/navigation-module.js"></script>
+<script src="js/features/dashboard/dashboard-module.js"></script>
+<script src="js/features/commesse/commesse-module.js"></script>
+<script src="js/features/commesse/projects-module.js"></script>
+<script src="js/features/commesse/timesheet-module.js"></script>
+<script src="js/features/commesse/timesheet-export.js"></script>
+<script src="js/features/registri-iva/registri-iva-module.js"></script>
+<script src="js/features/masterdata/customers-module.js"></script>
+<script src="js/features/masterdata/products-module.js"></script>
+<script src="js/features/masterdata/suppliers-module.js"></script>
+<script src="js/features/invoices/invoices-form-module.js"></script>
+<script src="js/features/invoices/invoices-timesheet-import-module.js"></script>
+<script src="js/features/invoices/invoices-list-module.js"></script>
+<script src="js/features/invoices/invoices-xml-module.js"></script>
+<script src="js/features/company/company-module.js"></script>
+<script src="js/features/scadenziario/scadenziario-module.js"></script>
+<script src="js/features/notes/notes-module.js"></script>
+<script src="js/features/migration/migration-module.js"></script>
+<script src="js/features/purchases/purchases-module.js"></script>
+<script src="js/features/purchases/purchase-xml-import-module.js"></script>
+<script src="js/features/tax/forfettario-calc.js"></script>
+<script src="js/features/tax/ordinario-calc.js"></script>
+<script src="js/features/tax/ordinario-sim-module.js"></script>
+
+<script src="js/app/invoice-xml-migration.js"></script>
+<script src="js/app/app-bootstrap.js"></script>
+</body>
+</html>
