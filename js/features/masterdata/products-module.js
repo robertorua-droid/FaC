@@ -5,7 +5,19 @@
   window.AppModules.products = window.AppModules.products || {};
 
   let _bound = false;
-  // Regime fiscale (gestionale) unificato: usa isForfettario() da utils.js
+
+  function getProductsStore() {
+    if (window.AppStore && typeof window.AppStore.get === 'function') return window.AppStore.get('products') || [];
+    if (typeof window.getData === 'function') return window.getData('products') || [];
+    return [];
+  }
+
+  function getProductTaxDefaults() {
+    if (window.TaxRegimePolicy && typeof window.TaxRegimePolicy.getInvoiceDefaults === 'function') {
+      return window.TaxRegimePolicy.getInvoiceDefaults();
+    }
+    return { isForfettario: false, defaultIva: '22', disableIvaFields: false };
+  }
 
   function bind() {
     if (_bound) return;
@@ -15,12 +27,9 @@
       CURRENT_EDITING_ID = null;
       $('#productForm')[0].reset();
       $('#product-id').val('Nuovo');
-      $('#product-iva').val('0');
-      if (isForfettario()) {
-        $('#product-iva').prop('disabled', true);
-      } else {
-        $('#product-iva').prop('disabled', false);
-      }
+      const taxDefaults = getProductTaxDefaults();
+      $('#product-iva').val(taxDefaults.defaultIva || '22');
+      $('#product-iva').prop('disabled', !!taxDefaults.disableIvaFields);
       $('#product-iva').change();
       // Default classificazione: Lavoro (entra in rivalsa INPS)
       $('#product-isLavoro').prop('checked', true);
@@ -54,7 +63,7 @@
         description: $('#product-description').val(),
         code: $('#product-code').val(),
         salePrice: $('#product-salePrice').val(),
-        iva: isForfettario() ? '0' : $('#product-iva').val(),
+        iva: getProductTaxDefaults().isForfettario ? '0' : $('#product-iva').val(),
         esenzioneIva: $('#product-esenzioneIva').val(),
         isLavoro: isLavoro,
         isCosto: isCosto
@@ -63,7 +72,8 @@
       let id = CURRENT_EDITING_ID ? CURRENT_EDITING_ID : 'PRD' + new Date().getTime();
       await saveDataToCloud('products', data, id);
       $('#productModal').modal('hide');
-      renderAll();
+      if (window.UiRefresh && typeof window.UiRefresh.refreshMasterDataArea === 'function') window.UiRefresh.refreshMasterDataArea();
+      else if (typeof renderMasterDataArea === 'function') renderMasterDataArea();
     });
 
     $('#products-table-body').on('click', '.btn-edit-product', function (e) {
@@ -71,11 +81,15 @@
     });
 
     $('#products-table-body').on('click', '.btn-delete-product', function (e) {
-      deleteDataFromCloud('products', $(e.currentTarget).attr('data-id'));
+      const id = $(e.currentTarget).attr('data-id');
+      if (window.deleteDataFromCloud) window.deleteDataFromCloud('products', id, { skipRender: true }).then(() => {
+        if (window.UiRefresh && typeof window.UiRefresh.refreshMasterDataArea === 'function') window.UiRefresh.refreshMasterDataArea();
+        else if (typeof renderMasterDataArea === 'function') renderMasterDataArea();
+      });
     });
 
     $('#product-iva').change(function () {
-      if (isForfettario()) {
+      if (getProductTaxDefaults().isForfettario) {
         $(this).val('0').prop('disabled', true);
       }
       if (typeof window.toggleEsenzioneIvaField === 'function') {

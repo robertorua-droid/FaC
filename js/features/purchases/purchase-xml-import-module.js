@@ -10,6 +10,7 @@
   // 1) leggo e parsifico il file, mostro un riepilogo in una modale
   // 2) solo su conferma applico i dati al form (e, se serve, creo il fornitore)
   let _pending = null; // { file, parsed, supplierId }
+  let _pendingMulti = null; // { items: [{ file, parsed, supplierId, error, recipientMismatch }] }
 
   function ensureConfirmModal() {
     if ($('#purchase-xml-confirm-modal').length) return;
@@ -27,7 +28,8 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="purchase-xml-confirm-cancel" data-bs-dismiss="modal">Annulla</button>
-        <button type="button" class="btn btn-primary" id="purchase-xml-confirm-apply">Applica al modulo</button>
+        <button type="button" class="btn btn-outline-primary" id="purchase-xml-confirm-apply">Applica al modulo</button>
+        <button type="button" class="btn btn-primary" id="purchase-xml-confirm-save">Importa e salva</button>
       </div>
     </div>
   </div>
@@ -68,6 +70,36 @@
     try { $('#purchase-xml-confirm-modal').modal('hide'); } catch (e) { /* no-op */ }
   }
 
+function setConfirmModalMode(mode, count) {
+  // mode: 'single' | 'multi'
+  const isMulti = mode === 'multi';
+  $('#purchase-xml-confirm-apply').toggle(!isMulti);
+  const label = isMulti ? ('Importa e salva (' + (count || 0) + ')') : 'Importa e salva';
+  $('#purchase-xml-confirm-save').text(label).show();
+}
+
+function setupRecipientConfirmGate() {
+  const $chk = $('#purchase-xml-recipient-confirm');
+  const $btnApply = $('#purchase-xml-confirm-apply');
+  const $btnSave = $('#purchase-xml-confirm-save');
+
+  if (!$chk.length) {
+    $btnApply.prop('disabled', false);
+    $btnSave.prop('disabled', false);
+    return;
+  }
+
+  function sync() {
+    const ok = !!$chk.prop('checked');
+    $btnApply.prop('disabled', !ok);
+    $btnSave.prop('disabled', !ok);
+  }
+
+  $chk.off('change' + NS).on('change' + NS, sync);
+  sync();
+}
+
+
   function fmtMoney(v) {
     const n = (v != null && v !== '') ? Number(v) : NaN;
     if (isNaN(n)) return '';
@@ -78,7 +110,54 @@
     return String(s || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   }
 
-  function buildConfirmHtml(file, parsed, supplierId) {
+  
+
+function _normalizeUpper(x) { return String(x || '').trim().toUpperCase(); }
+
+function getCompanyRecipientInfo() {
+  const company = (window.AppStore && typeof window.AppStore.get === 'function')
+    ? (window.AppStore.get('companyInfo') || {})
+    : ((typeof getData === 'function') ? (getData('companyInfo') || {}) : {});
+  const vatDigits = normalizeVat(company.piva || '');
+  const cf = _normalizeUpper(company.codiceFiscale || '');
+  const label = safeText(company.name || 'Azienda') +
+    ((company.piva || company.codiceFiscale) ? (' (P.IVA ' + safeText(company.piva || '-') + (company.codiceFiscale ? (' / CF ' + safeText(company.codiceFiscale)) : '') + ')') : '');
+  return { company, vatDigits, cf, label };
+}
+
+function getBuyerRecipientInfo(parsed) {
+  const buyer = parsed && parsed.buyer ? parsed.buyer : null;
+  if (!buyer) return { buyer: null, vatDigits: '', cf: '', label: '' };
+  const vatDigits = normalizeVat(buyer.pivaFull || buyer.pivaDigits || '');
+  const cf = _normalizeUpper(buyer.codiceFiscale || '');
+  const label = safeText(buyer.name || 'Cessionario') +
+    ((buyer.pivaFull || buyer.codiceFiscale) ? (' (P.IVA ' + safeText(buyer.pivaFull || '-') + (buyer.codiceFiscale ? (' / CF ' + safeText(buyer.codiceFiscale)) : '') + ')') : '');
+  return { buyer, vatDigits, cf, label };
+}
+
+function checkRecipientMismatch(parsed) {
+  const c = getCompanyRecipientInfo();
+  const b = getBuyerRecipientInfo(parsed);
+
+  const hasCompany = !!(c.vatDigits || c.cf);
+  const hasBuyer = !!(b.vatDigits || b.cf);
+
+  let mismatch = false;
+  if (hasCompany && hasBuyer) {
+    if (c.vatDigits && b.vatDigits && c.vatDigits !== b.vatDigits) mismatch = true;
+    if (c.cf && b.cf && c.cf !== b.cf) mismatch = true;
+    // se uno dei due non ha IVA ma ha CF, prova il confronto sul CF
+    if (!mismatch && !c.vatDigits && c.cf && b.cf && c.cf !== b.cf) mismatch = true;
+  }
+  return {
+    mismatch,
+    companyLabel: c.label,
+    buyerLabel: b.label,
+    companyVatDigits: c.vatDigits,
+    buyerVatDigits: b.vatDigits
+  };
+}
+function buildConfirmHtml(file, parsed, supplierId) {
     const sup = parsed && parsed.supplier ? parsed.supplier : {};
     const doc = parsed && parsed.doc ? parsed.doc : {};
     const lines = Array.isArray(parsed && parsed.lines) ? parsed.lines : [];
@@ -316,6 +395,39 @@ ${warnHtml}
       provincia,
       nazione
     };
+
+
+// ===== Acquirente (CessionarioCommittente) - per check destinatario (fatture di acquisto)
+const cessionario = getFirst(header, 'CessionarioCommittente');
+let buyer = null;
+try {
+  if (cessionario) {
+    const bDatiAnag = getFirst(cessionario, 'DatiAnagrafici');
+    const bAnag = getFirst(bDatiAnag, 'Anagrafica');
+    const bIdIva = getFirst(bDatiAnag, 'IdFiscaleIVA');
+    const bIdPaese = textOf(bIdIva, 'IdPaese') || 'IT';
+    const bIdCodice = textOf(bIdIva, 'IdCodice');
+    const bCf = textOf(bDatiAnag, 'CodiceFiscale');
+
+    const bDen = textOf(bAnag, 'Denominazione');
+    const bNome = textOf(bAnag, 'Nome');
+    const bCognome = textOf(bAnag, 'Cognome');
+    const buyerName = safeText(bDen || (bNome || bCognome ? (bNome + ' ' + bCognome).trim() : 'Cessionario'));
+
+    buyer = {
+      name: buyerName,
+      pivaFull: (bIdPaese && bIdCodice) ? (String(bIdPaese).toUpperCase() + String(bIdCodice)) : '',
+      pivaDigits: normalizeVat((bIdPaese && bIdCodice) ? (String(bIdPaese).toUpperCase() + String(bIdCodice)) : ''),
+      codiceFiscale: safeText(bCf || ''),
+      idPaese: safeText(bIdPaese || 'IT')
+    };
+  }
+} catch (e) {
+  buyer = null;
+}
+
+const datiTrasmissione = getFirst(header, 'DatiTrasmissione');
+const codiceDestinatario = safeText(textOf(datiTrasmissione, 'CodiceDestinatario') || '');
 
     // ===== Dati documento
     const datiGenerali = getFirst(body, 'DatiGenerali');
@@ -624,6 +736,17 @@ ${warnHtml}
     const combinedNotes = [notePrefix, parsed.doc.notesExtra, existingNotes].filter(Boolean).join(' | ');
     $('#purchase-notes').val(combinedNotes);
 
+
+// Se presente bollo, aggiungilo come riga extra per allineare i totali (non sempre è presente nelle righe)
+try {
+  if (parsed && parsed.doc && parsed.doc.bolloNum && !isNaN(parsed.doc.bolloNum) && Number(parsed.doc.bolloNum) > 0) {
+    const hasBolloLine = (lines || []).some(l => String(l.description || '').toLowerCase().includes('bollo'));
+    if (!hasBolloLine) {
+      lines.push({ description: 'Imposta di bollo', qty: 1, price: Number(parsed.doc.bolloNum), iva: 0, natura: 'N2.2' });
+    }
+  }
+} catch(e) { /* no-op */ }
+
     // Righe: uso il flusso nativo (compilo input e click su "Aggiungi riga")
     const lines = Array.isArray(parsed.lines) ? parsed.lines : [];
     if (!lines.length) {
@@ -680,11 +803,252 @@ ${warnHtml}
     }
 
     const supplierId = findExistingSupplierId(parsed.supplier);
+    _pendingMulti = null;
     _pending = { file, parsed, supplierId };
 
     ensureConfirmModal();
+    setConfirmModalMode('single', 1);
     $('#purchase-xml-confirm-summary').html(buildConfirmHtml(file, parsed, supplierId));
     showConfirmModal();
+    setupRecipientConfirmGate();
+  }
+
+
+  async function prepareMultiImportWithConfirm(files) {
+    if (!files || !files.length) return;
+    if (!currentUser) {
+      alert('Utente non autenticato. Effettua il login prima di importare un XML.');
+      return;
+    }
+
+    setStatus('Lettura XML multipla...', false);
+    const items = [];
+    for (const f of files) {
+      const item = { file: f, parsed: null, supplierId: '', error: '', recipientMismatch: false };
+      try {
+        const xmlText = await f.text();
+        const parsed = parseXmlFatturaPA(xmlText);
+        const supplierId = findExistingSupplierId(parsed.supplier);
+        const rec = checkRecipientMismatch(parsed);
+        item.parsed = parsed;
+        item.supplierId = supplierId || '';
+        item.recipientMismatch = !!(rec && rec.mismatch);
+      } catch (e) {
+        item.error = (e && e.message) ? e.message : String(e || 'Errore parsing');
+      }
+      items.push(item);
+    }
+
+    _pending = null;
+    _pendingMulti = { items };
+
+    setConfirmModalMode('multi', items.length);
+    $('#purchase-xml-confirm-summary').html(buildConfirmHtmlMulti(items));
+    showConfirmModal();
+    setupRecipientConfirmGate();
+  }
+
+  function buildConfirmHtmlMulti(items) {
+    const ok = items.filter(i => !i.error && i.parsed);
+    const err = items.filter(i => i.error);
+    const missingSup = ok.filter(i => !i.supplierId).length;
+    const mism = ok.filter(i => i.recipientMismatch).length;
+
+    const topAlert = (mism > 0)
+      ? `<div class="alert alert-warning py-2 mb-2">
+          <div><strong>Attenzione:</strong> ${mism} file risultano intestati a un destinatario diverso dalla tua azienda.</div>
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" id="purchase-xml-recipient-confirm">
+            <label class="form-check-label" for="purchase-xml-recipient-confirm">Confermo: importa comunque</label>
+          </div>
+        </div>`
+      : ``;
+
+    const infoAlert = `<div class="alert alert-info py-2 mb-2">
+      File selezionati: <strong>${items.length}</strong> — Validati: <strong>${ok.length}</strong> — Errori: <strong>${err.length}</strong>
+      ${missingSup ? `<div class="small mt-1">Fornitori mancanti: <strong>${missingSup}</strong> (verranno creati automaticamente durante il salvataggio).</div>` : ``}
+    </div>`;
+
+    const rows = items.map((it) => {
+      if (it.error) {
+        return `<tr>
+          <td>${escapeHtml(it.file && it.file.name ? it.file.name : '')}</td>
+          <td colspan="4" class="text-danger">${escapeHtml(it.error)}</td>
+        </tr>`;
+      }
+      const sup = it.parsed && it.parsed.supplier ? it.parsed.supplier : {};
+      const doc = it.parsed && it.parsed.doc ? it.parsed.doc : {};
+      const tot = (doc && doc.totalFromXmlNum != null && !isNaN(doc.totalFromXmlNum)) ? fmtMoney(doc.totalFromXmlNum) : (doc.totalFromXml ? fmtMoney(doc.totalFromXml) : '');
+      const badge = it.recipientMismatch ? `<span class="badge bg-warning text-dark ms-1">Destinatario diverso</span>` : '';
+      const supBadge = (!it.supplierId) ? `<span class="badge bg-secondary ms-1">Fornitore da creare</span>` : `<span class="badge bg-success ms-1">Fornitore ok</span>`;
+      return `<tr>
+        <td>${escapeHtml(it.file && it.file.name ? it.file.name : '')}</td>
+        <td>${escapeHtml(sup.name || '')}${supBadge}${badge}</td>
+        <td class="text-nowrap">${escapeHtml(doc.number || '')}</td>
+        <td class="text-nowrap">${escapeHtml(doc.date || '')}</td>
+        <td class="text-nowrap">€ ${escapeHtml(tot)}</td>
+      </tr>`;
+    }).join('');
+
+    return `
+${topAlert}
+${infoAlert}
+<div class="table-responsive">
+<table class="table table-sm table-striped align-middle">
+  <thead>
+    <tr>
+      <th>File</th>
+      <th>Fornitore</th>
+      <th>N°</th>
+      <th>Data</th>
+      <th>Totale XML</th>
+    </tr>
+  </thead>
+  <tbody>${rows}</tbody>
+</table>
+</div>
+`;
+  }
+
+  function _computeTotalsFromLines(lines) {
+    let imponibile = 0;
+    let ivaTot = 0;
+    (lines || []).forEach(l => {
+      const qty = parseFloat(l.qty) || 0;
+      const price = parseFloat(l.price) || 0;
+      const sub = qty * price;
+      const ivaPerc = parseFloat(l.iva) || 0;
+      imponibile += sub;
+      ivaTot += sub * (ivaPerc / 100);
+    });
+    const totale = imponibile + ivaTot;
+    return { imponibile, ivaTot, totale };
+  }
+
+  function _computeDueDate(refDate, giorni) {
+    try {
+      if (!refDate) return '';
+      const g = parseInt(giorni, 10) || 0;
+      if (!g) return '';
+      const d = new Date(refDate);
+      if (isNaN(d.getTime())) return '';
+      d.setDate(d.getDate() + g);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    } catch (e) { return ''; }
+  }
+
+  async function createSupplierAuto(parsedSupplier) {
+    const name = safeText(parsedSupplier && parsedSupplier.name ? parsedSupplier.name : 'Fornitore');
+    const data = {
+      name: safeText(name),
+      piva: safeText((parsedSupplier && parsedSupplier.pivaFull) ? parsedSupplier.pivaFull : ''),
+      codiceFiscale: safeText((parsedSupplier && parsedSupplier.codiceFiscale) ? parsedSupplier.codiceFiscale : ''),
+      pec: '',
+      email: '',
+      telefono: '',
+      indirizzo: safeText((parsedSupplier && parsedSupplier.indirizzo) ? parsedSupplier.indirizzo : ''),
+      cap: safeText((parsedSupplier && parsedSupplier.cap) ? parsedSupplier.cap : ''),
+      comune: safeText((parsedSupplier && parsedSupplier.comune) ? parsedSupplier.comune : ''),
+      provincia: safeText((parsedSupplier && parsedSupplier.provincia) ? parsedSupplier.provincia : ''),
+      nazione: safeText((parsedSupplier && parsedSupplier.nazione) ? parsedSupplier.nazione : 'IT'),
+      codiceDestinatario: '',
+      note: 'Creato automaticamente da import multipla XML fattura fornitore.'
+    };
+
+    const id = (typeof getNextId === 'function') ? String(getNextId(getData('suppliers'))) : String(Date.now());
+    await saveDataToCloud('suppliers', data, id);
+    return String(id);
+  }
+
+  async function saveParsedAsPurchase(file, parsed, options) {
+    options = options || {};
+    if (!file || !parsed) return null;
+
+    // Fornitore
+    let supplierId = findExistingSupplierId(parsed.supplier);
+    if (!supplierId) {
+      if (options.autoCreateSupplier) {
+        supplierId = await createSupplierAuto(parsed.supplier);
+      } else {
+        const res = await createSupplierWithConfirm(parsed.supplier);
+        if (!res.created) return null;
+        supplierId = res.supplierId;
+      }
+    }
+
+    const doc = parsed.doc || {};
+    let lines = Array.isArray(parsed.lines) ? parsed.lines.slice() : [];
+    // bollo come riga extra
+    try {
+      if (doc.bolloNum && !isNaN(doc.bolloNum) && Number(doc.bolloNum) > 0) {
+        const hasBolloLine = lines.some(l => String(l.description || '').toLowerCase().includes('bollo'));
+        if (!hasBolloLine) lines.push({ description: 'Imposta di bollo', qty: 1, price: Number(doc.bolloNum), iva: 0, natura: 'N2.2' });
+      }
+    } catch(e){}
+
+    // normalizza IVA a stringa come il form
+    lines = lines.map(l => {
+      const ivaVal = (l.iva != null && !isNaN(l.iva)) ? String(Math.round(l.iva)) : String(l.iva || '0');
+      return {
+        description: l.description || '',
+        qty: (l.qty != null ? l.qty : 1),
+        price: (l.price != null ? l.price : 0),
+        iva: ivaVal,
+        natura: (ivaVal === '0' ? (l.natura || 'N2.2') : '')
+      };
+    });
+
+    const totals = _computeTotalsFromLines(lines);
+
+    const rawData = {
+      supplierId: String(supplierId),
+      number: doc.number || '',
+      date: doc.date || '',
+      dataRiferimento: doc.refDate || doc.date || '',
+      giorniTermini: (doc.giorniTermini != null && !isNaN(doc.giorniTermini)) ? parseInt(doc.giorniTermini, 10) : 0,
+      dataScadenza: doc.dueDate || _computeDueDate(doc.refDate || doc.date || '', doc.giorniTermini || 0),
+      status: 'Da Pagare',
+      notes: [(`Importato da XML: ${safeText(file.name)}`), (doc.notesExtra || '')].filter(Boolean).join(' | '),
+      lines: lines,
+      imponibile: totals.imponibile,
+      ivaTotale: totals.ivaTot,
+      totaleDocumento: totals.totale
+    };
+    const data = (window.DomainNormalizers && typeof window.DomainNormalizers.normalizePurchaseInfo === 'function')
+      ? window.DomainNormalizers.normalizePurchaseInfo(rawData)
+      : rawData;
+
+    const id = (typeof getNextId === 'function') ? String(getNextId(getData('purchases'))) : String(Date.now());
+    await saveDataToCloud('purchases', data, id);
+    return { id, data };
+  }
+
+  async function saveMultiPurchases(items) {
+    const okItems = (items || []).filter(i => i && !i.error && i.parsed);
+    let saved = 0;
+    let failed = 0;
+    const errors = [];
+
+    setStatus('Salvataggio acquisti importati...', false);
+
+    for (const it of okItems) {
+      try {
+        const res = await saveParsedAsPurchase(it.file, it.parsed, { autoCreateSupplier: true });
+        if (res) saved++; else failed++;
+      } catch (e) {
+        failed++;
+        errors.push((it.file && it.file.name ? it.file.name + ': ' : '') + ((e && e.message) ? e.message : 'Errore'));
+      }
+    }
+
+    setStatus('Importazione completata: salvati ' + saved + ', errori ' + failed, failed > 0);
+    if (errors.length) console.warn('Errori import multiplo:', errors);
+    alert('Importazione completata. Salvati: ' + saved + ' — Errori: ' + failed + (errors.length ? ('\n\nDettagli in console.') : ''));
+    // Vai all'elenco acquisti
+    try { $('.sidebar .nav-link[data-target="elenco-acquisti"]').click(); } catch(e) {}
   }
 
   function bind() {
@@ -699,6 +1063,7 @@ ${warnHtml}
       .on('click' + NS, '#purchase-xml-confirm-apply', async function () {
         const p = _pending;
         _pending = null;
+        _pendingMulti = null;
         hideConfirmModal();
         if (!p) return;
         try {
@@ -708,6 +1073,39 @@ ${warnHtml}
           setStatus('Errore import: ' + (err && err.message ? err.message : 'imprevisto'), true);
           alert('Errore import XML: ' + (err && err.message ? err.message : 'imprevisto'));
         }
+
+// Importa e salva (senza passare dal bottone "Salva" del modulo)
+$(document)
+  .off('click' + NS, '#purchase-xml-confirm-save')
+  .on('click' + NS, '#purchase-xml-confirm-save', async function () {
+    const multi = _pendingMulti;
+    const single = _pending;
+    _pending = null;
+    _pendingMulti = null;
+    hideConfirmModal();
+
+    try {
+      if (multi && multi.items && multi.items.length) {
+        await saveMultiPurchases(multi.items);
+        return;
+      }
+      if (single && single.file && single.parsed) {
+        const res = await saveParsedAsPurchase(single.file, single.parsed, { autoCreateSupplier: false });
+        if (res) {
+          setStatus('Acquisto importato e salvato: ' + safeText(single.file.name), false);
+          alert('Acquisto importato e salvato!');
+          try { $('.sidebar .nav-link[data-target="elenco-acquisti"]').click(); } catch(e) {}
+        } else {
+          setStatus('Import annullato.', true);
+        }
+      }
+    } catch (err) {
+      console.error('Errore import+salva XML acquisto:', err);
+      setStatus('Errore import+salva: ' + (err && err.message ? err.message : 'imprevisto'), true);
+      alert('Errore import XML: ' + (err && err.message ? err.message : 'imprevisto'));
+    }
+  });
+
       });
 
     // Cancella/chiudi (robusto: funziona anche se data-bs-dismiss non dovesse agganciarsi)
@@ -715,6 +1113,7 @@ ${warnHtml}
       .off('click' + NS, '#purchase-xml-confirm-cancel')
       .on('click' + NS, '#purchase-xml-confirm-cancel', function () {
         _pending = null;
+        _pendingMulti = null;
         hideConfirmModal();
       });
 
@@ -735,11 +1134,16 @@ ${warnHtml}
     $('#purchase-xml-file')
       .off('change' + NS)
       .on('change' + NS, async function (e) {
-        const file = e && e.target && e.target.files && e.target.files[0];
-        if (!file) return;
+        const files = (e && e.target && e.target.files) ? Array.from(e.target.files) : [];
+        if (!files.length) return;
 
         try {
-          await prepareImportWithConfirm(file);
+          if (files.length === 1) {
+            _pendingMulti = null;
+            await prepareImportWithConfirm(files[0]);
+          } else {
+            await prepareMultiImportWithConfirm(files);
+          }
         } catch (err) {
           console.error('Errore import XML acquisto:', err);
           setStatus('Errore import: ' + (err && err.message ? err.message : 'imprevisto'), true);

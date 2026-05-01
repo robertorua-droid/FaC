@@ -15,5 +15,5 @@ Questa cartella raccoglie la documentazione aggiornata della versione **stabile*
 7) [Export Timesheet in CSV](./07_EXPORT_TIMESHEET_CSV.md)
 8) [Workflow tecnico per sviluppo/manutenzione](./08_WORKFLOW_TECNICO.md)
 9) [FAQ e Troubleshooting](./09_FAQ_TROUBLESHOOTING.md)
-10) [Changelog (principali aggiunte)](./10_CHANGELOG.md)
-11) [Dashboard (Annuale/Mensile)](./11_DASHBOARD.md)
+10) [Dashboard (Annuale/Mensile)](./10_DASHBOARD.md)
+11) [Changelog (principali aggiunte)](./11_CHANGELOG.md)

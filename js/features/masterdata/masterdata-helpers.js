@@ -5,14 +5,27 @@
   window.AppModules = window.AppModules || {};
   window.AppModules.masterdata = window.AppModules.masterdata || {};
 
+  function getStoreCollection(name) {
+    if (window.AppStore && typeof window.AppStore.get === 'function') return window.AppStore.get(name) || [];
+    if (typeof window.getData === 'function') return window.getData(name) || [];
+    return [];
+  }
+
+  function getStoreCompanyInfo() {
+    if (window.AppStore && typeof window.AppStore.get === 'function') return window.AppStore.get('companyInfo') || {};
+    if (typeof window.getData === 'function') return window.getData('companyInfo') || {};
+    return {};
+  }
+
   function editItem(type, id) {
     // type: 'customer' | 'product' | 'supplier'
     if (type === 'customer' || type === 'product' || type === 'supplier') {
       CURRENT_EDITING_ID = String(id);
     }
 
-    const item = getData(`${type}s`).find(i => String(i.id) === String(id));
+    let item = getStoreCollection(`${type}s`).find(i => String(i.id) === String(id));
     if (!item) return;
+    if (type === 'customer' && window.DomainNormalizers && typeof window.DomainNormalizers.normalizeCustomerInfo === 'function') item = window.DomainNormalizers.normalizeCustomerInfo(item);
 
     $(`#${type}Form`)[0].reset();
     $(`#${type}ModalTitle`).text('Modifica');
@@ -27,8 +40,8 @@
     }
 
     if (type === 'product') {
-      const ci = (typeof getData === 'function') ? (getData('companyInfo') || {}) : {};
-      const isForf = (typeof isForfettario === 'function') ? isForfettario(ci) : (String(ci.taxRegime || '').toLowerCase() === 'forfettario');
+      const ci = getStoreCompanyInfo();
+      const isForf = window.TaxRegimePolicy ? window.TaxRegimePolicy.isForfettario(ci) : false;
 
       // Default classificazione servizi: se isCosto non è impostato, considero Lavoro
       if ($('#product-isCosto').length && $('#product-isLavoro').length) {

@@ -19,17 +19,22 @@
 
     $('#scadenziario-table-body').on('click', '.btn-scad-mark-invoice-paid', async function () {
       const id = $(this).attr('data-id');
-      const invObj = getData('invoices').find((i) => String(i.id) === String(id));
+      const invObjRaw = getData('invoices').find((i) => String(i.id) === String(id));
+      const invObj = (window.DomainNormalizers && typeof window.DomainNormalizers.normalizeInvoiceStatusInfo === 'function') ? window.DomainNormalizers.normalizeInvoiceStatusInfo(invObjRaw) : invObjRaw;
       if (!invObj) return;
-      if (invObj.type === 'Nota di Credito') return;
-      if (invObj.status === 'Pagata') return;
+      if (invObj.isCreditNote === true || invObj.type === 'Nota di Credito') return;
+      if (invObj.isPaid === true || invObj.status === 'Pagata') return;
 
       await saveDataToCloud('invoices', { status: 'Pagata' }, String(id));
       try {
-        if (typeof renderInvoicesTable === 'function') renderInvoicesTable();
-      } catch (e2) {}
-      try {
-        if (typeof renderScadenziarioPage === 'function') renderScadenziarioPage();
+        if (window.UiRefresh && typeof window.UiRefresh.refreshInvoicesAnalysisAndScadenziario === 'function') {
+          window.UiRefresh.refreshInvoicesAnalysisAndScadenziario();
+        } else if (window.UiRefresh && typeof window.UiRefresh.refreshSalesAndScadenziario === 'function') {
+          window.UiRefresh.refreshSalesAndScadenziario();
+        } else {
+          if (typeof renderInvoicesTable === 'function') renderInvoicesTable();
+          if (typeof renderScadenziarioPage === 'function') renderScadenziarioPage();
+        }
       } catch (e2) {}
     });
 
@@ -41,10 +46,14 @@
 
       await saveDataToCloud('purchases', { ...p, status: newStatus }, String(id));
       try {
-        if (typeof renderAll === 'function') renderAll();
-      } catch (e2) {}
-      try {
-        if (typeof renderScadenziarioPage === 'function') renderScadenziarioPage();
+        if (window.UiRefresh && typeof window.UiRefresh.refreshPurchasesAnalysisAndScadenziario === 'function') {
+          window.UiRefresh.refreshPurchasesAnalysisAndScadenziario();
+        } else if (window.UiRefresh && typeof window.UiRefresh.refreshPurchasesAndAnalysis === 'function') {
+          window.UiRefresh.refreshPurchasesAndAnalysis();
+        } else {
+          if (typeof renderPurchasesTable === 'function') renderPurchasesTable();
+          if (typeof renderScadenziarioPage === 'function') renderScadenziarioPage();
+        }
       } catch (e2) {}
     });
   }

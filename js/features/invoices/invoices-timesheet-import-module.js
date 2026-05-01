@@ -2,6 +2,8 @@
 // Importa ore dal Timesheet nel form Fattura (azione esplicita e reversibile)
 
 (function () {
+  const C = window.DomainConstants || {};
+  const INVOICE_NATURE_DEFAULT = (C.INVOICE_NATURES && C.INVOICE_NATURES.VAT_EXEMPT_DEFAULT) || 'N2.2';
   window.AppModules = window.AppModules || {};
   window.AppModules.invoicesTimesheetImport = window.AppModules.invoicesTimesheetImport || {};
   window.App = window.App || {};
@@ -65,8 +67,58 @@
       if (window.App && window.App.invoices && typeof window.App.invoices.getCurrentInvoiceId === 'function') {
         return window.App.invoices.getCurrentInvoiceId();
       }
-    } catch (e) {}
+    } catch (e) { }
     return null;
+  }
+
+  function getSessionLines() {
+    if (window.InvoiceFormSessionService && typeof window.InvoiceFormSessionService.getLines === 'function') {
+      return window.InvoiceFormSessionService.getLines();
+    }
+    return Array.isArray(window.tempInvoiceLines) ? window.tempInvoiceLines : [];
+  }
+
+  function setSessionLines(lines) {
+    if (window.InvoiceFormSessionService && typeof window.InvoiceFormSessionService.setLines === 'function') {
+      return window.InvoiceFormSessionService.setLines(lines);
+    }
+    window.tempInvoiceLines = Array.isArray(lines) ? lines : [];
+    return window.tempInvoiceLines;
+  }
+
+  function addSessionLine(line) {
+    const current = getSessionLines();
+    const next = current.slice();
+    next.push(line);
+    setSessionLines(next);
+    return next;
+  }
+
+  function getTimesheetImportStateSafe() {
+    if (window.InvoiceFormSessionService && typeof window.InvoiceFormSessionService.getTimesheetImportState === 'function') {
+      return window.InvoiceFormSessionService.getTimesheetImportState();
+    }
+    return window.App && window.App.invoices ? (window.App.invoices.timesheetImportState || null) : null;
+  }
+
+  function setTimesheetImportStateSafe(state) {
+    const normalizedState = (window.DomainNormalizers && typeof window.DomainNormalizers.normalizeTimesheetImportInfo === 'function')
+      ? window.DomainNormalizers.normalizeTimesheetImportInfo(state, getSessionLines())
+      : state;
+    if (window.InvoiceFormSessionService && typeof window.InvoiceFormSessionService.setTimesheetImportState === 'function') {
+      return window.InvoiceFormSessionService.setTimesheetImportState(normalizedState);
+    }
+    window.App = window.App || {};
+    window.App.invoices = window.App.invoices || {};
+    window.App.invoices.timesheetImportState = normalizedState || null;
+    return window.App.invoices.timesheetImportState;
+  }
+
+  function clearTimesheetImportStateSafe() {
+    if (window.InvoiceFormSessionService && typeof window.InvoiceFormSessionService.clearTimesheetImportState === 'function') {
+      return window.InvoiceFormSessionService.clearTimesheetImportState();
+    }
+    return setTimesheetImportStateSafe(null);
   }
 
   function defaultDateRangeFromInvoice() {
@@ -99,29 +151,31 @@
 
     const commesse = (getData('commesse') || []).slice();
 
-    if (!cid) {
-      // Nessun cliente: mostro tutte, ma avviso
-      $sel.empty().append('<option value="all">Tutte</option>');
-      commesse.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
-        .forEach((c) => $sel.append(`<option value="${c.id}">${esc(c.name || '')}</option>`));
-      setAlert('Seleziona prima un <strong>Cliente</strong> nella fattura: il filtro Commessa non può essere limitato.', 'warning');
-      return;
-    }
+    // Ordine: prima quelle del cliente (se c'è), poi le altre (alfabetico)
+    commesse.sort((a, b) => {
+      const aIsMatch = cid && String(a.billToCustomerId || '') === cid;
+      const bIsMatch = cid && String(b.billToCustomerId || '') === cid;
 
-    const filtered = commesse.filter((c) => String(c.billToCustomerId || '') === cid);
-    const list = filtered.length ? filtered : commesse;
+      if (aIsMatch && !bIsMatch) return -1;
+      if (!aIsMatch && bIsMatch) return 1;
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
 
     $sel.empty().append('<option value="all">Tutte</option>');
-    list.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
-      .forEach((c) => {
-        const note = (filtered.length ? '' : ' (non associata al cliente selezionato)');
-        $sel.append(`<option value="${c.id}">${esc((c.name || '') + note)}</option>`);
-      });
 
-    if (filtered.length) {
-      setAlert('Mostro solo le commesse con <code>billToCustomerId</code> uguale al cliente selezionato in fattura.', 'info');
+    commesse.forEach((c) => {
+      let suffix = '';
+      if (cid && String(c.billToCustomerId || '') !== cid) {
+        // Se ha un altro cliente o nessuno
+        suffix = c.billToCustomerId ? ' (altro cliente)' : ' (nessun cliente)';
+      }
+      $sel.append(`<option value="${c.id}">${esc(c.name || '')}${esc(suffix)}</option>`);
+    });
+
+    if (cid) {
+      setAlert('Mostro tutte le commesse. Quelle legate al cliente selezionato sono in cima alla lista.', 'info');
     } else {
-      setAlert('Nessuna commessa trovata per il cliente selezionato: mostro <strong>tutte</strong> le commesse.', 'warning');
+      setAlert('Seleziona un cliente in fattura per evidenziare le commesse correlate.', 'info');
     }
   }
 
@@ -156,13 +210,25 @@
     if (projectId && projectId !== 'all') rows = rows.filter((r) => String(r.projectId) === projectId);
     if (onlyBillable) rows = rows.filter((r) => (r.billable !== false));
 
-    // Step 2: escludo worklog gia' fatturati (salvo se appartengono alla fattura in modifica)
-    const _currInvId = getCurrentInvoiceIdSafe();
+    // Step 2: escludo worklog gia' fatturati (TUTTI, anche quelli della fattura corrente)
+    const _currInvLines = getSessionLines();
+    const _idsInCurrentForm = new Set();
+    _currInvLines.forEach(l => {
+      if (l && l.tsImport === true) {
+        const ids = l.tsWorklogIds || (l.tsMeta && l.tsMeta.worklogIds);
+        if (Array.isArray(ids)) ids.forEach(id => _idsInCurrentForm.add(String(id)));
+        else if (typeof ids === 'string' && ids) ids.split(',').forEach(id => _idsInCurrentForm.add(String(id).trim()));
+      }
+    });
+
     const _beforeInv = rows.length;
     rows = rows.filter((r) => {
-      if (!r || !r.invoiceId) return true;
-      if (_currInvId && String(r.invoiceId) === String(_currInvId)) return true;
-      return false;
+      if (!r) return false;
+      // 1. Escludi se già salvato nel DB con un invoiceId
+      if (r.invoiceId) return false;
+      // 2. Escludi se già presente nelle righe attuali del form (non ancora salvato)
+      if (_idsInCurrentForm.has(String(r.id))) return false;
+      return true;
     });
     const excludedInvoicedCount = _beforeInv - rows.length;
     window._tsimpExcludedInvoiced = excludedInvoicedCount;
@@ -246,18 +312,6 @@
 
     const groups = buildGroups();
 
-    // Step 2: avviso se alcuni worklog sono esclusi perche gia fatturati
-    const _excluded = parseInt(window._tsimpExcludedInvoiced || '0', 10) || 0;
-    if (_excluded > 0) {
-      setAlert('Nota: ' + _excluded + ' worklog gia fatturati sono stati esclusi dall\'import.', 'warning');
-    }
-
-
-    // Avviso se sono stati esclusi worklog gia' fatturati
-    if (typeof window._tsimpExcludedInvoiced === 'number' && window._tsimpExcludedInvoiced > 0) {
-      setAlert(`Ho escluso <strong>${window._tsimpExcludedInvoiced}</strong> worklog gia' fatturati (per evitare doppie fatturazioni).`, 'warning');
-    }
-
     // Totali
     let totMinutes = 0;
     let totAmount = 0;
@@ -331,15 +385,14 @@
   }
 
   function importIntoInvoice() {
-    if (!window.tempInvoiceLines) window.tempInvoiceLines = [];
-
+    
     const $rows = $('#tsimp-preview-tbody tr');
     if (!$rows.length || ($rows.length === 1 && $rows.first().find('td').length === 1)) {
       alert('Nessuna riga da importare.');
       return;
     }
 
-    const forf = isForfettario();
+    const forf = window.TaxRegimePolicy ? window.TaxRegimePolicy.isForfettario() : false;
 
     const batchId = String(Date.now());
 
@@ -368,7 +421,7 @@
       const periodLabel = String($tr.data('period') || '');
 
       const worklogIdsStr = String($tr.data('worklog-ids') || '');
-      const worklogIds = worklogIdsStr ? worklogIdsStr.split(',').map(s=>String(s).trim()).filter(Boolean) : [];
+      const worklogIds = worklogIdsStr ? worklogIdsStr.split(',').map(s => String(s).trim()).filter(Boolean) : [];
 
       const pr = getProjectByIdSafe(projectId);
       const tipo = getTipoForProject(pr);
@@ -384,9 +437,56 @@
       const projectName = pr ? (pr.name || '') : '';
       const hoursText = hours.toFixed(2).replace('.', ',');
 
-      const desc = `${serviceLabel} - ${projectName}${periodLabel ? (' (' + periodLabel + ')') : ''} - ${hoursText}h`;
+      // Descrizione: per Forfettario consento un override per cliente (campo anagrafica).
+      // Se il campo è assente (clienti vecchi), mantengo il comportamento attuale (serviceLabel).
+      let prefixLabel = serviceLabel;
+      try {
+        if (forf) {
+          const cidSel = getInvoiceCustomerId();
+          const custSel = (getData('customers') || []).find((c) => String(c.id) === String(cidSel)) || null;
+          if (custSel && Object.prototype.hasOwnProperty.call(custSel, 'timesheetPrefix')) {
+            const v = custSel.timesheetPrefix;
+            prefixLabel = (v == null) ? '' : String(v).trim();
+          }
+        }
+      } catch (e) { }
 
-      const rate = parseFloat($tr.find('.tsimp-row-rate').val()) || 0;
+      // Costruisco parte "dettagli" senza separatori doppi
+      let details = '';
+      if (projectName) details += projectName;
+      if (periodLabel) details += (details ? ' ' : '') + '(' + periodLabel + ')';
+      details += (details ? ' - ' : '') + (hoursText + 'h');
+
+      const desc = prefixLabel ? (prefixLabel + ' - ' + details) : details;
+
+      const rateGross = parseFloat($tr.find('.tsimp-row-rate').val()) || 0;
+      let rate = rateGross;
+
+      // Scorporo rivalsa INPS (tariffa comprensiva) – per cliente
+      let scorpApplied = false;
+      let priceType = 'net'; // default
+      try {
+        const cidSel = getInvoiceCustomerId();
+        const custSel = (getData('customers') || []).find((c) => String(c.id) === String(cidSel)) || null;
+        if (custSel && (custSel.rivalsaInps === true || custSel.rivalsaInps === 'true') && (custSel.scorporoRivalsaInps === true || custSel.scorporoRivalsaInps === 'true')) {
+          // Verifica che non sia un "Costo" (es. spese vive non soggette a rivalsa)
+          if (!isCosto) {
+            const comp2 = getData('companyInfo') || {};
+            const aliqInps = (() => {
+              const n = parseFloat(comp2.aliquotaInps || comp2.aliquotaContributi || 0);
+              return isNaN(n) ? 0 : n;
+            })();
+
+            if (aliqInps > 0) {
+              // Attivo modalità GROSS: non divido il rate
+              priceType = 'gross';
+              scorpApplied = true;
+              // rate resta rateGross
+            }
+          }
+        }
+      } catch (e) { }
+
       const subtotal = qty * rate;
 
       // IVA/Natura:
@@ -402,10 +502,10 @@
       const iva = forf ? '0' : (ivaProd && (parseFloat(ivaProd) > 0) ? ivaProd : ivaAzienda);
 
       const natura = (parseFloat(iva) === 0)
-        ? String((prod && prod.esenzioneIva) ? prod.esenzioneIva : 'N2.2')
+        ? String((prod && prod.esenzioneIva) ? prod.esenzioneIva : INVOICE_NATURE_DEFAULT)
         : '';
 
-      window.tempInvoiceLines.push({
+      addSessionLine({
         productName: desc,
         qty: qty,
         price: rate,
@@ -414,6 +514,9 @@
         esenzioneIva: natura,
         isLavoro: !isCosto,
         isCosto: isCosto,
+        scorporoRivalsaInpsApplied: scorpApplied,
+        priceGross: scorpApplied ? rateGross : null,
+        priceType: priceType,
         tsImport: true,
         tsImportBatchId: batchId,
         tsGroupKey: String($tr.data('key') || ''),
@@ -422,7 +525,10 @@
           commessaId,
           projectId,
           periodLabel,
-          worklogIds: worklogIds
+          worklogIds: worklogIds,
+          rateGross: rateGross,
+          rateNet: rate,
+          scorporoRivalsaInpsApplied: scorpApplied
         }
       });
 
@@ -450,25 +556,23 @@
     // Step 2: salvo metadati import per collegare i worklog alla fattura al salvataggio
     try {
       tsState.worklogIds = Array.from(new Set(tsState.worklogIds.map(String).filter(Boolean)));
-      window.App = window.App || {};
-      window.App.invoices = window.App.invoices || {};
-      window.App.invoices.timesheetImportState = tsState;
-    } catch (e) {}
+      setTimesheetImportStateSafe(tsState);
+    } catch (e) { }
 
     const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('timesheetImportModal'));
     modal.hide();
   }
 
   function removeImportedLines() {
-    if (!window.tempInvoiceLines) return;
-    const before = window.tempInvoiceLines.length;
-    window.tempInvoiceLines = window.tempInvoiceLines.filter((l) => !(l && l.tsImport === true));
+    const currentLines = getSessionLines();
+    if (!currentLines.length) return;
+    const before = currentLines.length;
+    const nextLines = currentLines.filter((l) => !(l && l.tsImport === true));
+    setSessionLines(nextLines);
 
     // Step 2: pulisco metadati import
-    try {
-      if (window.App && window.App.invoices) window.App.invoices.timesheetImportState = null;
-    } catch (e) {}
-    const after = window.tempInvoiceLines.length;
+    try { clearTimesheetImportStateSafe(); } catch (e) { }
+    const after = nextLines.length;
 
     if (typeof window.renderLocalInvoiceLines === 'function') window.renderLocalInvoiceLines();
     if (typeof window.updateTotalsDisplay === 'function') window.updateTotalsDisplay();
@@ -483,18 +587,24 @@
     const $btn = $('#invoice-remove-imported-timesheet-btn');
     if (!$btn.length) return;
 
-    const hasImported = (window.tempInvoiceLines || []).some((l) => l && l.tsImport === true);
+    const hasImported = (window.InvoiceFormSessionService && typeof window.InvoiceFormSessionService.hasImportedLines === 'function')
+      ? window.InvoiceFormSessionService.hasImportedLines()
+      : getSessionLines().some((l) => l && l.tsImport === true);
     $btn.toggleClass('d-none', !hasImported);
   }
 
   function openModal() {
     const cid = getInvoiceCustomerId();
     if (!cid) {
-      // non blocco: ma avviso
-      setAlert('Seleziona un <strong>Cliente</strong> nella fattura per filtrare le commesse automaticamente.', 'warning');
-    } else {
-      setAlert('', 'info');
+      const msg = 'Seleziona un <strong>Cliente</strong> nella fattura prima di poter importare ore dal Timesheet.';
+      if (window.AppModules.invoicesForm && typeof window.AppModules.invoicesForm.setInvoiceFormAlert === 'function') {
+        window.AppModules.invoicesForm.setInvoiceFormAlert(msg, 'warning');
+        $('#invoice-customer-select').addClass('is-invalid').focus();
+      }
+      alert('Attenzione: devi prima selezionare un Cliente.');
+      return;
     }
+    setAlert('', 'info');
 
     // Date default
     const def = defaultDateRangeFromInvoice();

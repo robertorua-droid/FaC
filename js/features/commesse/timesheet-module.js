@@ -7,6 +7,11 @@
   let _bound = false;
   let editingId = null;
 
+  // Gestione "ore cliente finale": di default segue le ore inserite,
+  // ma se l'utente le modifica manualmente non vengono sovrascritte.
+  let _finalTouched = false;
+  let _lastMainMinutes = 0;
+
   function updateUnlockSelectionUI() {
     const $checks = $('.ts-wl-select');
     const $enabled = $checks.filter(':not(:disabled)');
@@ -36,7 +41,7 @@
   }
 
   async function unlockSelectedWorklogs() {
-    const ids = $('.ts-wl-select:checked').map(function(){ return String($(this).data('id')); }).get();
+    const ids = $('.ts-wl-select:checked').map(function () { return String($(this).data('id')); }).get();
     if (!ids.length) return;
 
     const msg = 'Vuoi sbloccare ' + ids.length + ' worklog selezionati?\n\n' +
@@ -54,7 +59,7 @@
     try {
       $('#ts-select-all-invoiced').prop('checked', false).prop('indeterminate', false);
       $('#ts-unlock-selected-btn').prop('disabled', true);
-    } catch (e) {}
+    } catch (e) { }
 
     if (typeof renderTimesheetPage === 'function') renderTimesheetPage();
     if (typeof renderTimesheetExportPage === 'function') renderTimesheetExportPage();
@@ -68,6 +73,12 @@
     return h * 60 + m;
   }
 
+  function minutesFromInputsFinal() {
+    const h = parseInt($('#ts-hours-final').val(), 10) || 0;
+    const m = parseInt($('#ts-minutes-final').val(), 10) || 0;
+    return h * 60 + m;
+  }
+
   function setInputsFromMinutes(totalMinutes) {
     const mins = parseInt(totalMinutes, 10) || 0;
     const h = Math.floor(mins / 60);
@@ -76,8 +87,44 @@
     $('#ts-minutes').val(m);
   }
 
+  function setInputsFromMinutesFinal(totalMinutes) {
+    const mins = parseInt(totalMinutes, 10) || 0;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    $('#ts-hours-final').val(h);
+    $('#ts-minutes-final').val(m);
+  }
+
+  function refreshEndCustomerLabel() {
+    try {
+      const prId = String($('#ts-project').val() || '').trim();
+      let label = '-';
+      if (prId) {
+        const pr = (getData('projects') || []).find(p => String(p.id) === prId);
+        if (pr && pr.endCustomerId) {
+          const c = (getData('customers') || []).find(x => String(x.id) === String(pr.endCustomerId));
+          if (c && c.name) label = String(c.name);
+        }
+      }
+      $('#ts-endcustomer-label').text(label);
+    } catch (e) {
+      // no-op
+      try { $('#ts-endcustomer-label').text('-'); } catch (e2) { }
+    }
+  }
+
+  function syncFinalIfNeeded() {
+    const main = minutesFromInputs();
+    const fin = minutesFromInputsFinal();
+    if (!_finalTouched || fin === _lastMainMinutes) {
+      setInputsFromMinutesFinal(main);
+    }
+    _lastMainMinutes = main;
+  }
+
   function resetForm() {
     editingId = null;
+    _finalTouched = false;
     $('#ts-id').val('');
     // default oggi
     const today = new Date().toISOString().slice(0, 10);
@@ -86,10 +133,15 @@
     $('#ts-project').val('');
     $('#ts-hours').val(0);
     $('#ts-minutes').val(0);
+    $('#ts-hours-final').val(0);
+    $('#ts-minutes-final').val(0);
     $('#ts-billable').prop('checked', true);
     $('#ts-note').val('');
     $('#ts-save-btn').text('Salva');
     $('#ts-cancel-edit-btn').addClass('d-none');
+
+    _lastMainMinutes = minutesFromInputs();
+    refreshEndCustomerLabel();
   }
 
   function loadForEdit(id) {
@@ -108,11 +160,24 @@
     }
 
     setInputsFromMinutes(wl.minutes || 0);
+    setInputsFromMinutesFinal((wl.minutesFinal != null && wl.minutesFinal !== '') ? wl.minutesFinal : (wl.minutes || 0));
     $('#ts-billable').prop('checked', wl.billable !== false);
     $('#ts-note').val(wl.note || '');
 
+    _finalTouched = false;
+    _lastMainMinutes = minutesFromInputs();
+    refreshEndCustomerLabel();
+
     $('#ts-save-btn').text('Aggiorna');
     $('#ts-cancel-edit-btn').removeClass('d-none');
+
+    // Porta il focus in testata (utile se hai scrollato la tabella)
+    try {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setTimeout(() => {
+        $('#ts-date').trigger('focus');
+      }, 300);
+    } catch (e) { /* no-op */ }
   }
 
   async function saveWorklog() {
@@ -120,6 +185,7 @@
     const commessaId = String($('#ts-commessa').val() || '').trim();
     const projectId = String($('#ts-project').val() || '').trim();
     const minutes = minutesFromInputs();
+    let minutesFinal = minutesFromInputsFinal();
     const billable = $('#ts-billable').is(':checked');
     const note = String($('#ts-note').val() || '').trim();
 
@@ -140,14 +206,31 @@
       return;
     }
 
-    let id = editingId;
-    if (!id) id = String(getNextId(getData('worklogs') || []));
+    // Se l'utente non ha modificato manualmente le ore cliente finale (_finalTouched=false),
+    // usa il valore principale. Altrimenti rispetta il valore inserito dall'utente (anche se 0).
+    if (!_finalTouched && (!minutesFinal || minutesFinal <= 0)) {
+      minutesFinal = minutes;
+    }
 
+    let id = editingId;
+    let existingWorklog = null;
+
+    // Se stiamo modificando, recupera i dati esistenti per preservare tutti i campi
+    if (id) {
+      existingWorklog = (getData('worklogs') || []).find(x => String(x.id) === String(id));
+    } else {
+      id = String(getNextId(getData('worklogs') || []));
+    }
+
+    // Crea l'oggetto dati unendo i campi esistenti (se presenti) con i nuovi valori
     const data = {
+      ...(existingWorklog || {}),  // Preserva tutti i campi esistenti
+      id,                           // Assicura che l'id sia sempre presente
       date,
       commessaId,
       projectId,
       minutes,
+      minutesFinal,
       billable,
       note
     };
@@ -164,8 +247,14 @@
 
     // default filtri
     const today = new Date();
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+
+    // Usa costruttore stringa manuale per evitare problemi di fuso orario con toISOString()
+    const firstDay = `${y}-${m}-01`;
+    const lastDay = `${y}-${m}-${d}`;
+
     if (!$('#ts-filter-from').val()) $('#ts-filter-from').val(firstDay);
     if (!$('#ts-filter-to').val()) $('#ts-filter-to').val(lastDay);
 
@@ -189,6 +278,24 @@
       if (typeof window.populateProjectsForCommessa === 'function') {
         window.populateProjectsForCommessa('#ts-project', commessaId);
       }
+
+      // reset label cliente finale
+      refreshEndCustomerLabel();
+    });
+
+    // label cliente finale + sync ore CF
+    $('#ts-project').on('change', function () {
+      refreshEndCustomerLabel();
+    });
+
+    // Sync ore cliente finale (se non modificate manualmente)
+    $('#ts-hours, #ts-minutes').on('input', function () {
+      syncFinalIfNeeded();
+    });
+
+    // Flag: l'utente ha toccato le ore cliente finale
+    $('#ts-hours-final, #ts-minutes-final').on('input', function () {
+      _finalTouched = true;
     });
 
     // filtri

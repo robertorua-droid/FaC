@@ -20,12 +20,12 @@ Esportare i worklog (timesheet) in CSV, con:
 ### Dettaglio (default)
 - una riga per ogni worklog
 - colonne:
-  `Date | EndCustomer | BillToCustomer | Commessa | Project | Minutes | Hours | Billable`
+  `Date | EndCustomer | BillToCustomer | Commessa | ProjectCode | Project | Minutes | Hours | FinalMinutes | FinalHours | Billable`
 
 ### Giorno (progetti in colonne) – pivot
 - una riga per **Giorno + Commessa**
 - ogni progetto diventa una colonna con le ore
-- aggiunge anche `TotalHours`, `Billable` (SI/NO/MISTO) e `Note`
+- aggiunge anche `TotalHours`, `FinalTotalMinutes`, `FinalTotalHours`, `Billable` (SI/NO/MISTO) e `Note`
 
 ### Altri raggruppamenti
 - Giorno + Progetto
@@ -45,11 +45,14 @@ Esportare i worklog (timesheet) in CSV, con:
 
 ## Colonne: significato
 - **Date**: data worklog (gg/mm/aaaa)
-- **EndCustomer**: cliente finale della commessa (testo)
+- **EndCustomer**: cliente finale del progetto (testo)
 - **BillToCustomer**: cliente “Fatturo a” (anagrafica clienti)
 - **Commessa**: nome commessa
+- **ProjectCode**: codice progetto (se presente)
 - **Project**: nome progetto
-- **Minutes**: minuti totali per riga/gruppo
-- **Hours**: minuti convertiti in ore (2 decimali)
+- **Minutes**: minuti (commessa / fatturo a)
+- **Hours**: Minutes convertiti in ore (2 decimali)
+- **FinalMinutes**: minuti per il cliente finale (se non compilati, uguali a Minutes)
+- **FinalHours**: FinalMinutes convertiti in ore (2 decimali)
 - **Billable**: `SI` / `NO` / `MISTO`
 

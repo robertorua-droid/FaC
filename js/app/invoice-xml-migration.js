@@ -13,8 +13,11 @@ function bindEventListeners() {
     if (window.AppModules && window.AppModules.dashboard && typeof window.AppModules.dashboard.bind === 'function') {
       window.AppModules.dashboard.bind();
     }
+    if (window.AppModules && window.AppModules.theme && typeof window.AppModules.theme.bind === 'function') {
+      window.AppModules.theme.bind();
+    }
 
-        // COMMESSE / PROGETTI / TIMESHEET
+    // COMMESSE / PROGETTI / TIMESHEET
     if (window.AppModules && window.AppModules.commesse && typeof window.AppModules.commesse.bind === 'function') {
       window.AppModules.commesse.bind();
     }
@@ -28,7 +31,7 @@ function bindEventListeners() {
       window.AppModules.timesheetExport.bind();
     }
 
-if (window.AppModules && window.AppModules.registriIva && typeof window.AppModules.registriIva.bind === 'function') {
+    if (window.AppModules && window.AppModules.registriIva && typeof window.AppModules.registriIva.bind === 'function') {
       window.AppModules.registriIva.bind();
     }
 

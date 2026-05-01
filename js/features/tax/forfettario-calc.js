@@ -31,6 +31,40 @@
     return isNaN(n) ? 0 : n;
   }
 
+  function safeObj(o) {
+    return (o && typeof o === "object") ? o : {};
+  }
+
+  // Reads a numeric value stored "per anno" inside companyInfo maps like:
+  // - contributiVersatiByYear: { "2025": 123.45 }
+  // Falls back to a legacy/global field ONLY for the current year (to ease migration),
+  // otherwise returns 0 when the year-specific value is missing.
+  function getYearMapNumber(companyInfo, mapField, year, legacyField, useLegacyForCurrentYear) {
+    companyInfo = companyInfo || {};
+    var nowY = new Date().getFullYear();
+
+    if (year === null || year === undefined || year === "all") {
+      return safeFloat(companyInfo[legacyField]);
+    }
+
+    var y = parseInt(year, 10);
+    if (isNaN(y)) return safeFloat(companyInfo[legacyField]);
+
+    var map = safeObj(companyInfo[mapField]);
+    var key = String(y);
+
+    if (Object.prototype.hasOwnProperty.call(map, key)) return safeFloat(map[key]);
+
+    if (useLegacyForCurrentYear && y === nowY &&
+        companyInfo[legacyField] !== undefined &&
+        companyInfo[legacyField] !== null &&
+        String(companyInfo[legacyField]).trim() !== "") {
+      return safeFloat(companyInfo[legacyField]);
+    }
+
+    return 0;
+  }
+
   function yearFromISODate(isoDate) {
     // expected: YYYY-MM-DD
     if (!isoDate || typeof isoDate !== "string") return null;
@@ -64,19 +98,19 @@
     return !isCreditNote(inv);
   }
 
-  function defaultCompanyParams(companyInfo) {
+  function defaultCompanyParams(companyInfo, year) {
     companyInfo = companyInfo || {};
     return {
       coefficienteRedditivita: safeFloat(companyInfo.coefficienteRedditivita), // %
       aliquotaSostitutiva: safeFloat(companyInfo.aliquotaSostitutiva),        // %
       aliquotaContributi: safeFloat(companyInfo.aliquotaContributi),          // %
-      contributiVersati: safeFloat(companyInfo.contributiVersati),            // €
+      contributiVersati: getYearMapNumber(companyInfo, 'contributiVersatiByYear', year, 'contributiVersati', true),            // € (per-anno)
 
       // Versamenti / crediti (per una simulazione più realistica)
       // - acconti imposta già versati sull'anno simulato (riduce il saldo)
       // - crediti/compensazioni disponibili (RX) utilizzabili anche sugli acconti, se desiderato in UI
-      accontiImpostaVersati: safeFloat(companyInfo.accontiImpostaVersati),    // €
-      creditiImposta: safeFloat(companyInfo.creditiImposta)                  // €
+      accontiImpostaVersati: getYearMapNumber(companyInfo, 'accontiVersatiByYear', year, 'accontiImpostaVersati', true),    // € (per-anno)
+      creditiImposta: getYearMapNumber(companyInfo, 'creditiImpostaByYear', year, 'creditiImposta', true)                  // € (per-anno)
     };
   }
 
@@ -203,7 +237,7 @@
     var totaleDocNetto = totaleDocF - totaleDocNC;
 
     var company = (backup && backup.companyInfo) ? backup.companyInfo : {};
-    var params = defaultCompanyParams(company);
+    var params = defaultCompanyParams(company, year);
 
     // Forfettario taxable income simulation
     var baseForCalc = options.includeBolloInCompensi ? compensiNettiConBollo : compensiNetti;
@@ -225,8 +259,8 @@
     // Versamenti (stima) - più realistica
     // -----------------------------
     var accontiStorico = computeAccontiStorico(impostaSostitutiva);
-    var accontiVersatiImposta = safeFloat(company.accontiImpostaVersati);
-    var creditiImposta = safeFloat(company.creditiImposta);
+    var accontiVersatiImposta = safeFloat(params.accontiImpostaVersati);
+    var creditiImposta = safeFloat(params.creditiImposta);
 
     // Saldo imposta dell'anno (imposta dovuta - acconti già versati - crediti)
     var saldoDopoAcconti = Math.max(0, impostaSostitutiva - accontiVersatiImposta);

@@ -186,6 +186,214 @@
       }
     });
 
+    // =============================
+    // Dettaglio movimenti (drilldown totali)
+    // =============================
+
+    function escapeHtml(val) {
+      return String(val ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function showIvaMovementsModal(periodKey) {
+      try {
+        if (typeof renderRegistriIVAPage === 'function') renderRegistriIVAPage();
+        const cache = window._lastIvaTotals || {};
+        const movementsByPeriod = cache.movementsByPeriod || {};
+        const periodLabelsMap = cache.periodLabelsMap || {};
+        const keys = Array.isArray(cache.keys) ? cache.keys : [];
+
+        let vendite = [];
+        let acquisti = [];
+        let titleLabel = '';
+
+        if (periodKey === '__ALL__') {
+          titleLabel = 'Tutti i periodi';
+          keys.forEach(k => {
+            const b = movementsByPeriod[k] || {};
+            vendite = vendite.concat(Array.isArray(b.vendite) ? b.vendite : []);
+            acquisti = acquisti.concat(Array.isArray(b.acquisti) ? b.acquisti : []);
+          });
+        } else {
+          titleLabel = periodLabelsMap[periodKey] || periodKey;
+          const b = movementsByPeriod[periodKey] || {};
+          vendite = Array.isArray(b.vendite) ? b.vendite : [];
+          acquisti = Array.isArray(b.acquisti) ? b.acquisti : [];
+        }
+
+        const sumVendIva = vendite.reduce((acc, m) => acc + (parseFloat(m.iva) || 0), 0);
+        const sumAcqIva = acquisti.reduce((acc, m) => acc + (parseFloat(m.iva) || 0), 0);
+        const diff = sumVendIva - sumAcqIva;
+
+        // Summary
+        $('#ivaMovementsModalLabel').text(`Movimenti Registri IVA - ${titleLabel}`);
+        $('#iva-movements-summary').html(
+          `<div class="row g-2">
+             <div class="col-md-4"><div class="small text-muted">IVA Vendite (movimenti)</div><div class="fw-bold">€ ${moneyIt(sumVendIva)}</div></div>
+             <div class="col-md-4"><div class="small text-muted">IVA Acquisti (movimenti)</div><div class="fw-bold">€ ${moneyIt(sumAcqIva)}</div></div>
+             <div class="col-md-4"><div class="small text-muted">IVA da versare (movimenti)</div><div class="fw-bold">€ ${moneyIt(diff)}</div></div>
+           </div>
+           <div class="small text-muted mt-2">Qui vedi i documenti che compongono i totali del periodo selezionato. Nota: le Note di Credito hanno importi negativi.</div>`
+        );
+
+        function sortMov(a, b) {
+          const da = String(a.date || '');
+          const db = String(b.date || '');
+          if (da !== db) return da.localeCompare(db);
+          return String(a.number || '').localeCompare(String(b.number || ''));
+        }
+        vendite = vendite.slice().sort(sortMov);
+        acquisti = acquisti.slice().sort(sortMov);
+
+        function renderMovTable(rows, kind) {
+          if (!rows.length) {
+            return '<div class="alert alert-info">Nessun movimento per i filtri selezionati.</div>';
+          }
+
+          const hasScad = (kind === 'acquisti');
+          const head = hasScad
+            ? `<tr><th>Data</th><th>Numero</th><th>Fornitore</th><th>Tipo</th><th class="text-end">Imponibile</th><th class="text-end">IVA</th><th class="text-end">Totale</th><th>Stato</th><th>Scadenza</th></tr>`
+            : `<tr><th>Data</th><th>Numero</th><th>Cliente</th><th>Tipo</th><th class="text-end">Imponibile</th><th class="text-end">IVA</th><th class="text-end">Totale</th><th>Stato</th></tr>`;
+
+          const body = rows
+            .map(m => {
+              const impon = parseFloat(m.imponibile) || 0;
+              const iva = parseFloat(m.iva) || 0;
+              const tot = parseFloat(m.totale) || 0;
+              const isNeg = (tot < 0 || iva < 0 || impon < 0);
+              const trClass = isNeg ? 'table-warning' : '';
+              const base = `
+                <td>${escapeHtml(formatDateIT(m.date || ''))}</td>
+                <td><a href="#" class="iva-open-doc" data-kind="${kind}" data-id="${escapeHtml(m.id || '')}" title="Apri dettaglio">${escapeHtml(m.number || m.id || '')} <i class="fas fa-external-link-alt ms-1"></i></a></td>
+                <td>${escapeHtml(m.counterparty || '')}</td>
+                <td>${escapeHtml(m.docType || '')}</td>
+                <td class="text-end">€ ${moneyIt(impon)}</td>
+                <td class="text-end">€ ${moneyIt(iva)}</td>
+                <td class="text-end">€ ${moneyIt(tot)}</td>
+                <td>${escapeHtml(m.status || '')}</td>
+              `;
+              if (hasScad) {
+                return `<tr class="${trClass}">${base}<td>${escapeHtml(formatDateIT(m.dataScadenza || ''))}</td></tr>`;
+              }
+              return `<tr class="${trClass}">${base}</tr>`;
+            })
+            .join('');
+
+          return `<div class="table-responsive">
+            <table class="table table-sm table-hover align-middle">
+              <thead>${head}</thead>
+              <tbody>${body}</tbody>
+            </table>
+          </div>`;
+        }
+
+        $('#iva-movements-vendite').html(renderMovTable(vendite, 'vendite'));
+        $('#iva-movements-acquisti').html(renderMovTable(acquisti, 'acquisti'));
+
+        // show modal
+        const el = document.getElementById('ivaMovementsModal');
+        if (el && window.bootstrap && bootstrap.Modal) {
+          const m = bootstrap.Modal.getOrCreateInstance(el);
+          m.show();
+        }
+      } catch (e) {
+        console.error('showIvaMovementsModal error:', e);
+        alert('Errore apertura dettaglio movimenti.');
+      }
+    }
+
+    $('#registri-iva')
+      .off('click.registriIvaMov', '.iva-show-movements')
+      .on('click.registriIvaMov', '.iva-show-movements', function () {
+        const k = String($(this).attr('data-period') || '').trim();
+        if (!k) return;
+        showIvaMovementsModal(k);
+      });
+
+    // Shortcut: vai agli elenchi
+    $(document)
+      .off('click.registriIvaNav', '#iva-go-elenco-fatture-btn')
+      .on('click.registriIvaNav', '#iva-go-elenco-fatture-btn', function () {
+        try {
+          const el = document.getElementById('ivaMovementsModal');
+          if (el && window.bootstrap && bootstrap.Modal) {
+            const m = bootstrap.Modal.getInstance(el);
+            if (m) m.hide();
+          }
+        } catch (e) {}
+        $('.sidebar .nav-link[data-target="elenco-fatture"]').click();
+      });
+
+    
+    // Click su numero documento: apri dettaglio (fattura/acquisto)
+    function openInvoiceDetailById(id) {
+      const iid = String(id || '').trim();
+      if (!iid) return;
+
+      const tryOpen = () => {
+        const $body = $('#invoices-table-body');
+        if (!$body.length) return false;
+        const $tmp = $('<button type="button" class="btn-view-invoice d-none"></button>').attr('data-id', iid);
+        $body.append($tmp);
+        $tmp.trigger('click');
+        $tmp.remove();
+        return true;
+      };
+
+      if (tryOpen()) return;
+
+      // Fallback: vai all'elenco fatture e riprova dopo un attimo
+      $('.sidebar .nav-link[data-target="elenco-fatture"]').click();
+      setTimeout(function(){ tryOpen(); }, 250);
+    }
+
+    $(document)
+      .off('click.registriIvaOpenDoc', '#ivaMovementsModal .iva-open-doc')
+      .on('click.registriIvaOpenDoc', '#ivaMovementsModal .iva-open-doc', function (e) {
+        e.preventDefault();
+        const kind = String($(this).attr('data-kind') || '').toLowerCase();
+        const id = String($(this).attr('data-id') || '').trim();
+        if (!id) return;
+
+        // Chiudi la modale movimenti (per evitare sovrapposizioni)
+        try {
+          const el = document.getElementById('ivaMovementsModal');
+          if (el && window.bootstrap && bootstrap.Modal) {
+            const m = bootstrap.Modal.getInstance(el);
+            if (m) m.hide();
+          }
+        } catch (err) {}
+
+        if (kind === 'acquisti') {
+          if (typeof window.showPurchaseDetailModalById === 'function') {
+            window.showPurchaseDetailModalById(id);
+          } else {
+            // Fallback: vai a elenco acquisti
+            $('.sidebar .nav-link[data-target="elenco-acquisti"]').click();
+          }
+          return;
+        }
+
+        // Vendite
+        openInvoiceDetailById(id);
+      });
+$(document)
+      .off('click.registriIvaNav2', '#iva-go-elenco-acquisti-btn')
+      .on('click.registriIvaNav2', '#iva-go-elenco-acquisti-btn', function () {
+        try {
+          const el = document.getElementById('ivaMovementsModal');
+          if (el && window.bootstrap && bootstrap.Modal) {
+            const m = bootstrap.Modal.getInstance(el);
+            if (m) m.hide();
+          }
+        } catch (e) {}
+        $('.sidebar .nav-link[data-target="elenco-acquisti"]').click();
+      });
+
   }
 
   window.AppModules.registriIva.bind = bind;

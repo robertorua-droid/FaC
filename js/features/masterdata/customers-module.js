@@ -6,6 +6,18 @@
 
   let _bound = false;
 
+  function getCustomersStore() {
+    if (window.AppStore && typeof window.AppStore.get === 'function') return window.AppStore.get('customers') || [];
+    if (typeof window.getData === 'function') return window.getData('customers') || [];
+    return [];
+  }
+
+  function getCompanyStoreInfo() {
+    if (window.AppStore && typeof window.AppStore.get === 'function') return window.AppStore.get('companyInfo') || {};
+    if (typeof window.getData === 'function') return window.getData('companyInfo') || {};
+    return {};
+  }
+
   function bind() {
     if (_bound) return;
     _bound = true;
@@ -16,6 +28,14 @@
         $('#customer-giornoFissoValue').prop('disabled', !enabled);
         if (!enabled) $('#customer-giornoFissoValue').val('');
       }
+    }
+
+    // Scorporo Rivalsa INPS: abilitabile solo se la rivalsa è attiva
+    function syncCustomerScorporoRivalsaUI() {
+      const riv = $('#customer-rivalsaInps').is(':checked');
+      if (!$('#customer-scorporoRivalsaInps').length) return;
+      $('#customer-scorporoRivalsaInps').prop('disabled', !riv);
+      if (!riv) $('#customer-scorporoRivalsaInps').prop('checked', false);
     }
 
 // =========================================================
@@ -181,6 +201,17 @@ function validateCustomerBeforeSave() {
       // SDI: modalità manuale (nessun flag)
       setSdiMode('manual', false);
 
+      // Rivalsa/Scorporo
+      if ($('#customer-rivalsaInps').length) $('#customer-rivalsaInps').prop('checked', false);
+      if ($('#customer-scorporoRivalsaInps').length) $('#customer-scorporoRivalsaInps').prop('checked', false);
+      syncCustomerScorporoRivalsaUI();
+
+      // Bollo a carico emittente (default: NO)
+      if ($('#customer-bolloAcaricoEmittente').length) $('#customer-bolloAcaricoEmittente').prop('checked', false);
+
+      // Prefisso descrizione import Timesheet (solo Forfettario)
+      if ($('#customer-timesheetPrefix').length) $('#customer-timesheetPrefix').val('Consulenza');
+
       // Defaults termini pagamento
       if ($('#customer-giorniTermini').length) $('#customer-giorniTermini').val('');
       if ($('#customer-fineMese').length) $('#customer-fineMese').prop('checked', false);
@@ -191,6 +222,11 @@ function validateCustomerBeforeSave() {
       }
 
       $('#customerModal').modal('show');
+    });
+
+    // Toggle scorporo UI
+    $(document).on('change', '#customer-rivalsaInps', function () {
+      syncCustomerScorporoRivalsaUI();
     });
 
     // Toggle UI giorno fisso
@@ -224,6 +260,24 @@ function validateCustomerBeforeSave() {
       syncCustomerGiornoFissoUI();
       syncSdiModeFromValue();
       applyCustomerCountryRules();
+      syncCustomerScorporoRivalsaUI();
+
+      // Prefisso Timesheet: per i clienti "vecchi" (campo assente) mostro il default "Consulenza"
+      // senza forzare una scelta (l'utente può svuotare per nessun prefisso o inserire testo custom).
+      try {
+        const ci = getCompanyStoreInfo();
+        const isForf = window.TaxRegimePolicy ? window.TaxRegimePolicy.isForfettario(ci) : false;
+        if (isForf && $('#customer-timesheetPrefix').length) {
+          const currentVal = String($('#customer-timesheetPrefix').val() || '').trim();
+          if (CURRENT_EDITING_ID) {
+            const existing = getCustomersStore().find((c) => String(c.id) === String(CURRENT_EDITING_ID)) || null;
+            const hasProp = existing && Object.prototype.hasOwnProperty.call(existing, 'timesheetPrefix');
+            if (!hasProp && currentVal === '') $('#customer-timesheetPrefix').val('Consulenza');
+          } else {
+            if (currentVal === '') $('#customer-timesheetPrefix').val('Consulenza');
+          }
+        }
+      } catch (e) { }
     });
 
     $('#saveCustomerBtn').click(async () => {
@@ -235,7 +289,7 @@ function validateCustomerBeforeSave() {
       if ($('#customer-sdi-estero').is(':checked')) $('#customer-sdi').val(SDI_ESTERO);
 
       const nazioneToSave = _normalizeNazioneForSave($('#customer-nazione').val());
-      const data = {
+      let data = {
         name: $('#customer-name').val(),
         piva: $('#customer-piva').val(),
         codiceFiscale: $('#customer-codiceFiscale').val(),
@@ -246,7 +300,12 @@ function validateCustomerBeforeSave() {
         cap: $('#customer-cap').val(),
         nazione: nazioneToSave,
         rivalsaInps: $('#customer-rivalsaInps').is(':checked'),
+        scorporoRivalsaInps: $('#customer-scorporoRivalsaInps').length ? $('#customer-scorporoRivalsaInps').is(':checked') : false,
         sostitutoImposta: $('#customer-sostitutoImposta').is(':checked'),
+        bolloAcaricoEmittente: $('#customer-bolloAcaricoEmittente').length ? $('#customer-bolloAcaricoEmittente').is(':checked') : false,
+        // Prefisso descrizione import Timesheet (solo Forfettario)
+        // Nota: il campo può essere stringa vuota per indicare "nessun prefisso".
+        timesheetPrefix: $('#customer-timesheetPrefix').length ? String($('#customer-timesheetPrefix').val() || '').trim() : '',
         pec: $('#customer-pec').val() || '',
 
         // Termini pagamento default (opzionali)
@@ -269,10 +328,23 @@ function validateCustomerBeforeSave() {
         })()
       };
 
-      let id = CURRENT_EDITING_ID ? CURRENT_EDITING_ID : String(getNextId(getData('customers')));
+      if (window.DomainNormalizers && typeof window.DomainNormalizers.normalizeCustomerInfo === 'function') {
+        data = window.DomainNormalizers.normalizeCustomerInfo(data);
+      }
+
+      // Richiesta: la personalizzazione descrizione TS vale solo in forfettario.
+      // In ordinario non persistiamo/aggiorniamo il campo per evitare effetti collaterali.
+      try {
+        const ci = getCompanyStoreInfo();
+        const isForf = window.TaxRegimePolicy ? window.TaxRegimePolicy.isForfettario(ci) : false;
+        if (!isForf) delete data.timesheetPrefix;
+      } catch (e) { }
+
+      let id = CURRENT_EDITING_ID ? CURRENT_EDITING_ID : String(getNextId(getCustomersStore()));
       await saveDataToCloud('customers', data, id);
       $('#customerModal').modal('hide');
-      renderAll();
+      if (window.UiRefresh && typeof window.UiRefresh.refreshMasterDataArea === 'function') window.UiRefresh.refreshMasterDataArea();
+      else if (typeof renderMasterDataArea === 'function') renderMasterDataArea();
     });
 
     $('#customers-table-body').on('click', '.btn-edit-customer', function (e) {
@@ -280,7 +352,11 @@ function validateCustomerBeforeSave() {
     });
 
     $('#customers-table-body').on('click', '.btn-delete-customer', function (e) {
-      deleteDataFromCloud('customers', $(e.currentTarget).attr('data-id'));
+      const id = $(e.currentTarget).attr('data-id');
+      if (window.deleteDataFromCloud) window.deleteDataFromCloud('customers', id, { skipRender: true }).then(() => {
+        if (window.UiRefresh && typeof window.UiRefresh.refreshMasterDataArea === 'function') window.UiRefresh.refreshMasterDataArea();
+        else if (typeof renderMasterDataArea === 'function') renderMasterDataArea();
+      });
     });
   }
 

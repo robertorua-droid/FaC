@@ -35,6 +35,14 @@
     return n.toFixed(2);
   }
 
+  function summarizeEndCustomers(list) {
+    const uniq = Array.from(new Set((list || []).map(r => cleanText(r.endCustomerName || '')).filter(Boolean)));
+    if (uniq.length === 0) return '';
+    if (uniq.length === 1) return uniq[0];
+    const shown = uniq.slice(0, 3).join(', ');
+    return uniq.length > 3 ? (shown + ` +${uniq.length - 3}`) : shown;
+  }
+
   function withinRange(dateStr, from, to) {
     if (!dateStr) return false;
     if (from && dateStr < from) return false;
@@ -99,12 +107,16 @@
       const cm = commessaById.get(String(wl.commessaId));
       const pr = projectById.get(String(wl.projectId));
       const billTo = cm ? customerById.get(String(cm.billToCustomerId || '')) : null;
+      const endCust = (pr && pr.endCustomerId) ? customerById.get(String(pr.endCustomerId)) : null;
+      const minutesFinal = (wl.minutesFinal != null && wl.minutesFinal !== '') ? (parseInt(wl.minutesFinal, 10) || 0) : (parseInt(wl.minutes, 10) || 0);
       return {
         ...wl,
         commessaName: cm ? (cm.name || '') : '',
-        endCustomerName: cm ? (cm.endCustomerName || '') : '',
+        endCustomerName: endCust ? (endCust.name || '') : '',
+        projectCode: pr ? (pr.code || '') : '',
         projectName: pr ? (pr.name || '') : '',
-        billToCustomerName: billTo ? (billTo.name || '') : ''
+        billToCustomerName: billTo ? (billTo.name || '') : '',
+        minutesFinal
       };
     });
 
@@ -161,13 +173,19 @@
         groups.set(key, {
           base: r,
           minutesByProject: new Map(),
+          endCustomerNames: new Set(),
           notes: [],
-          billableStates: []
+          billableStates: [],
+          totalFinalMinutes: 0
         });
       }
       const g = groups.get(key);
+      const ec = cleanText(r.endCustomerName || '');
+      if (ec) g.endCustomerNames.add(ec);
       const pn = String(r.projectName || '').trim();
       const mins = parseInt(r.minutes, 10) || 0;
+      const minsFinal = (r.minutesFinal != null && r.minutesFinal !== '') ? (parseInt(r.minutesFinal, 10) || 0) : mins;
+      g.totalFinalMinutes += minsFinal;
       if (pn) {
         g.minutesByProject.set(pn, (g.minutesByProject.get(pn) || 0) + mins);
       }
@@ -184,11 +202,12 @@
       return String(a.base.commessaName || '').localeCompare(String(b.base.commessaName || ''));
     });
 
-    const header = ['Date', 'EndCustomer', 'BillToCustomer', 'Commessa', ...projectNames, 'TotalHours', 'Billable', 'Note'];
+    const header = ['Date', 'EndCustomer', 'BillToCustomer', 'Commessa', ...projectNames, 'TotalHours', 'FinalTotalMinutes', 'FinalTotalHours', 'Billable', 'Note'];
     const lines = [header.map(escapeCsvField).join(';')];
 
     sorted.forEach(g => {
       const base = g.base || {};
+      const endCustomerOut = summarizeEndCustomers(Array.from(g.endCustomerNames || []).map(n => ({ endCustomerName: n })));
       const totalMinutes = Array.from(g.minutesByProject.values()).reduce((s, n) => s + (parseInt(n, 10) || 0), 0);
 
       const allTrue = g.billableStates.every(v => v === true);
@@ -197,7 +216,7 @@
 
       const row = [
         formatDateIT(base.date || ''),
-        cleanText(base.endCustomerName || ''),
+        endCustomerOut,
         cleanText(base.billToCustomerName || ''),
         cleanText(base.commessaName || ''),
         ...projectNames.map(pn => {
@@ -205,6 +224,8 @@
           return m ? minutesToHours(m) : '';
         }),
         minutesToHours(totalMinutes),
+        String(g.totalFinalMinutes || 0),
+        minutesToHours(g.totalFinalMinutes || 0),
         billableOut,
         g.notes.join(' | ')
       ].map(escapeCsvField).join(';');
@@ -216,8 +237,8 @@
   }
 
   function buildCsv(groups, mode) {
-    // Column order requested: Date | EndCustomer | BillToCustomer | Commessa | Project | Minutes | Hours | Billable
-    const header = ['Date', 'EndCustomer', 'BillToCustomer', 'Commessa', 'Project', 'Minutes', 'Hours', 'Billable'];
+    // Dettaglio + raggruppamenti: includo anche Codice Progetto e ore/minuti "cliente finale"
+    const header = ['Date', 'EndCustomer', 'BillToCustomer', 'Commessa', 'ProjectCode', 'Project', 'Minutes', 'Hours', 'FinalMinutes', 'FinalHours', 'Billable'];
     const lines = [header.join(';')];
 
     // Dettaglio: una riga per ogni worklog
@@ -225,14 +246,18 @@
       groups.forEach(g => {
         (g.rows || []).forEach(r => {
           const mins = parseInt(r.minutes, 10) || 0;
+          const minsFinal = (r.minutesFinal != null && r.minutesFinal !== '') ? (parseInt(r.minutesFinal, 10) || 0) : mins;
           const line = [
             formatDateIT(r.date || ''),
             cleanText(r.endCustomerName || ''),
             cleanText(r.billToCustomerName || ''),
             cleanText(r.commessaName || ''),
+            cleanText(r.projectCode || ''),
             cleanText(r.projectName || ''),
             String(mins),
             minutesToHours(mins),
+            String(minsFinal),
+            minutesToHours(minsFinal),
             (r.billable !== false) ? 'SI' : 'NO'
           ].map(escapeCsvField).join(';');
           lines.push(line);
@@ -247,8 +272,15 @@
       if (!list.length) return;
 
       const totalMinutes = list.reduce((s, r) => s + (parseInt(r.minutes, 10) || 0), 0);
+      const totalMinutesFinal = list.reduce((s, r) => {
+        const mf = (r.minutesFinal != null && r.minutesFinal !== '') ? (parseInt(r.minutesFinal, 10) || 0) : (parseInt(r.minutes, 10) || 0);
+        return s + mf;
+      }, 0);
       const base = list[0];
       const dateOut = (mode === 'day_project') ? formatDateIT(base.date || '') : '';
+
+      const endCustomerOut = summarizeEndCustomers(list);
+      const projectCodeOut = (mode === 'day_project' || mode === 'project') ? cleanText(base.projectCode || '') : '';
 
       const allTrue = list.every(r => (r.billable !== false) === true);
       const allFalse = list.every(r => (r.billable !== false) === false);
@@ -256,12 +288,15 @@
 
       const row = [
         dateOut,
-        cleanText(base.endCustomerName || ''),
+        endCustomerOut,
         cleanText(base.billToCustomerName || ''),
         cleanText(base.commessaName || ''),
+        projectCodeOut,
         cleanText(base.projectName || ''),
         String(totalMinutes),
         minutesToHours(totalMinutes),
+        String(totalMinutesFinal),
+        minutesToHours(totalMinutesFinal),
         billableOut
       ].map(escapeCsvField).join(';');
 
@@ -291,10 +326,16 @@
     if (_bound) return;
     _bound = true;
 
-    // default date range: mese corrente
+    // default date range: mese corrente fino a OGGI
     const today = new Date();
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+
+    // Usa costruttore stringa manuale per evitare problemi di fuso orario con toISOString()
+    const firstDay = `${y}-${m}-01`;
+    const lastDay = `${y}-${m}-${d}`;
+
     if (!$('#ts-exp-from').val()) $('#ts-exp-from').val(firstDay);
     if (!$('#ts-exp-to').val()) $('#ts-exp-to').val(lastDay);
 

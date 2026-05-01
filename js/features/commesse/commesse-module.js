@@ -11,7 +11,6 @@
     editingId = null;
     $('#commessa-id').val('');
     $('#commessa-name').val('');
-    $('#commessa-endCustomer').val('');
     $('#commessa-billToCustomer').val('');
     $('#commessa-status').val('attiva');
     $('#commessa-notes').val('');
@@ -27,7 +26,6 @@
     editingId = String(cm.id);
     $('#commessa-id').val(editingId);
     $('#commessa-name').val(cm.name || '');
-    $('#commessa-endCustomer').val(cm.endCustomerName || '');
     $('#commessa-billToCustomer').val(cm.billToCustomerId || '');
     $('#commessa-status').val(cm.status || 'attiva');
     $('#commessa-notes').val(cm.notes || '');
@@ -60,7 +58,6 @@
 
     const data = {
       name,
-      endCustomerName: String($('#commessa-endCustomer').val() || '').trim(),
       billToCustomerId: String($('#commessa-billToCustomer').val() || '').trim(),
       status: String($('#commessa-status').val() || 'attiva'),
       notes: String($('#commessa-notes').val() || '').trim(),

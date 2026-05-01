@@ -1,7 +1,7 @@
 // utils.js
 // Variabili Globali
 let db, auth;
-let globalData = {
+let globalData = window.globalData || {
     companyInfo: {},
     products: [],
     customers: [],
@@ -13,6 +13,7 @@ let globalData = {
     projects: [],
     worklogs: []
 };
+window.globalData = globalData;
 let currentUser = null;
 let dateTimeInterval = null;
 let CURRENT_EDITING_ID = null;         
@@ -124,58 +125,58 @@ window.stopInactivityWatch = stopInactivityWatch;
         return numericIds.length > 0 ? Math.max(...numericIds) + 1 : 1; 
     }
 
-    function getData(key) { return globalData[key] || []; }
+    function getData(key) {
+        const store = window.AppStore ? window.AppStore.get() : globalData;
+        return store[key] || [];
+    }
     function safeFloat(val) { const n = parseFloat(val); return isNaN(n) ? 0 : n; }
 
     
     // =========================================================
-    // REGIME FISCALE (GESTIONALE) - FUNZIONI UNIFICATE
-    //
-    // `taxRegime` (ordinario/forfettario) è la fonte primaria.
-    // Se non è impostato, facciamo fallback su `codiceRegimeFiscale`
-    // (es. RF19 per il Forfettario) per mantenere il comportamento coerente
-    // in tutto il progetto.
+    // REGIME FISCALE (GESTIONALE) - WRAPPER LEGACY SU TAX REGIME POLICY
+    // La policy è stata estratta in js/core/tax-regime-policy.js per ridurre
+    // l'accoppiamento di utils.js e rendere il dominio riusabile dai moduli.
     // =========================================================
 
-    function _normalizeTaxRegime(v) {
-        const t = String(v || '').trim().toLowerCase();
-        if (t === 'forfettario' || t === 'ordinario') return t;
-        return '';
-    }
+    // Espongo getData anche su window così la policy dedicata può risolvere
+    // il companyInfo corrente senza dipendere internamente da utils.js.
+    window.getData = getData;
 
-    function _extractRFCode(v) {
-        const raw = String(v || '').trim().toUpperCase();
-        if (!raw) return '';
-        // Accetta sia "RF19" che stringhe più lunghe che contengono il codice
-        const m = raw.match(/RF\d{2}/);
-        return m ? m[0] : raw;
-    }
-
-    // Ritorna: 'forfettario' | 'ordinario' | '' (sconosciuto)
     function getResolvedTaxRegime(companyInfo) {
-        const ci = companyInfo || ((typeof getData === 'function') ? (getData('companyInfo') || {}) : {});
-        const explicit = _normalizeTaxRegime(ci.taxRegime);
-        if (explicit) return explicit;
-
-        const rf = _extractRFCode(ci.codiceRegimeFiscale);
-        if (!rf) return '';
-        if (rf === 'RF19') return 'forfettario';
-        if (/^RF\d{2}$/.test(rf)) return 'ordinario';
-        return '';
+        return window.TaxRegimePolicy ? window.TaxRegimePolicy.resolve(companyInfo) : '';
     }
 
     function hasTaxRegime(companyInfo) {
-        const r = getResolvedTaxRegime(companyInfo);
-        return r === 'forfettario' || r === 'ordinario';
+        return window.TaxRegimePolicy ? window.TaxRegimePolicy.has(companyInfo) : false;
     }
 
     function isForfettario(companyInfo) {
-        return getResolvedTaxRegime(companyInfo) === 'forfettario';
+        return window.TaxRegimePolicy ? window.TaxRegimePolicy.isForfettario(companyInfo) : false;
     }
 
     function isOrdinario(companyInfo) {
-        return getResolvedTaxRegime(companyInfo) === 'ordinario';
+        return window.TaxRegimePolicy ? window.TaxRegimePolicy.isOrdinario(companyInfo) : false;
     }
+
+    // =========================================================
+    // BOLLO: Preferisci override sul documento (fattura) se presente,
+    // altrimenti usa il flag in anagrafica cliente.
+    // =========================================================
+    function resolveBolloAcaricoEmittente(invoiceInfo, customerInfo) {
+        const inv = invoiceInfo || {};
+        if (inv && inv.bolloAcaricoEmittente !== undefined && inv.bolloAcaricoEmittente !== null) {
+            return (inv.bolloAcaricoEmittente === true || String(inv.bolloAcaricoEmittente) === 'true');
+        }
+        const cust = customerInfo || {};
+        return (cust.bolloAcaricoEmittente === true || String(cust.bolloAcaricoEmittente) === 'true');
+    }
+
+
+    window.getResolvedTaxRegime = getResolvedTaxRegime;
+    window.hasTaxRegime = hasTaxRegime;
+    window.isForfettario = isForfettario;
+    window.isOrdinario = isOrdinario;
+    window.resolveBolloAcaricoEmittente = resolveBolloAcaricoEmittente;
 
 // Restituisce il riferimento al document utente: /users/{uid}
     function getUserDocRef() {

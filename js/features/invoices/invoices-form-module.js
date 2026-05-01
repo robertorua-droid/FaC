@@ -3,14 +3,70 @@
 
 (function () {
   window.AppModules = window.AppModules || {};
+  const C = window.DomainConstants || {};
+  const INVOICE_NATURE_DEFAULT = (C.INVOICE_NATURES && C.INVOICE_NATURES.VAT_EXEMPT_DEFAULT) || 'N2.2';
   window.AppModules.invoicesForm = window.AppModules.invoicesForm || {};
   window.App = window.App || {};
   window.App.invoices = window.App.invoices || {};
 
   let _bound = false;
 
+  function getCurrentInvoiceIdSafe() {
+    if (window.InvoiceFormSessionService && typeof window.InvoiceFormSessionService.getCurrentInvoiceId === 'function') {
+      return window.InvoiceFormSessionService.getCurrentInvoiceId();
+    }
+    return window.CURRENT_EDITING_INVOICE_ID || null;
+  }
+
+  function setCurrentInvoiceIdSafe(invoiceId) {
+    if (window.InvoiceFormSessionService && typeof window.InvoiceFormSessionService.setCurrentInvoiceId === 'function') {
+      return window.InvoiceFormSessionService.setCurrentInvoiceId(invoiceId);
+    }
+    window.CURRENT_EDITING_INVOICE_ID = invoiceId != null ? String(invoiceId) : null;
+    return window.CURRENT_EDITING_INVOICE_ID;
+  }
+
+  function getInvoiceLinesSafe() {
+    if (window.InvoiceFormSessionService && typeof window.InvoiceFormSessionService.getLines === 'function') {
+      return window.InvoiceFormSessionService.getLines();
+    }
+    return window.tempInvoiceLines || [];
+  }
+
+  function setInvoiceLinesSafe(lines) {
+    if (window.InvoiceFormSessionService && typeof window.InvoiceFormSessionService.setLines === 'function') {
+      return window.InvoiceFormSessionService.setLines(lines);
+    }
+    window.tempInvoiceLines = Array.isArray(lines) ? lines : [];
+    return window.tempInvoiceLines;
+  }
+
   // Flag interno per evitare side effects mentre carico una fattura in edit/copia
   let _isLoadingInvoice = false;
+
+  // Stato UI: editing descrizione riga (indice riga) - usato per edit inline (textarea)
+  window.__invoiceDescEditingIdx = window.__invoiceDescEditingIdx || null;
+
+  function isInvoiceLockedForEditing() {
+    try {
+      // Se sto creando una nuova fattura, non è lockata
+      if (!getCurrentInvoiceIdSafe()) return false;
+      const inv = (getData('invoices') || []).find((x) => String(x.id) === String(getCurrentInvoiceIdSafe()));
+      if (!inv) return false;
+
+      // Bozze sempre modificabili
+      if (inv.isDraft === true || String(inv.status || '').toLowerCase() === 'bozza') return false;
+
+      const st = String(inv.status || '').toLowerCase();
+      if (st === 'inviata' || st === 'pagata') return true;
+      if (inv.sentToAgenzia === true) return true;
+
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
 
   // =========================================================
   // Step 2 Commesse: collegamento Timesheet -> Fattura
@@ -24,88 +80,29 @@
   // - Evita doppie fatturazioni (non sovrascrive invoiceId se diverso)
 
   function extractImportedWorklogIds(lines) {
-    const out = new Set();
-    (lines || []).forEach((l) => {
-      if (!l) return;
-      if (l.tsImport === true) {
-        const ids = l.tsWorklogIds || (l.tsMeta && l.tsMeta.worklogIds);
-        if (Array.isArray(ids)) ids.forEach((x) => out.add(String(x)));
-        else if (typeof ids === 'string' && ids) ids.split(',').forEach((x) => out.add(String(x).trim()));
-      }
-    });
-    return Array.from(out).filter(Boolean);
+    if (window.InvoicePersistenceService && typeof window.InvoicePersistenceService.extractImportedWorklogIds === 'function') {
+      return window.InvoicePersistenceService.extractImportedWorklogIds(lines);
+    }
+    if (window.InvoiceLineService && typeof window.InvoiceLineService.extractImportedWorklogIds === 'function') {
+      return window.InvoiceLineService.extractImportedWorklogIds(lines);
+    }
+    return [];
   }
 
   async function markWorklogsAsInvoiced(worklogIds, invoiceId, invoiceNumber) {
-    const ids = Array.isArray(worklogIds) ? worklogIds.map(String).filter(Boolean) : [];
-    if (!ids.length) return;
-
-    const nowIso = new Date().toISOString();
-    const current = String(invoiceId || '');
-
-    const updates = [];
-
-    ids.forEach((id) => {
-      const wl = (getData('worklogs') || []).find((x) => String(x.id) === String(id));
-      if (!wl) return;
-
-      // Non sovrascrivo se già fatturato su altra fattura
-      if (wl.invoiceId && String(wl.invoiceId) !== current) return;
-
-      updates.push({
-        id: String(id),
-        data: {
-          invoiceId: current,
-          invoiceNumber: String(invoiceNumber || ''),
-          invoicedAt: nowIso
-        }
-      });
-    });
-
-    if (!updates.length) return;
-
-    // Batch (se disponibile) per evitare tanti roundtrip
-    if (typeof window.batchSaveDataToCloud === 'function') {
-      await window.batchSaveDataToCloud('worklogs', updates);
-    } else {
-      for (const u of updates) {
-        await saveDataToCloud('worklogs', u.data, u.id);
-      }
+    if (window.InvoicePersistenceService && typeof window.InvoicePersistenceService.markWorklogsAsInvoiced === 'function') {
+      return window.InvoicePersistenceService.markWorklogsAsInvoiced(worklogIds, invoiceId, invoiceNumber);
     }
+    return Promise.resolve();
   }
 
 
-async function unmarkWorklogsFromInvoice(invoiceId) {
-  const current = String(invoiceId || '');
-  if (!current) return;
-
-  const worklogs = getData('worklogs') || [];
-  const toUpdate = [];
-
-  worklogs.forEach((wl) => {
-    if (!wl) return;
-    if (String(wl.invoiceId || '') !== current) return;
-
-    toUpdate.push({
-      id: String(wl.id),
-      data: {
-        invoiceId: null,
-        invoiceNumber: null,
-        invoicedAt: null
-      }
-    });
-  });
-
-  if (!toUpdate.length) return;
-
-  if (typeof window.batchSaveDataToCloud === 'function') {
-    await window.batchSaveDataToCloud('worklogs', toUpdate);
-  } else {
-    for (const u of toUpdate) {
-      await saveDataToCloud('worklogs', u.data, u.id);
+  async function unmarkWorklogsFromInvoice(invoiceId) {
+    if (window.InvoicePersistenceService && typeof window.InvoicePersistenceService.unmarkWorklogsFromInvoice === 'function') {
+      return window.InvoicePersistenceService.unmarkWorklogsFromInvoice(invoiceId);
     }
+    return Promise.resolve();
   }
-}
 
   // Calcolo automatico data di scadenza (solo Bonifico)
   // Supporta (didattico):
@@ -201,11 +198,17 @@ async function unmarkWorklogsFromInvoice(invoiceId) {
 
   // Opzioni banca (Banca 1 / Banca 2) in base ai dati azienda
   function populateInvoiceBankSelect(selectedVal) {
-    const company = getData('companyInfo') || {};
-    const bank1Name = (company.banca || '').trim();
+    const rawCompany = getData('companyInfo') || {};
+    const company = (window.DomainNormalizers && typeof window.DomainNormalizers.normalizeCompanyInfo === 'function')
+      ? window.DomainNormalizers.normalizeCompanyInfo(rawCompany)
+      : rawCompany;
+    const paymentInfo = (window.DomainNormalizers && typeof window.DomainNormalizers.normalizeInvoicePaymentInfo === 'function')
+      ? window.DomainNormalizers.normalizeInvoicePaymentInfo({ bankChoice: selectedVal, modalitaPagamento: 'Bonifico Bancario' }, company)
+      : null;
+    const bank1Name = (company.banca1 || company.banca || '').trim();
     const bank2Name = (company.banca2 || '').trim();
 
-    const needBank2 = Boolean(bank2Name) || String(selectedVal) === '2';
+    const needBank2 = Boolean(bank2Name) || String((paymentInfo && paymentInfo.bankChoice) || selectedVal) === '2';
 
     const esc = (s) => String(s || '')
       .replace(/&/g, '&amp;')
@@ -253,6 +256,11 @@ async function unmarkWorklogsFromInvoice(invoiceId) {
     if (isBonifico) {
       const cur = $('#invoice-bank-select').val() || '1';
       populateInvoiceBankSelect(cur);
+      const rawCompany = getData('companyInfo') || {};
+      const normalizedPayment = (window.DomainNormalizers && typeof window.DomainNormalizers.normalizeInvoicePaymentInfo === 'function')
+        ? window.DomainNormalizers.normalizeInvoicePaymentInfo({ bankChoice: cur, modalitaPagamento: method }, rawCompany)
+        : { bankChoice: cur };
+      $('#invoice-bank-select').val(String(normalizedPayment.bankChoice || '1'));
       if (!$('#invoice-bank-select').val()) $('#invoice-bank-select').val('1');
 
       if (!$('#invoice-giorniTermini').val()) $('#invoice-giorniTermini').val(30);
@@ -302,7 +310,7 @@ async function unmarkWorklogsFromInvoice(invoiceId) {
   }
 
   function updateInvoiceNumber(type, year) {
-    if (CURRENT_EDITING_INVOICE_ID) return;
+    if (getCurrentInvoiceIdSafe()) return;
     const invs = getData('invoices').filter(
       (i) => (i.type === type || (type === 'Fattura' && !i.type)) && i.date && i.date.substring(0, 4) === String(year)
     );
@@ -322,14 +330,14 @@ async function unmarkWorklogsFromInvoice(invoiceId) {
 
   function renderLocalInvoiceLines() {
     const t = $('#invoice-lines-tbody').empty();
-    (window.tempInvoiceLines || []).forEach((l, i) => {
+    (getInvoiceLinesSafe()).forEach((l, i) => {
       // Nota: la tabella in index.html ha le colonne:
       // Descrizione | Qtà | Prezzo | IVA | Totale | Del
       // Qui renderizziamo in modo coerente e permettiamo l'editing inline.
       const qty = parseFloat(l.qty) || 0;
       const price = parseFloat(l.price) || 0;
       const ivaVal = l.iva != null && l.iva !== '' ? String(l.iva) : '22';
-      const naturaVal = l.esenzioneIva || 'N2.2';
+      const naturaVal = l.esenzioneIva || INVOICE_NATURE_DEFAULT;
       const subtotal = l.subtotal != null ? parseFloat(l.subtotal) || 0 : qty * price;
 
       // Riga speciale: "Rivalsa Bollo" (non soggetta a IVA/ritenuta nel modello didattico)
@@ -344,17 +352,32 @@ async function unmarkWorklogsFromInvoice(invoiceId) {
       const ivaAmt = ivaPercNum > 0 ? subtotal * (ivaPercNum / 100) : 0;
       const lineTotal = subtotal + ivaAmt;
 
-      const descHtml = `${(l.tsImport === true) ? '<span class="badge bg-info me-1">TS</span>' : ''}` +
-        `${(typeof window.escapeHtml === 'function') ? window.escapeHtml(l.productName || '') : (l.productName || '')}`;
+      const safeDescText = (typeof window.escapeHtml === 'function') ? window.escapeHtml(l.productName || '') : (l.productName || '');
+      const badgeTs = (l.tsImport === true) ? '<span class="badge bg-info me-1">TS</span>' : '';
+      const isLocked = isInvoiceLockedForEditing();
+
+      let descCellInner = '';
+      if (!isLocked && window.__invoiceDescEditingIdx === i) {
+        // Modalità edit: textarea multilinea
+        const rawVal = String(l.productName || '');
+        const escVal = (typeof window.escapeHtml === 'function') ? window.escapeHtml(rawVal) : rawVal;
+        descCellInner = `${badgeTs}<textarea class="form-control form-control-sm line-desc-edit" data-i="${i}" rows="2">${escVal}</textarea><div class="small text-muted mt-1">Ctrl+Invio per salvare · Esc per annullare</div>`;
+      } else {
+        // Modalità display: testo con a-capo (pre-line)
+        const hint = (!isLocked) ? ' title="Clicca per modificare la descrizione"' : '';
+        const cursor = (!isLocked) ? ' style="cursor:pointer; white-space: pre-line;"' : ' style="white-space: pre-line;"';
+        descCellInner = `${badgeTs}<span class="line-desc-display" data-i="${i}"${cursor}${hint}>${safeDescText}</span>`;
+      }
+
 
       t.append(`
         <tr>
-          <td>${descHtml}</td>
+          <td class="line-desc-cell" data-i="${i}">${descCellInner}</td>
           <td class="text-end" style="width: 90px;">
             <input type="number" step="0.01" class="form-control form-control-sm text-end line-qty" data-i="${i}" value="${qty}">
           </td>
           <td class="text-end" style="width: 120px;">
-            <input type="number" step="0.01" class="form-control form-control-sm text-end line-price" data-i="${i}" value="${price}">
+            <input type="number" step="0.01" class="form-control form-control-sm text-end line-price" data-i="${i}" value="${price.toFixed(2)}">
           </td>
           <td class="text-end" style="width: 130px;">
             <select class="form-select form-select-sm text-end d-inline-block line-iva" data-i="${i}" style="width: 90px;" ${isBollo ? 'disabled' : ''}>
@@ -366,7 +389,7 @@ async function unmarkWorklogsFromInvoice(invoiceId) {
             </select>
             <select class="form-select form-select-sm mt-1 line-natura ${(ivaEff === '0' && !isBollo) ? '' : 'd-none'}" data-i="${i}" style="width: 90px;" ${isBollo ? 'disabled' : ''}>
               <option value="N2.1" ${naturaVal === 'N2.1' ? 'selected' : ''}>N2.1</option>
-              <option value="N2.2" ${naturaVal === 'N2.2' ? 'selected' : ''}>N2.2</option>
+              <option value="${INVOICE_NATURE_DEFAULT}" ${naturaVal === INVOICE_NATURE_DEFAULT ? 'selected' : ''}>${INVOICE_NATURE_DEFAULT}</option>
               <option value="N4" ${naturaVal === 'N4' ? 'selected' : ''}>N4</option>
             </select>
           </td>
@@ -391,12 +414,8 @@ async function unmarkWorklogsFromInvoice(invoiceId) {
     const cust = getData('customers').find((c) => String(c.id) === String(cid));
     const comp = getData('companyInfo');
 
-    const sf = typeof safeFloat === 'function' ? safeFloat : (v) => {
-      const n = parseFloat(v);
-      return isNaN(n) ? 0 : n;
-    };
-
-    if (!cust || !comp) {
+    // Reset UI se mancano dati base
+    if (!comp) {
       $('#invoice-total').text('€ 0.00');
       $('#invoice-tax-details').text('');
       if ($('#invoice-netto').length) $('#invoice-netto').text('€ 0.00');
@@ -404,123 +423,41 @@ async function unmarkWorklogsFromInvoice(invoiceId) {
       return { totPrest: 0, riv: 0, impBollo: 0, totImp: 0, ivaTot: 0, ritenuta: 0, totDoc: 0, nettoDaPagare: 0 };
     }
 
-    const taxRegimeGest = String(comp.taxRegime || '').trim().toLowerCase();
-    const isForfettario = (typeof window.isForfettario === 'function') ? window.isForfettario(comp) : (taxRegimeGest === 'forfettario' || String(comp.codiceRegimeFiscale || '').trim().toUpperCase() === 'RF19');
-    const aliqIva = isForfettario ? 0 : sf(comp.aliquotaIva || comp.aliquotaIVA || 22);
-    const aliqInps = sf(comp.aliquotaInps || comp.aliquotaContributi || 0);
-    const aliqRitenuta = sf(comp.aliquotaRitenuta || 20);
+    const lines = getInvoiceLinesSafe();
+    const docType = $('#document-type').val();
 
-    const lines = window.tempInvoiceLines || [];
-
-    // 1) Individuare riga "Rivalsa Bollo", se presente (NON entra in IVA e ritenuta)
-    const bolloLines = lines.filter((l) => String(l.productName || '').trim().toLowerCase() === 'rivalsa bollo');
-    const impBolloLine = bolloLines.reduce((s, l) => s + sf(l.subtotal != null ? l.subtotal : sf(l.qty) * sf(l.price)), 0);
-
-    // 2) Linee prestazioni (escludo eventuale riga bollo)
-    const baseLines = lines.filter((l) => String(l.productName || '').trim().toLowerCase() !== 'rivalsa bollo');
-    // Totale righe (incluse eventuali voci di costo/rimborso)
-    const totPrest = baseLines.reduce((s, l) => s + sf(l.subtotal != null ? l.subtotal : sf(l.qty) * sf(l.price)), 0);
-
-    // Base Rivalsa INPS: escludo le righe marcate come 'Costo' (es. spese viaggio, rimborso km)
-    const totPrestRivalsaBase = baseLines
-      .filter((l) => !(l.isCosto === true || l.isCosto === 'true'))
-      .reduce((s, l) => s + sf(l.subtotal != null ? l.subtotal : sf(l.qty) * sf(l.price)), 0);
-
-    // 3) Rivalsa INPS (solo su base rivalsa) se attivata sul cliente
-    const riv = (cust.rivalsaInps === true || cust.rivalsaInps === 'true') ? totPrestRivalsaBase * (aliqInps / 100) : 0;
-
-    // 4) IVA su righe (aliquota per riga; default aliquota azienda) + IVA sulla rivalsa (didattico: soggetta IVA)
-    let ivaTot = 0;
-    baseLines.forEach((l) => {
-      const imponibile = sf(l.subtotal != null ? l.subtotal : sf(l.qty) * sf(l.price));
-      let ivaPerc = isForfettario ? 0 : sf(l.iva != null ? l.iva : aliqIva);
-      if (!ivaPerc && ivaPerc !== 0) ivaPerc = aliqIva;
-      if (ivaPerc > 0) ivaTot += imponibile * (ivaPerc / 100);
-    });
-    if (riv > 0 && aliqIva > 0) ivaTot += riv * (aliqIva / 100);
-
-    // 5) Totale imponibile (prestazioni + rivalsa)
-    const totImp = totPrest + riv;
-
-    // 6) Importo bollo:
-    // - se l'utente ha inserito la riga "Rivalsa Bollo" uso quel valore
-    // - in regime forfettario, se non c'e la riga bollo, lo calcolo automaticamente (2.00) se importo > 77,47
-    let impBollo = impBolloLine;
-    if (impBollo === 0 && isForfettario) {
-      const baseAbs = Math.abs(totImp + ivaTot);
-      // Per Nota di Credito (TD04) manteniamo la soglia 77,47
-      if (baseAbs > 77.47) impBollo = 2.00;
+    if (!window.InvoiceCalculator || typeof window.InvoiceCalculator.calculateTotals !== 'function') {
+      console.error('Modulo InvoiceCalculator non caricato correttamente.');
+      return { totPrest: 0, riv: 0, impBollo: 0, totImp: 0, ivaTot: 0, ritenuta: 0, totDoc: 0, nettoDaPagare: 0 };
     }
 
-    // 6) Bollo: in forfettario viene calcolato automaticamente (se > 77,47) anche senza riga "Rivalsa Bollo"
-    let impBolloEff = impBollo;
-    const baseForBollo = totImp + ivaTot;
-    const baseAbsForBollo = Math.abs(baseForBollo);
-    const docTypeSel = $('#document-type').val();
-    const isNC = docTypeSel === 'Nota di Credito';
-    if (impBolloEff === 0 && isForfettario && baseAbsForBollo > 77.47) {
-      impBolloEff = 2.00;
-      if (isNC && baseAbsForBollo <= 77.47) impBolloEff = 0;
-    }
+    // Bollo: override sul documento (se presente) altrimenti su anagrafica cliente
+    const _invForBollo = getCurrentInvoiceIdSafe() ? (getData('invoices') || []).find((i) => String(i.id) === String(getCurrentInvoiceIdSafe())) : null;
+    const bolloAcaricoEmittente = (typeof window.resolveBolloAcaricoEmittente === 'function') ? window.resolveBolloAcaricoEmittente(_invForBollo, cust) : false;
 
-    // 7) Totale documento (imponibile + IVA + bollo)
-    const totDoc = baseForBollo + impBolloEff;
+    const calc = window.InvoiceCalculator.calculateTotals(lines, comp, cust, docType, { includeBolloInTotale: !bolloAcaricoEmittente });
+    const totalsInfo = (window.DomainNormalizers && typeof window.DomainNormalizers.normalizeInvoiceTotalsInfo === 'function')
+      ? window.DomainNormalizers.normalizeInvoiceTotalsInfo(_invForBollo || { type: docType }, cust, calc)
+      : null;
+    const totals = totalsInfo || calc;
 
-    // 7) Ritenuta d'acconto (su prestazioni + rivalsa) se sostituto d'imposta
-    const ritenuta = (cust.sostitutoImposta === true || cust.sostitutoImposta === 'true') ? totImp * (aliqRitenuta / 100) : 0;
+    // Aggiornamento UI
+    $('#invoice-total').text(`€ ${totals.total != null ? totals.total.toFixed(2) : calc.totDoc.toFixed(2)}`);
+    if ($('#invoice-netto').length) $('#invoice-netto').text(`€ ${totals.nettoDaPagare != null ? totals.nettoDaPagare.toFixed(2) : calc.nettoDaPagare.toFixed(2)}`);
+    const bolloImporto = totals.importoBollo != null ? totals.importoBollo : calc.impBollo;
+    const bolloTxt = ((totals.bolloAcaricoEmittente != null ? totals.bolloAcaricoEmittente : bolloAcaricoEmittente) && bolloImporto > 0)
+      ? `€ ${bolloImporto.toFixed(2)} (a carico studio)`
+      : `€ ${bolloImporto.toFixed(2)}`;
 
-    // 8) Netto da incassare
-    const nettoDaPagare = totDoc - ritenuta;
-
-    // UI
-    $('#invoice-total').text(`€ ${totDoc.toFixed(2)}`);
-    if ($('#invoice-netto').length) $('#invoice-netto').text(`€ ${nettoDaPagare.toFixed(2)}`);
     $('#invoice-tax-details').text(
-      `(Imponibile: € ${totImp.toFixed(2)} - Rivalsa: € ${riv.toFixed(2)} - IVA: € ${ivaTot.toFixed(2)} - Ritenuta: € ${ritenuta.toFixed(2)} - Bollo: € ${impBolloEff.toFixed(2)})`
+      `(Imponibile: € ${(totals.totaleImponibile != null ? totals.totaleImponibile : calc.totImp).toFixed(2)} [di cui Rivalsa: € ${(totals.rivalsaImporto != null ? totals.rivalsaImporto : calc.riv).toFixed(2)}] - IVA: € ${(totals.ivaTotale != null ? totals.ivaTotale : calc.ivaTot).toFixed(2)} - Ritenuta: € ${(totals.ritenutaAcconto != null ? totals.ritenutaAcconto : calc.ritenuta).toFixed(2)} - Bollo: ${bolloTxt})`
     );
 
     // Riepilogo IVA (per aliquota / Natura) nella UI
     if ($('#invoice-iva-breakdown').length) {
-      const map = new Map();
-
-      baseLines.forEach((l) => {
-        const imponibile = sf(l.subtotal != null ? l.subtotal : sf(l.qty) * sf(l.price));
-        let ivaPerc = isForfettario ? 0 : sf(l.iva != null ? l.iva : aliqIva);
-        if (!ivaPerc && ivaPerc !== 0) ivaPerc = aliqIva;
-
-        if (ivaPerc > 0) {
-          const label = `IVA ${Math.round(ivaPerc)}%`;
-          const g = map.get(label) || { label, imponibile: 0, imposta: 0 };
-          g.imponibile += imponibile;
-          g.imposta += imponibile * (ivaPerc / 100);
-          map.set(label, g);
-        } else {
-          const nat = isForfettario ? 'N2.2' : (l.esenzioneIva || 'N2.2');
-          const label = `IVA 0% (${nat})`;
-          const g = map.get(label) || { label, imponibile: 0, imposta: 0 };
-          g.imponibile += imponibile;
-          map.set(label, g);
-        }
-      });
-
-      // Rivalsa: in ordinario didattico soggetta IVA a aliquota azienda; in forfettario IVA=0 (N2.2)
-      if (isForfettario && riv > 0) {
-        const label = `IVA 0% (N2.2)`;
-        const g = map.get(label) || { label, imponibile: 0, imposta: 0 };
-        g.imponibile += riv;
-        map.set(label, g);
-      }
-
-      // Rivalsa (didattico: soggetta IVA a aliquota azienda)
-      if (riv > 0 && aliqIva > 0) {
-        const label = `IVA ${Math.round(aliqIva)}%`;
-        const g = map.get(label) || { label, imponibile: 0, imposta: 0 };
-        g.imponibile += riv;
-        g.imposta += riv * (aliqIva / 100);
-        map.set(label, g);
-      }
-
+      const map = totals.vatMap || calc.vatMap || new Map();
       const rows = Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+
       if (rows.length === 0) {
         $('#invoice-iva-breakdown').html('');
       } else {
@@ -528,91 +465,232 @@ async function unmarkWorklogsFromInvoice(invoiceId) {
           <div class="border-top pt-2">
             <div class="fw-bold mb-1">Riepilogo IVA</div>
             ${rows
-              .map(
-                (r) => `
+            .map(
+              (r) => `
                   <div class="d-flex justify-content-between">
                     <span>${r.label}</span>
                     <span>Imponibile € ${r.imponibile.toFixed(2)}${r.imposta > 0 ? ` — Imposta € ${r.imposta.toFixed(2)}` : ''}</span>
                   </div>`
-              )
-              .join('')}
+            )
+            .join('')}
           </div>`;
         $('#invoice-iva-breakdown').html(html);
       }
     }
 
-    return { totPrest, riv, impBollo: impBolloEff, totImp, ivaTot, ritenuta, totDoc, nettoDaPagare };
+    return calc;
+  }
+
+  // =========================================================
+  // Scorporo Rivalsa INPS (tariffa comprensiva) – per cliente
+  // - Se attivo su cliente: le tariffe/righe vengono considerate LORDE (comprensive di rivalsa)
+  // - Rivalsa viene poi ricalcolata sul totale imponibile inverso.
+  // =========================================================
+
+  // =========================================================
+  // Helper Functions per Scorporo Rivalsa e altro
+  // =========================================================
+
+  function getSelectedCustomerSafe() {
+    const cid = $('#invoice-customer-select').val();
+    if (!cid) return null;
+    return (getData('customers') || []).find((c) => String(c.id) === String(cid));
+  }
+
+  function isScorporoRivalsaEnabledForCustomer(cust) {
+    if (!cust) return false;
+    // Check Rivalsa INPS flag (must be ON) AND Scorporo flag (must be ON)
+    const hasRiv = (cust.rivalsaInps === true || cust.rivalsaInps === 'true');
+    const wantsScorporo = (cust.scorporoRivalsaInps === true || cust.scorporoRivalsaInps === 'true');
+    return hasRiv && wantsScorporo;
+  }
+
+  function isLineEligibleForScorporo(line) {
+    if (!line) return false;
+    // Non scorporare se è una spesa/costo
+    if (line.isCosto === true || line.isCosto === 'true') return false;
+    // Non scorporare la riga "Rivalsa Bollo"
+    if (String(line.productName || '').trim().toLowerCase() === 'rivalsa bollo') return false;
+    return true;
+  }
+
+  function _sf(v) {
+    const f = (typeof safeFloat === 'function') ? safeFloat : (x) => {
+      const n = parseFloat(x);
+      return isNaN(n) ? 0 : n;
+    };
+    return f(v);
+  }
+
+  function round2(n) {
+    const x = parseFloat(n);
+    if (isNaN(x)) return 0;
+    return Math.round(x * 100) / 100;
+  }
+
+  function getSelectedCustomerSafe() {
+    const cid = String($('#invoice-customer-select').val() || '').trim();
+    if (!cid) return null;
+    return (getData('customers') || []).find((c) => String(c.id) === cid) || null;
+  }
+
+  function isScorporoRivalsaEnabledForCustomer(cust) {
+    if (!cust) return false;
+    const hasRivalsa = (cust.rivalsaInps === true || cust.rivalsaInps === 'true');
+    const wants = (cust.scorporoRivalsaInps === true || cust.scorporoRivalsaInps === 'true');
+    return hasRivalsa && wants;
+  }
+
+  function getScorporoFactorFromCompany() {
+    const comp = getData('companyInfo') || {};
+    const aliqInps = _sf(comp.aliquotaInps || comp.aliquotaContributi || 0);
+    if (!aliqInps || aliqInps <= 0) return 1;
+    return 1 + (aliqInps / 100);
+  }
+
+  function isLineEligibleForScorporo(line) {
+    if (!line) return false;
+    const name = String(line.productName || '').trim().toLowerCase();
+    if (name === 'rivalsa bollo') return false;
+    const isCosto = (line.isCosto === true || line.isCosto === 'true');
+    return !isCosto;
+  }
+
+  function applyScorporoToLineInPlace(line) {
+    // NUOVO APPROCCIO: Non modifico il prezzo unitario (lo lascio LORDO), ma segno che va scorporato
+    // Il calcolo avverrà sul totale, per evitare errori di arrotondamento linea per linea.
+    if (!line || !isLineEligibleForScorporo(line)) return;
+
+    // Se è già marcato, non faccio nulla
+    if (line.priceType === 'gross') return;
+
+    // Marca come lordo (prezzo include rivalsa)
+    line.priceType = 'gross';
+    // Nota: line.price rimane quello inserito (Lordo)
+    // line.subtotal rimane qty * price (Lordo)
+  }
+
+  function refreshScorporoHint(cust) {
+    if (!$('#invoice-scorporo-hint').length) return;
+    const on = isScorporoRivalsaEnabledForCustomer(cust);
+    $('#invoice-scorporo-hint').toggleClass('d-none', !on);
+    if (on) {
+      $('#invoice-scorporo-hint').text('Scorporo Rivalsa INPS attivo: il calcolo avverrà sul totale.');
+    }
+  }
+
+  function maybeApplyScorporoToExistingLines(cust) {
+    if (!isScorporoRivalsaEnabledForCustomer(cust)) return;
+
+    // Con il nuovo approccio (calcolo su totale), basta marcare le linee come gross.
+    // Non serve dividere i prezzi, ma confermiamo l'intenzione all'utente.
+
+    const lines = getInvoiceLinesSafe();
+    const eligible = lines
+      .map((l, i) => ({ l, i }))
+      .filter(({ l }) => isLineEligibleForScorporo(l) && l && l.priceType !== 'gross');
+
+    if (!eligible.length) return;
+
+    const ok = confirm(
+      `Il cliente ha attivo lo “Scorporo Rivalsa INPS”.\n\nVuoi considerare le ${eligible.length} righe già presenti come LORDE (comprensive di rivalsa)?\nIl calcolo avverrà sul totale.`
+    );
+    if (!ok) return;
+
+    eligible.forEach(({ l }) => applyScorporoToLineInPlace(l));
+
+    // Non serve renderLocalInvoiceLines perché i prezzi visibili non cambiano (sono lordi),
+    // ma serve updateTotalsDisplay per ricalcolare imponibile e rivalsa corretti.
+    if (typeof window.updateTotalsDisplay === 'function') window.updateTotalsDisplay();
+  }
+
+  function setInvoiceFormAlert(msg, kind = 'warning') {
+    const $a = $('#invoice-form-alert');
+    if (!$a.length) return;
+    if (!msg) {
+      $a.addClass('d-none').removeClass('alert-info alert-warning alert-danger alert-success');
+      $a.html('');
+      return;
+    }
+    $a.removeClass('d-none alert-info alert-warning alert-danger alert-success').addClass(`alert-${kind}`);
+    $a.html(msg);
   }
 
   function prepareDocumentForm(type) {
-    CURRENT_EDITING_INVOICE_ID = null;
+    setCurrentInvoiceIdSafe(null);
 
     // reset form e stato
     const _f = $('#new-invoice-form')[0];
     if (_f && typeof _f.reset === 'function') _f.reset();
 
-    // IVA di default: in forfettario sempre 0; in ordinario aliquota azienda (fallback 22)
-    const _comp = getData('companyInfo') || {};
-    const _isForf = String(_comp.taxRegime || '').toLowerCase() === 'forfettario';
-    const _ivaDef = _isForf ? '0' : (_comp.aliquotaIva != null ? String(_comp.aliquotaIva) : '22');
+    // reset validazioni/avvisi UI
+    setInvoiceFormAlert('');
+    $('#new-invoice-form').removeClass('was-validated');
+    $('#invoice-customer-select').removeClass('is-invalid');
+    refreshScorporoHint(null);
+
+    const state = (window.InvoiceService && typeof window.InvoiceService.createNewDocumentState === 'function')
+      ? window.InvoiceService.createNewDocumentState(type)
+      : null;
     const _ivaField = $('#invoice-product-iva');
-    _ivaField.val(_ivaDef);
-    _ivaField.prop('disabled', _isForf ? true : _ivaField.prop('disabled'));
+    _ivaField.val(state ? state.defaultIva : '22');
+    if (state) {
+      _ivaField.prop('disabled', state.disableIvaField);
+    }
     if (typeof window.toggleEsenzioneIvaField === 'function') {
       window.toggleEsenzioneIvaField('invoice', $('#invoice-product-iva').val());
     }
 
-    $('#invoice-id').val('Nuovo');
+    $('#invoice-id').val(state ? state.invoiceIdLabel : 'Nuovo');
     $('#document-type').val(type);
-
-    // righe fattura
     $('#invoice-lines-tbody').empty();
-    window.tempInvoiceLines = [];
+    setInvoiceLinesSafe(state ? state.lines : []);
 
-    // reset import timesheet state (step 2)
-    if (window.App && window.App.invoices) window.App.invoices.timesheetImportState = null;
+    if (window.InvoiceFormSessionService && typeof window.InvoiceFormSessionService.startFromDocumentState === 'function') {
+      window.InvoiceFormSessionService.startFromDocumentState({ currentInvoiceId: null, lines: state ? state.lines : [], timesheetImportState: state ? state.timesheetImportState || null : null });
+    } else if (window.InvoiceFormSessionService && typeof window.InvoiceFormSessionService.setTimesheetImportState === 'function') window.InvoiceFormSessionService.setTimesheetImportState(state ? state.timesheetImportState || null : null);
+    else if (window.App && window.App.invoices) window.App.invoices.timesheetImportState = state ? state.timesheetImportState || null : null;
 
     if (typeof populateDropdowns === 'function') populateDropdowns();
+    $('#invoice-product-price, #invoice-product-qty, #invoice-giornoFissoValue').attr('step', '0.01');
 
-    // data documento = oggi
-    const today = new Date().toISOString().slice(0, 10);
-    $('#invoice-date').val(today);
-
-    // DEFAULT PAGAMENTO
-    $('#invoice-condizioniPagamento').val('Pagamento Completo');
-    $('#invoice-modalitaPagamento').val('Bonifico Bancario');
-
-    // Termini pagamento avanzati (fine mese / giorno fisso)
-    if ($('#invoice-fineMese').length) $('#invoice-fineMese').prop('checked', false);
-    if ($('#invoice-giornoFissoEnabled').length) $('#invoice-giornoFissoEnabled').prop('checked', false);
-    if ($('#invoice-giornoFissoValue').length) {
-      $('#invoice-giornoFissoValue').val('');
-      $('#invoice-giornoFissoValue').prop('disabled', true);
+    const today = state ? state.today : new Date().toISOString().slice(0, 10);
+    $('#invoice-date').val(state ? state.date : today);
+    $('#invoice-condizioniPagamento').val(state ? state.condizioniPagamento : 'Pagamento Completo');
+    $('#invoice-modalitaPagamento').val(state ? state.modalitaPagamento : 'Bonifico Bancario');
+    if ($('#invoice-attach-timesheet-pdf').length) $('#invoice-attach-timesheet-pdf').prop('checked', !!(state && state.attachTimesheetPdf));
+    if ($('#invoice-attach-timesheet-notes').length) {
+      $('#invoice-attach-timesheet-notes').prop('checked', state ? (state.attachTimesheetNotes !== false) : true);
+      $('#invoice-attach-timesheet-notes').prop('disabled', !(state && state.attachTimesheetPdf));
     }
 
-    // Default banca (solo Bonifico)
+    if ($('#invoice-fineMese').length) $('#invoice-fineMese').prop('checked', !!(state && state.fineMese));
+    if ($('#invoice-giornoFissoEnabled').length) $('#invoice-giornoFissoEnabled').prop('checked', !!(state && state.giornoFissoEnabled));
+    if ($('#invoice-giornoFissoValue').length) {
+      $('#invoice-giornoFissoValue').val(state ? state.giornoFissoValue : '');
+      $('#invoice-giornoFissoValue').prop('disabled', state ? !state.giornoFissoEnabled : true);
+    }
+
     if ($('#invoice-bank-select').length) {
-      populateInvoiceBankSelect('1');
-      $('#invoice-bank-select').val('1');
+      const bankChoice = state ? state.bankChoice : '1';
+      populateInvoiceBankSelect(bankChoice);
+      $('#invoice-bank-select').val(bankChoice);
     }
     updatePaymentUI();
 
-    // DEFAULT DATE PAGAMENTO
-    $('#invoice-dataRiferimento').val(today);
-    $('#invoice-giorniTermini').val(30);
+    $('#invoice-dataRiferimento').val(state ? state.dataRiferimento : today);
+    $('#invoice-giorniTermini').val(state ? state.giorniTermini : 30);
     recalcInvoiceDueDate();
 
-    // Tipo documento / titolo
     if (type === 'Nota di Credito') {
-      $('#document-title').text('Nuova Nota di Credito');
+      $('#document-title').text(state ? state.title : 'Nuova Nota di Credito');
       $('#credit-note-fields').removeClass('d-none');
     } else {
-      $('#document-title').text('Nuova Fattura');
+      $('#document-title').text(state ? state.title : 'Nuova Fattura');
       $('#credit-note-fields').addClass('d-none');
     }
 
-    // Numero fattura e totali
-    updateInvoiceNumber(type, today.substring(0, 4));
+    updateInvoiceNumber(type, state ? state.numberYear : today.substring(0, 4));
     updateTotalsDisplay();
   }
 
@@ -622,69 +700,70 @@ async function unmarkWorklogsFromInvoice(invoiceId) {
 
     _isLoadingInvoice = true;
 
-    const type = isCopy ? 'Fattura' : inv.type || 'Fattura';
+    const state = (window.InvoiceService && typeof window.InvoiceService.createEditingState === 'function')
+      ? window.InvoiceService.createEditingState(inv, isCopy)
+      : null;
+    const type = state ? state.type : (isCopy ? 'Fattura' : inv.type || 'Fattura');
     prepareDocumentForm(type);
 
-    if (!isCopy) {
-      CURRENT_EDITING_INVOICE_ID = String(inv.id);
-      $('#invoice-id').val(inv.id);
-      $('#document-title').text(`Modifica ${type} ${inv.number}`);
+    if (state && state.currentInvoiceId) {
+      setCurrentInvoiceIdSafe(state.currentInvoiceId);
+      $('#invoice-id').val(state.invoiceIdLabel);
+      $('#document-title').text(state.title);
     }
 
-    $('#invoice-customer-select').val(inv.customerId);
-    $('#invoice-date').val(isCopy ? new Date().toISOString().slice(0, 10) : inv.date);
-    if (!isCopy) $('#invoice-number').val(inv.number);
-    // Bozza (draft)
+    $('#invoice-customer-select').val(state ? state.customerId : inv.customerId);
+    $('#invoice-date').val(state ? state.date : (isCopy ? new Date().toISOString().slice(0, 10) : inv.date));
+    if (state && state.number) $('#invoice-number').val(state.number);
     try {
-      const wasDraft = (!isCopy) && (inv.isDraft === true || String(inv.status || '') === 'Bozza');
-      if ($('#invoice-isDraft').length) $('#invoice-isDraft').prop('checked', wasDraft);
-    } catch (e) {}
+      if ($('#invoice-isDraft').length) $('#invoice-isDraft').prop('checked', !!(state && state.isDraft));
+      if ($('#invoice-attach-timesheet-pdf').length) $('#invoice-attach-timesheet-pdf').prop('checked', !!(state && state.attachTimesheetPdf));
+      if ($('#invoice-attach-timesheet-notes').length) {
+        $('#invoice-attach-timesheet-notes').prop('checked', state ? (state.attachTimesheetNotes !== false) : true);
+        $('#invoice-attach-timesheet-notes').prop('disabled', !(state && state.attachTimesheetPdf));
+      }
+    } catch (e) { }
 
-
-    $('#invoice-condizioniPagamento').val(inv.condizioniPagamento);
-    // Normalizzazione legacy: "Rimessa Diretta" non è più prevista come opzione UI.
-    // Se presente su documenti storici, la trattiamo come Bonifico Bancario.
-    const rawMetodo = inv.modalitaPagamento || 'Bonifico Bancario';
-    const metodoNorm = String(rawMetodo).trim().toLowerCase() === 'rimessa diretta' ? 'Bonifico Bancario' : rawMetodo;
-    $('#invoice-modalitaPagamento').val(metodoNorm);
-
-    // Dati pagamento avanzati (step 2)
-    const today = new Date().toISOString().slice(0, 10);
-    $('#invoice-dataRiferimento').val(inv.dataRiferimento || inv.date || today);
-    if (inv.giorniTermini != null && String(inv.giorniTermini) !== '') {
-      $('#invoice-giorniTermini').val(inv.giorniTermini);
+    $('#invoice-condizioniPagamento').val(state ? state.condizioniPagamento : inv.condizioniPagamento);
+    $('#invoice-modalitaPagamento').val(state ? state.modalitaPagamento : (inv.modalitaPagamento || 'Bonifico Bancario'));
+    $('#invoice-dataRiferimento').val(state ? state.dataRiferimento : (inv.dataRiferimento || inv.date || new Date().toISOString().slice(0, 10)));
+    if (state && state.giorniTermini != null && String(state.giorniTermini) !== '') {
+      $('#invoice-giorniTermini').val(state.giorniTermini);
     }
 
-    // Termini aggiuntivi: fine mese / giorno fisso
-    if ($('#invoice-fineMese').length) $('#invoice-fineMese').prop('checked', !!inv.fineMese);
-    if ($('#invoice-giornoFissoEnabled').length) $('#invoice-giornoFissoEnabled').prop('checked', !!inv.giornoFissoEnabled);
+    if ($('#invoice-fineMese').length) $('#invoice-fineMese').prop('checked', !!(state && state.fineMese));
+    if ($('#invoice-giornoFissoEnabled').length) $('#invoice-giornoFissoEnabled').prop('checked', !!(state && state.giornoFissoEnabled));
     if ($('#invoice-giornoFissoValue').length) {
-      if (inv.giornoFissoValue != null && String(inv.giornoFissoValue) !== '') {
-        $('#invoice-giornoFissoValue').val(inv.giornoFissoValue);
-      } else {
-        $('#invoice-giornoFissoValue').val('');
-      }
+      $('#invoice-giornoFissoValue').val(state ? state.giornoFissoValue : '');
     }
 
     if ($('#invoice-bank-select').length) {
-      populateInvoiceBankSelect(String(inv.bankChoice || '1'));
-      $('#invoice-bank-select').val(String(inv.bankChoice || '1'));
+      const bankChoice = state ? state.bankChoice : String(inv.bankChoice || '1');
+      populateInvoiceBankSelect(bankChoice);
+      $('#invoice-bank-select').val(bankChoice);
     }
 
-    $('#invoice-dataScadenza').val(inv.dataScadenza);
+    $('#invoice-dataScadenza').val(state ? state.dataScadenza : inv.dataScadenza);
     updatePaymentUI();
 
     if (type === 'Nota di Credito') {
-      $('#linked-invoice').val(inv.linkedInvoice);
-      $('#reason').val(inv.reason);
+      $('#linked-invoice').val(state ? state.linkedInvoice : inv.linkedInvoice);
+      $('#reason').val(state ? state.reason : inv.reason);
     }
 
-    window.tempInvoiceLines = JSON.parse(JSON.stringify(inv.lines || []));
+    setInvoiceLinesSafe(state ? state.lines : JSON.parse(JSON.stringify(inv.lines || [])));
 
-    // ripristina metadati import timesheet (se presenti)
     if (window.App && window.App.invoices) {
-      window.App.invoices.timesheetImportState = (isCopy ? null : (inv.timesheetImport || null));
+      if (window.InvoiceFormSessionService && typeof window.InvoiceFormSessionService.startFromDocumentState === 'function') {
+        window.InvoiceFormSessionService.startFromDocumentState({
+          currentInvoiceId: isCopy ? null : inv.id,
+          lines: state ? state.lines : (inv.lines || []),
+          timesheetImportState: state ? (state.timesheetImportState || null) : (isCopy ? null : (inv.timesheetImport || null))
+        });
+      } else if (window.InvoiceFormSessionService && typeof window.InvoiceFormSessionService.setTimesheetImportState === 'function') window.InvoiceFormSessionService.setTimesheetImportState(state ? (state.timesheetImportState || null) : (isCopy ? null : (inv.timesheetImport || null)));
+      else window.App.invoices.timesheetImportState = state ? (state.timesheetImportState || null) : (isCopy ? null : (inv.timesheetImport || null));
     }
+
     renderLocalInvoiceLines();
     updateTotalsDisplay();
 
@@ -706,35 +785,53 @@ async function unmarkWorklogsFromInvoice(invoiceId) {
 
 
     // Per il modulo Importa ore: sapere se stiamo modificando una fattura esistente
-    window.App.invoices.getCurrentInvoiceId = function () { return CURRENT_EDITING_INVOICE_ID; };
+    window.App.invoices.getCurrentInvoiceId = function () { return getCurrentInvoiceIdSafe(); };
+
+    // Draft helper: permette alla navigazione di capire se c'è una bozza in corso (nuovo documento)
+    window.App.invoices.hasUnsavedDraft = function () {
+      if (getCurrentInvoiceIdSafe()) return false; // stiamo modificando un documento salvato
+      const lines = (getInvoiceLinesSafe()).length;
+      const hasCustomer = !!String($('#invoice-customer-select').val() || '').trim();
+      const hasManualDraft = !!String($('#invoice-product-description').val() || '').trim() || !!String($('#invoice-product-price').val() || '').trim();
+      const hasCreditNote = !!String($('#linked-invoice').val() || '').trim() || !!String($('#reason').val() || '').trim();
+      return (lines > 0) || hasCustomer || hasManualDraft || hasCreditNote;
+    };
+
+    window.App.invoices.restoreDraftUI = function () {
+      try { renderLocalInvoiceLines(); } catch (e) { }
+      try {
+        const cust = getSelectedCustomerSafe();
+        refreshScorporoHint(cust);
+      } catch (e) { }
+      try { updateTotalsDisplay(); } catch (e) { }
+    };
+
+    $('#invoice-attach-timesheet-pdf').on('change', function () {
+      const enabled = $(this).is(':checked');
+      $('#invoice-attach-timesheet-notes').prop('disabled', !enabled);
+    });
 
     // Aggiungi riga
     $('#add-product-to-invoice-btn').click(() => {
-      const d = $('#invoice-product-description').val();
-      if (!d) return;
+      const built = (window.InvoiceFormUiService && typeof window.InvoiceFormUiService.buildLineFromProductInputs === 'function')
+        ? window.InvoiceFormUiService.buildLineFromProductInputs({
+          selectedProductId: $('#invoice-product-select').val(),
+          description: $('#invoice-product-description').val(),
+          qty: parseFloat($('#invoice-product-qty').val()) || 1,
+          price: parseFloat($('#invoice-product-price').val()) || 0,
+          iva: $('#invoice-product-iva').val(),
+          esenzioneIva: $('#invoice-product-esenzioneIva').val(),
+          customer: getSelectedCustomerSafe()
+        })
+        : { ok: false, message: 'InvoiceFormUiService non disponibile.' };
 
-      const qty = parseFloat($('#invoice-product-qty').val()) || 1;
-      const price = parseFloat($('#invoice-product-price').val()) || 0;
-
-      // Classificazione rivalsa INPS: se il servizio è marcato come 'Costo' non entra nella base rivalsa
-      const selectedId = $('#invoice-product-select').val();
-      let isCosto = false;
-      if (selectedId && selectedId !== 'manual') {
-        const pr = (getData('products') || []).find((p) => String(p.id) === String(selectedId));
-        isCosto = pr ? (pr.isCosto === true || pr.isCosto === 'true') : false;
+      if (!built.ok || !built.line) {
+        if (built && built.message) setInvoiceFormAlert(built.message, 'warning');
+        return;
       }
 
-      window.tempInvoiceLines.push({
-        productName: d,
-        qty: qty,
-        price: price,
-        subtotal: qty * price,
-        iva: $('#invoice-product-iva').val(),
-        esenzioneIva: $('#invoice-product-esenzioneIva').val(),
-        isLavoro: !isCosto,
-        isCosto: isCosto
-      });
-
+      setInvoiceFormAlert('');
+      setInvoiceLinesSafe(getInvoiceLinesSafe().concat([built.line]));
       renderLocalInvoiceLines();
       updateTotalsDisplay();
     });
@@ -742,62 +839,127 @@ async function unmarkWorklogsFromInvoice(invoiceId) {
     // Editing inline righe fattura
     $('#invoice-lines-tbody').on('change', '.line-qty, .line-price, .line-iva, .line-natura', function () {
       const idx = parseInt($(this).attr('data-i'), 10);
-      if (isNaN(idx) || !window.tempInvoiceLines || !window.tempInvoiceLines[idx]) return;
+      if (isNaN(idx) || !getInvoiceLinesSafe() || !getInvoiceLinesSafe()[idx]) return;
 
       const row = $(this).closest('tr');
-      const qty = parseFloat(row.find('.line-qty').val()) || 0;
-      const price = parseFloat(row.find('.line-price').val()) || 0;
-      let iva = String(row.find('.line-iva').val() || '');
+      const applied = (window.InvoiceFormUiService && typeof window.InvoiceFormUiService.applyRowEditorChanges === 'function')
+        ? window.InvoiceFormUiService.applyRowEditorChanges({
+          lines: getInvoiceLinesSafe(),
+          idx: idx,
+          qty: parseFloat(row.find('.line-qty').val()) || 0,
+          price: parseFloat(row.find('.line-price').val()) || 0,
+          iva: String(row.find('.line-iva').val() || ''),
+          esenzioneIva: String(row.find('.line-natura').val() || INVOICE_NATURE_DEFAULT),
+          customer: getSelectedCustomerSafe()
+        })
+        : { ok: false, message: 'InvoiceFormUiService non disponibile.' };
 
-      // Riga speciale: "Rivalsa Bollo" (forzo IVA = 0 nel modello didattico)
-      const isBollo = String(window.tempInvoiceLines[idx].productName || '').trim().toLowerCase() === 'rivalsa bollo';
-      if (isBollo) {
-        iva = '0';
-        row.find('.line-iva').val('0');
+      if (!applied.ok || !applied.lines) {
+        if (applied && applied.message) setInvoiceFormAlert(applied.message, 'warning');
+        return;
       }
 
-      // Natura solo se IVA = 0 (ma non per la riga Bollo)
-      let natura = '';
-      if (iva === '0' && !isBollo) {
-        row.find('.line-natura').removeClass('d-none');
-        natura = String(row.find('.line-natura').val() || 'N2.2');
-      } else {
-        row.find('.line-natura').addClass('d-none');
-        natura = '';
-      }
+      setInvoiceLinesSafe(applied.lines);
+      if (applied.isBollo) row.find('.line-iva').val('0');
+      if (applied.normalizedIva === '0' && !applied.isBollo) row.find('.line-natura').removeClass('d-none');
+      else row.find('.line-natura').addClass('d-none');
 
-      window.tempInvoiceLines[idx].qty = qty;
-      window.tempInvoiceLines[idx].price = price;
-      window.tempInvoiceLines[idx].iva = iva;
-      window.tempInvoiceLines[idx].esenzioneIva = natura;
-      window.tempInvoiceLines[idx].subtotal = qty * price;
-
-      // Re-render per aggiornare Totale riga e mantenere coerenza colonne
       renderLocalInvoiceLines();
       updateTotalsDisplay();
     });
 
-    // FIX BUG: handler del-line (nel file originale era corrotto)
+
+    
+    // Editing inline descrizione riga (anche righe importate da Timesheet)
+    $('#invoice-lines-tbody').on('click', '.line-desc-cell, .line-desc-display', function (e) {
+      // Evito che click durante edit chiuda/apra di nuovo
+      const idx = parseInt($(this).attr('data-i') || $(this).data('i'), 10);
+      if (isNaN(idx)) return;
+      if (isInvoiceLockedForEditing()) return;
+      // Se è già in edit, non fare nulla
+      if (window.__invoiceDescEditingIdx === idx) return;
+      window.__invoiceDescEditingIdx = idx;
+      renderLocalInvoiceLines();
+      // Focus textarea
+      setTimeout(() => {
+        const ta = $('#invoice-lines-tbody').find(`textarea.line-desc-edit[data-i="${idx}"]`);
+        if (ta.length) {
+          ta.trigger('focus');
+          try {
+            const v = ta.val();
+            ta[0].setSelectionRange(v.length, v.length);
+          } catch (ex) { /* no-op */ }
+        }
+      }, 0);
+    });
+
+    // Salvataggio/annullo descrizione
+    $('#invoice-lines-tbody').on('keydown', 'textarea.line-desc-edit', function (e) {
+      const idx = parseInt($(this).attr('data-i'), 10);
+      if (isNaN(idx)) return;
+
+      // Esc = annulla
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        window.__invoiceDescEditingIdx = null;
+        renderLocalInvoiceLines();
+        return;
+      }
+
+      // Ctrl+Enter = salva e chiude
+      if ((e.key === 'Enter' || e.keyCode === 13) && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        $(this).trigger('blur');
+      }
+    });
+
+    $('#invoice-lines-tbody').on('blur', 'textarea.line-desc-edit', function () {
+      const idx = parseInt($(this).attr('data-i'), 10);
+      if (isNaN(idx) || !getInvoiceLinesSafe() || !getInvoiceLinesSafe()[idx]) {
+        window.__invoiceDescEditingIdx = null;
+        renderLocalInvoiceLines();
+        return;
+      }
+      const updated = (window.InvoiceFormUiService && typeof window.InvoiceFormUiService.updateDescription === 'function')
+        ? window.InvoiceFormUiService.updateDescription(getInvoiceLinesSafe(), idx, $(this).val())
+        : { ok: false, lines: getInvoiceLinesSafe() };
+      if (updated && updated.ok && updated.lines) setInvoiceLinesSafe(updated.lines);
+      window.__invoiceDescEditingIdx = null;
+      renderLocalInvoiceLines();
+      updateTotalsDisplay();
+    });
+
     $('#invoice-lines-tbody').on('click', '.del-line', function () {
       const idx = parseInt($(this).data('i'), 10);
       if (isNaN(idx)) return;
-      window.tempInvoiceLines.splice(idx, 1);
+      const nextLines = (window.InvoiceFormUiService && typeof window.InvoiceFormUiService.removeLine === 'function')
+        ? window.InvoiceFormUiService.removeLine(getInvoiceLinesSafe(), idx)
+        : getInvoiceLinesSafe();
+      setInvoiceLinesSafe(nextLines);
       renderLocalInvoiceLines();
       updateTotalsDisplay();
     });
 
     // Cambio cliente: aggiorno totali e precompilo (se presenti) i termini pagamento da anagrafica
     $('#invoice-customer-select').on('change', function () {
+      // Validazione UI: rimuovo evidenza errore appena seleziono
+      $('#invoice-customer-select').removeClass('is-invalid');
+      setInvoiceFormAlert('');
+
       if (_isLoadingInvoice) {
+        const _cid = $(this).val();
+        const _cust = (getData('customers') || []).find((c) => String(c.id) === String(_cid)) || null;
+        refreshScorporoHint(_cust);
         updateTotalsDisplay();
         return;
       }
 
       const cid = $(this).val();
       const cust = (getData('customers') || []).find((c) => String(c.id) === String(cid));
-      if (cust) {
-        applyCustomerPaymentDefaults(cust);
-      }
+      if (cust) applyCustomerPaymentDefaults(cust);
+      refreshScorporoHint(cust);
+      // Se il cliente richiede scorporo, offro di applicarlo alle righe già presenti
+      try { maybeApplyScorporoToExistingLines(cust); } catch (e) { }
 
       updateTotalsDisplay();
     });
@@ -830,7 +992,7 @@ async function unmarkWorklogsFromInvoice(invoiceId) {
       const esenzioneSelect = $('#invoice-product-esenzioneIva');
 
       const ci = getData('companyInfo') || {};
-      const isForf = String(ci.taxRegime || '').toLowerCase() === 'forfettario';
+      const isForf = window.TaxRegimePolicy ? window.TaxRegimePolicy.getCapabilities(ci).isForfettario : false;
 
       if (!selectedId) {
         // Nessuna scelta: reset campi
@@ -888,143 +1050,73 @@ async function unmarkWorklogsFromInvoice(invoiceId) {
 
     $('#new-invoice-form').submit(async function (e) {
       e.preventDefault();
-      const cid = $('#invoice-customer-select').val();
-      if (!cid || (window.tempInvoiceLines || []).length === 0) {
-        alert('Dati incompleti.');
+
+      $('#new-invoice-form').addClass('was-validated');
+      $('#invoice-customer-select').removeClass('is-invalid');
+      setInvoiceFormAlert('');
+
+      let calcs;
+      try {
+        calcs = updateTotalsDisplay();
+      } catch (err) {
+        alert('Errore nel calcolo totali: ' + err.message);
+        console.error(err);
         return;
       }
 
-      const type = $('#document-type').val();
-      const calcs = updateTotalsDisplay();
+      const formState = (window.InvoiceFormStateService && typeof window.InvoiceFormStateService.collectSubmitState === 'function')
+        ? window.InvoiceFormStateService.collectSubmitState({
+          currentInvoiceId: getCurrentInvoiceIdSafe(),
+          lines: getInvoiceLinesSafe(),
+          calcs: calcs
+        })
+        : {
+          currentInvoiceId: getCurrentInvoiceIdSafe(),
+          customerId: $('#invoice-customer-select').val(),
+          type: $('#document-type').val(),
+          lines: getInvoiceLinesSafe(),
+          calcs: calcs
+        };
 
-      const data = {
-        number: $('#invoice-number').val(),
-        date: $('#invoice-date').val(),
-        customerId: cid,
-        type: type,
-        lines: window.tempInvoiceLines,
-        totalePrestazioni: calcs.totPrest,
-        importoBollo: calcs.impBollo,
-        rivalsa: { importo: calcs.riv },
-        totaleImponibile: calcs.totImp,
-        total: calcs.totDoc,
-        ivaTotale: calcs.ivaTot,
-        ritenutaAcconto: calcs.ritenuta,
-        nettoDaPagare: calcs.nettoDaPagare,
-        status: type === 'Fattura' ? 'Da Incassare' : 'Emessa',
-        dataScadenza: $('#invoice-dataScadenza').val(),
-        dataRiferimento: $('#invoice-dataRiferimento').val(),
-        giorniTermini: ($('#invoice-modalitaPagamento').val() === 'Bonifico Bancario') ? (parseInt($('#invoice-giorniTermini').val(), 10) || 0) : null,
-        bankChoice: ($('#invoice-modalitaPagamento').val() === 'Bonifico Bancario') ? ($('#invoice-bank-select').val() || '1') : null,
-        fineMese: ($('#invoice-modalitaPagamento').val() === 'Bonifico Bancario') ? ($('#invoice-fineMese').length ? $('#invoice-fineMese').is(':checked') : false) : null,
-        giornoFissoEnabled: ($('#invoice-modalitaPagamento').val() === 'Bonifico Bancario') ? ($('#invoice-giornoFissoEnabled').length ? $('#invoice-giornoFissoEnabled').is(':checked') : false) : null,
-        giornoFissoValue: (($('#invoice-modalitaPagamento').val() === 'Bonifico Bancario') && ($('#invoice-giornoFissoEnabled').length ? $('#invoice-giornoFissoEnabled').is(':checked') : false)) ? (parseInt($('#invoice-giornoFissoValue').val(), 10) || null) : null,
-        condizioniPagamento: $('#invoice-condizioniPagamento').val(),
-        modalitaPagamento: $('#invoice-modalitaPagamento').val(),
-        linkedInvoice: $('#linked-invoice').val(),
-        reason: $('#reason').val()
-      ,
-        // Step 2: metadati import ore (se presenti)
-        timesheetImport: (window.App && window.App.invoices) ? (window.App.invoices.timesheetImportState || null) : null
-      };
+      const validation = (window.InvoiceSubmitService && typeof window.InvoiceSubmitService.validateFormState === 'function')
+        ? window.InvoiceSubmitService.validateFormState(formState)
+        : { ok: !!formState.customerId && (formState.lines || []).length > 0 };
 
-      // Bozza (draft): visibile in elenco, ma non esportabile XML e non marcabile Inviata/Pagata
-      const _isDraft = $('#invoice-isDraft').length ? $('#invoice-isDraft').is(':checked') : false;
-      data.isDraft = _isDraft;
-
-      let _old = null;
-      let _oldWasDraft = false;
-
-      if (CURRENT_EDITING_INVOICE_ID) {
-        _old = getData('invoices').find((i) => String(i.id) === String(CURRENT_EDITING_INVOICE_ID));
-        _oldWasDraft = !!(_old && (_old.isDraft === true || String(_old.status || '') === 'Bozza'));
-      }
-
-      if (_isDraft) {
-        data.status = 'Bozza';
-        data.sentToAgenzia = false;
-      } else {
-        // Se stiamo modificando: mantengo lo stato precedente (tranne uscita da bozza)
-        if (_oldWasDraft) {
-          // Uscita da bozza: ripristino stato standard
-          data.status = (type === 'Fattura') ? 'Da Incassare' : 'Emessa';
-          data.sentToAgenzia = false;
-        } else if (_old) {
-          data.status = _old.status;
+      if (!validation.ok) {
+        if (validation.field === 'customerId') {
+          $('#invoice-customer-select').addClass('is-invalid');
+          $('#invoice-customer-select').focus();
+        } else if (validation.field === 'reason') {
+          $('#reason').focus();
         }
+        setInvoiceFormAlert(validation.message || 'Controlla i dati del documento prima del salvataggio.', 'warning');
+        return;
       }
 
-// Controllo duplicati "soft" (non blocca: chiede conferma prima di salvare)
-if (!data.isDraft) {
-try {
-  const num = String(data.number || '').trim();
-  const dateStr = String(data.date || '');
-  const year = (dateStr && dateStr.length >= 4) ? dateStr.substring(0, 4) : '';
-
-  if (num && year) {
-    const existing = (getData('invoices') || []).filter((x) => {
-      if (!x) return false;
-      if (CURRENT_EDITING_INVOICE_ID && String(x.id) === String(CURRENT_EDITING_INVOICE_ID)) return false;
-      if (x.isDraft === true || String(x.status || '') === 'Bozza') return false;
-
-      const xNum = String(x.number || '').trim();
-      const xYear = x.date ? String(x.date).substring(0, 4) : '';
-
-      return (
-        String(x.customerId || '') === String(data.customerId || '') &&
-        String(x.type || '') === String(data.type || '') &&
-        xNum.toLowerCase() === num.toLowerCase() &&
-        xYear === year
-      );
-    });
-
-    if (existing.length) {
-      const cust = (getData('customers') || []).find((c) => String(c.id) === String(data.customerId)) || {};
-      const label = cust.name || cust.ragioneSociale || 'Cliente';
-      const msg = `Possibile duplicato: esiste già un ${data.type} n. ${num} (${year}) per ${label} (${existing.length} record).\n\nVuoi salvare comunque?`;
-      if (typeof confirm === 'function' && !confirm(msg)) return;
-    }
-  }
-} catch (e) {
-  console.warn('Duplicate check invoices:', e);
-}
-
-
-}
-
-
-      let id = CURRENT_EDITING_INVOICE_ID ? CURRENT_EDITING_INVOICE_ID : String(getNextId(getData('invoices')));
-      await saveDataToCloud('invoices', data, id);
-
-      // Bozza: se sto passando da documento "reale" a bozza, sblocco eventuali worklog collegati
       try {
-        if (data.isDraft && CURRENT_EDITING_INVOICE_ID && !_oldWasDraft) {
-          await unmarkWorklogsFromInvoice(id);
+        const result = (window.InvoiceSubmitService && typeof window.InvoiceSubmitService.submitDocument === 'function')
+          ? await window.InvoiceSubmitService.submitDocument(formState)
+          : { ok: false, stage: 'missing-submit-service' };
+
+        if (!result.ok) {
+          if (result.stage === 'duplicate-confirm-cancelled') return;
+          const message = (result.validation && result.validation.message) || 'Impossibile salvare il documento.';
+          setInvoiceFormAlert(message, 'warning');
+          return;
         }
-      } catch (e) {
-        console.warn('Errore sblocco worklog (bozza):', e);
+      } catch (err) {
+        console.error('Errore salvataggio documento:', err);
+        alert('Errore nel salvataggio del documento.');
+        return;
       }
-
-
-      // Step 2: se la fattura deriva da import timesheet, marca i worklog come fatturati
-      if (!data.isDraft) {
-      try {
-        const hasImportedLines = (window.tempInvoiceLines || []).some((l) => l && l.tsImport === true);
-        const ids = (data.timesheetImport && Array.isArray(data.timesheetImport.worklogIds))
-          ? data.timesheetImport.worklogIds
-          : extractImportedWorklogIds(window.tempInvoiceLines || []);
-
-        if (hasImportedLines && ids && ids.length) {
-          await markWorklogsAsInvoiced(ids, id, data.number);
-        }
-      } catch (e) {
-        console.error('Errore collegamento timesheet->fattura:', e);
-      }
-      }
+      if (window.UiRefresh && typeof window.UiRefresh.refreshInvoicesAndAnalysis === 'function') window.UiRefresh.refreshInvoicesAndAnalysis();
       alert('Salvato!');
       $('.sidebar .nav-link[data-target="elenco-fatture"]').click();
     });
   }
 
   window.AppModules.invoicesForm.bind = bind;
+  window.AppModules.invoicesForm.unmarkWorklogsFromInvoice = unmarkWorklogsFromInvoice;
+  window.AppModules.invoicesForm.markWorklogsAsInvoiced = markWorklogsAsInvoiced;
+  window.AppModules.invoicesForm.setInvoiceFormAlert = setInvoiceFormAlert;
 })();

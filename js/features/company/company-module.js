@@ -6,20 +6,22 @@
 
   let _bound = false;
 
+  function getStoredCompanyInfo() {
+    const raw = (window.AppStore && typeof window.AppStore.get === 'function') ? (window.AppStore.get('companyInfo') || {}) : ((typeof window.getData === 'function') ? (window.getData('companyInfo') || {}) : {});
+    return (window.DomainNormalizers && typeof window.DomainNormalizers.normalizeCompanyInfo === 'function') ? window.DomainNormalizers.normalizeCompanyInfo(raw) : raw;
+  }
+
+  const DEFAULT_GESTIONE_SEPARATA = (window.DomainConstants && window.DomainConstants.COMPANY_DEFAULTS && window.DomainConstants.COMPANY_DEFAULTS.GESTIONE_SEPARATA_ORDINARIO) || '26.07';
+
   function applyCompanyTaxRegimeVisibility() {
-    // Regime fiscale unificato: se taxRegime non è valorizzato, inferiamo da codiceRegimeFiscale (es. RF19)
-    let regime = String($('#company-taxRegime').val() || '').trim().toLowerCase();
-    if (!regime) {
-      const codice = String($('#company-codiceRegimeFiscale').val() || '').trim().toUpperCase();
-      const derived = (typeof window.getResolvedTaxRegime === 'function') ? window.getResolvedTaxRegime({ taxRegime: '', codiceRegimeFiscale: codice }) : (codice === 'RF19' ? 'forfettario' : '');
-      if (derived) {
-        regime = derived;
-        // Precompila la select per coerenza UI (non salva automaticamente)
-        try { $('#company-taxRegime').val(derived); } catch (e) {}
-      }
+    const policy = window.TaxRegimePolicy;
+    const regime = policy ? policy.fromFormValues($('#company-taxRegime').val(), $('#company-codiceRegimeFiscale').val()) : '';
+    if (regime) {
+      try { $('#company-taxRegime').val(regime); } catch (e) {}
     }
-    const isForfettario = regime === 'forfettario';
-    const isOrdinario = regime === 'ordinario';
+    const capabilities = policy ? policy.getCapabilities({ taxRegime: regime }) : { isForfettario: false, isOrdinario: false };
+    const isForfettario = !!capabilities.isForfettario;
+    const isOrdinario = !!capabilities.isOrdinario;
 
     // Blocchi specifici
     const $forfBlocks = $('.forfettario-only');
@@ -41,7 +43,7 @@
       if ($gs.length) {
         const v = String($gs.val() || '').trim();
         if (v === '' || !isFinite(parseFloat(v))) {
-          $gs.val('26.07');
+          $gs.val(DEFAULT_GESTIONE_SEPARATA);
         }
       }
     }
@@ -56,6 +58,12 @@
     // Se l'utente cambia il codice RFxx e taxRegime è vuoto, riallinea automaticamente la UI
     $('#company-codiceRegimeFiscale').on('change input', applyCompanyTaxRegimeVisibility);
     applyCompanyTaxRegimeVisibility();
+
+    if (window.AppStore && typeof window.AppStore.subscribe === 'function') {
+      window.AppStore.subscribe('companyInfo', function (companyInfo) {
+        if (typeof window.renderCompanyInfoForm === 'function') window.renderCompanyInfoForm(companyInfo || getStoredCompanyInfo());
+      });
+    }
 
     // Aggiorna subito il nome studio in sidebar mentre scrivi
     $('#company-name').on('input', function () {
@@ -75,14 +83,18 @@
           const key = this.id.replace('company-', '');
           d[key] = $(this).val();      });
 
+      const normalizedCompany = (window.DomainNormalizers && typeof window.DomainNormalizers.normalizeCompanyInfo === 'function')
+        ? window.DomainNormalizers.normalizeCompanyInfo(d)
+        : d;
+
       // Compatibilità: il form usa 'company-province' -> chiave 'province'.
       // L'export XML fatture storicamente usa 'provincia': manteniamo entrambe allineate.
-      if (d.province && !d.provincia) {
-        d.provincia = d.province;
+      if (normalizedCompany.province && !normalizedCompany.provincia) {
+        normalizedCompany.provincia = normalizedCompany.province;
       }
 
       // Regime fiscale (gestionale) obbligatorio
-      if (!d.taxRegime || String(d.taxRegime).trim() === '') {
+      if (!(window.TaxRegimePolicy && window.TaxRegimePolicy.has(normalizedCompany))) {
         alert('Seleziona il Regime fiscale (gestionale) prima di salvare.');
         const $f = $('#company-taxRegime');
         if ($f.length) $f.focus();
@@ -90,16 +102,21 @@
       }
 
       // Ordinario: salva default Gestione Separata se vuoto
-      if (String(d.taxRegime).toLowerCase() === 'ordinario') {
-        const v = String(d.aliquotaGestioneSeparata || '').trim();
+      if (window.TaxRegimePolicy && window.TaxRegimePolicy.canUseOrdinarioSimulation(normalizedCompany)) {
+        const v = String(normalizedCompany.aliquotaGestioneSeparata || '').trim();
         if (v === '' || !isFinite(parseFloat(v))) {
-          d.aliquotaGestioneSeparata = '26.07';
+          normalizedCompany.aliquotaGestioneSeparata = DEFAULT_GESTIONE_SEPARATA;
         }
       }
 
-      await saveDataToCloud('companyInfo', d);
+      await saveDataToCloud('companyInfo', normalizedCompany);
       alert('Anagrafica azienda salvata!');
-      if (typeof renderAll === 'function') renderAll();
+      if (window.UiRefresh && typeof window.UiRefresh.refreshCompanyAndDependentAreas === 'function') window.UiRefresh.refreshCompanyAndDependentAreas(normalizedCompany);
+      else {
+        if (typeof renderCompanyInfoForm === 'function') renderCompanyInfoForm(normalizedCompany);
+        if (typeof renderNavigationVisibility === 'function') renderNavigationVisibility(normalizedCompany);
+        if (typeof renderScadenziarioPage === 'function') renderScadenziarioPage();
+      }
     });
   }
 

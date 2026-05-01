@@ -14,7 +14,8 @@ Apri poi `http://localhost:8080`.
 ## 8.2 Struttura moduli
 - `index.html`: layout e sezioni (`div.content-section`) con `id` uguale al `data-target` del menu.
 - `js/services/firebase-cloud.js`: init Firebase + CRUD su Firestore.
-- `js/ui/ui-render.js`: render tabelle/pagine (centralizzato, scelto per limitare bug).
+- `js/ui/ui-render.js`: orchestratore UI di alto livello.
+- `js/ui/*-render.js`: moduli di rendering per area (company, dashboard, scadenziario, tax, masterdata, analysis).
 - `js/features/*`: moduli funzionali; ciascuno espone `bind()` idempotente.
 - `js/app/invoice-xml-migration.js`: orchestratore che chiama i `bind()` dei moduli.
 

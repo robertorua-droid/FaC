@@ -18,6 +18,154 @@
         }
     }
 
+    function hideTooltipFor(el) {
+        try {
+            if (!el || !window.bootstrap || !bootstrap.Tooltip) return;
+            const inst = bootstrap.Tooltip.getInstance(el);
+            if (inst) {
+                inst.hide();
+                inst.dispose();
+            }
+        } catch (e) {
+            // no-op
+        }
+    }
+
+    function _esc(s) {
+        return String(s ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function ensurePurchaseDetailModal() {
+        if (document.getElementById('purchaseDetailModal')) return;
+        var html = ''
+            + '<div class="modal fade" id="purchaseDetailModal" tabindex="-1" aria-labelledby="purchaseDetailModalLabel" aria-hidden="true">'
+            + '  <div class="modal-dialog modal-lg modal-dialog-scrollable">'
+            + '    <div class="modal-content">'
+            + '      <div class="modal-header">'
+            + '        <h5 class="modal-title" id="purchaseDetailModalLabel">Dettaglio Acquisto</h5>'
+            + '        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>'
+            + '      </div>'
+            + '      <div class="modal-body"><div id="purchase-detail-content"></div></div>'
+            + '      <div class="modal-footer">'
+            + '        <button type="button" class="btn btn-outline-primary" id="purchase-detail-edit-btn"><i class="fas fa-edit me-1"></i> Apri in modifica</button>'
+            + '        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Chiudi</button>'
+            + '      </div>'
+            + '    </div>'
+            + '  </div>'
+            + '</div>';
+        document.body.insertAdjacentHTML('beforeend', html);
+
+        // Bind: Apri in modifica
+        $(document)
+            .off('click.purchasesDetail', '#purchase-detail-edit-btn')
+            .on('click.purchasesDetail', '#purchase-detail-edit-btn', function () {
+                const id = $(this).attr('data-id');
+                if (!id) return;
+                try {
+                    const el = document.getElementById('purchaseDetailModal');
+                    if (el && window.bootstrap && bootstrap.Modal) {
+                        const m = bootstrap.Modal.getInstance(el);
+                        if (m) m.hide();
+                    }
+                } catch (e) { }
+
+                const p = (getData('purchases') || []).find(x => String(x.id) === String(id));
+                if (!p) return;
+                if (typeof window.preparePurchaseForm === 'function') window.preparePurchaseForm(p);
+                $('.sidebar .nav-link[data-target="nuovo-acquisto"]').click();
+            });
+    }
+
+    function showPurchaseDetailModal(p) {
+        try {
+            ensurePurchaseDetailModal();
+            if (!p) return;
+
+            const sup = (getData('suppliers') || []).find(s => String(s.id) === String(p.supplierId)) || { name: 'Sconosciuto' };
+            const total = parseFloat(p.totaleDocumento ?? p.total ?? 0) || 0;
+            const impon = parseFloat(p.imponibile ?? 0) || 0;
+            const iva = parseFloat(p.ivaTotale ?? p.ivaTot ?? 0) || 0;
+            const status = p.status || 'Da Pagare';
+            const isPaid = (status === 'Pagata' || status === 'Pagato');
+            const statusBadge = isPaid
+                ? '<span class="badge bg-success">Pagata</span>'
+                : '<span class="badge bg-warning text-dark">Da Pagare</span>';
+
+            let rows = '';
+            (Array.isArray(p.lines) ? p.lines : []).forEach(l => {
+                const qty = parseFloat(l.qty) || 0;
+                const price = parseFloat(l.price) || 0;
+                const sub = qty * price;
+                const ivaPerc = (l.iva != null ? l.iva : '');
+                rows += '<tr>'
+                    + '<td>' + _esc(l.description || '') + '</td>'
+                    + '<td class="text-end">' + qty + '</td>'
+                    + '<td class="text-end">€ ' + price.toFixed(2) + '</td>'
+                    + '<td class="text-end">' + _esc(ivaPerc) + '</td>'
+                    + '<td class="text-end">€ ' + sub.toFixed(2) + '</td>'
+                    + '</tr>';
+            });
+
+            const html = ''
+                + '<div class="row g-2 mb-2">'
+                + '  <div class="col-md-6"><div class="small text-muted">Fornitore</div><div class="fw-semibold">' + _esc(sup.name || '') + '</div></div>'
+                + '  <div class="col-md-3"><div class="small text-muted">Numero</div><div>' + _esc(p.number || '') + '</div></div>'
+                + '  <div class="col-md-3"><div class="small text-muted">Stato</div><div>' + statusBadge + '</div></div>'
+                + '</div>'
+                + '<div class="row g-2 mb-3">'
+                + '  <div class="col-md-3"><div class="small text-muted">Data Doc.</div><div>' + _esc(formatDateForDisplay(p.date)) + '</div></div>'
+                + '  <div class="col-md-3"><div class="small text-muted">Data Rif.</div><div>' + _esc(p.dataRiferimento ? formatDateForDisplay(p.dataRiferimento) : '') + '</div></div>'
+                + '  <div class="col-md-3"><div class="small text-muted">Scadenza</div><div>' + _esc(p.dataScadenza ? formatDateForDisplay(p.dataScadenza) : '') + '</div></div>'
+                + '  <div class="col-md-3"><div class="small text-muted">Totale</div><div class="fw-bold">€ ' + total.toFixed(2) + '</div></div>'
+                + '</div>'
+                + '<div class="mb-2"><div class="small text-muted">Note</div><div>' + _esc(p.notes || '') + '</div></div>'
+                + '<div class="table-responsive mt-3">'
+                + '  <table class="table table-sm align-middle">'
+                + '    <thead><tr><th>Descrizione</th><th class="text-end">Qtà</th><th class="text-end">Prezzo</th><th class="text-end">IVA</th><th class="text-end">Totale</th></tr></thead>'
+                + '    <tbody>' + (rows || '<tr><td colspan="5" class="text-muted">Nessuna riga</td></tr>') + '</tbody>'
+                + '  </table>'
+                + '</div>'
+                + '<div class="text-end bg-light border rounded p-2">'
+                + '  <div>Imponibile: <strong>€ ' + impon.toFixed(2) + '</strong></div>'
+                + '  <div>IVA: <strong>€ ' + iva.toFixed(2) + '</strong></div>'
+                + '  <div class="fs-5 mt-1">Totale Documento: <strong>€ ' + total.toFixed(2) + '</strong></div>'
+                + '</div>';
+
+            $('#purchase-detail-content').html(html);
+            $('#purchase-detail-edit-btn').attr('data-id', String(p.id));
+
+            if (window.bootstrap && bootstrap.Modal) {
+                const el = document.getElementById('purchaseDetailModal');
+                const modal = bootstrap.Modal.getOrCreateInstance(el);
+                modal.show();
+            }
+        } catch (e) {
+            console.warn('showPurchaseDetailModal:', e);
+        }
+    }
+
+    // Expose: apri dettaglio acquisto da altri moduli (es. Registri IVA)
+    window.showPurchaseDetailModalById = function (id) {
+        try {
+            const pid = String(id || "");
+            if (!pid) return;
+            const p = getNormalizedPurchases().find(x => String(x.id) === pid);
+            if (!p) {
+                alert("Acquisto non trovato: " + pid);
+                return;
+            }
+            showPurchaseDetailModal(p);
+        } catch (e) {
+            console.warn("showPurchaseDetailModalById error:", e);
+        }
+    };
+
+
     // =========================================================
     // ACQUISTI (Elenco)
     // =========================================================
@@ -28,7 +176,7 @@
         const previous = $select.val();
         const yearsSet = new Set();
 
-        (getData('purchases') || []).forEach(p => {
+        getNormalizedPurchases().forEach(p => {
             if (p.date && typeof p.date === 'string' && p.date.length >= 4) {
                 const y = p.date.substring(0, 4);
                 if (/^\d{4}$/.test(y)) yearsSet.add(y);
@@ -87,9 +235,9 @@
         if (!table.length) return;
         table.empty();
         // Refresh filters (if present)
-        try { if (typeof refreshPurchaseYearFilter === 'function') refreshPurchaseYearFilter(); } catch (e) {}
-        try { if (typeof refreshPurchaseSupplierFilter === 'function') refreshPurchaseSupplierFilter(); } catch (e) {}
-        try { if (typeof refreshPurchaseStatusFilter === 'function') refreshPurchaseStatusFilter(); } catch (e) {}
+        try { if (typeof refreshPurchaseYearFilter === 'function') refreshPurchaseYearFilter(); } catch (e) { }
+        try { if (typeof refreshPurchaseSupplierFilter === 'function') refreshPurchaseSupplierFilter(); } catch (e) { }
+        try { if (typeof refreshPurchaseStatusFilter === 'function') refreshPurchaseStatusFilter(); } catch (e) { }
 
 
         const yearSelect = $('#purchase-year-filter');
@@ -101,9 +249,12 @@
         const statusSelect = $('#purchase-status-filter');
         const selectedStatus = statusSelect.length ? (statusSelect.val() || 'all') : 'all';
 
+        const dateFrom = String($('#purchase-date-from-filter').val() || '').trim();
+        const dateTo = String($('#purchase-date-to-filter').val() || '').trim();
+
         const searchVal = String($('#purchase-search-filter').val() || '').trim().toLowerCase();
 
-        const allPurchases = (getData('purchases') || [])
+        const allPurchases = getNormalizedPurchases()
             .slice()
             .sort((a, b) => new Date(b.date || '1970-01-01') - new Date(a.date || '1970-01-01'));
 
@@ -119,6 +270,13 @@
             purchases = purchases.filter(p => String(p.status || 'Da Pagare') === String(selectedStatus));
         }
 
+        if (dateFrom) {
+            purchases = purchases.filter(p => p.date && String(p.date) >= dateFrom);
+        }
+        if (dateTo) {
+            purchases = purchases.filter(p => p.date && String(p.date) <= dateTo);
+        }
+
         if (searchVal) {
             purchases = purchases.filter(p => {
                 const sup = (getData('suppliers') || []).find(s => String(s.id) === String(p.supplierId)) || { name: '' };
@@ -130,23 +288,33 @@
         purchases.forEach(p => {
             const sup = (getData('suppliers') || []).find(s => String(s.id) === String(p.supplierId)) || { name: 'Sconosciuto' };
             const status = p.status || 'Da Pagare';
+            const isPaid = (status === 'Pagata' || status === 'Pagato');
             const total = parseFloat(p.totaleDocumento ?? p.total ?? 0) || 0;
 
-            const ttEdit = 'Modifica acquisto';
-            const ttToggle = (status === 'Pagata') ? 'Segna come Da Pagare' : 'Segna come Pagata';
+            const docDate = formatDateForDisplay(p.date);
+            const refDate = p.dataRiferimento ? formatDateForDisplay(p.dataRiferimento) : '';
+
+            const statusBadge = isPaid
+                ? `<span class="badge bg-success">Pagata</span>`
+                : `<span class="badge bg-warning text-dark">Da Pagare</span>`;
+
+            const rowClass = '';
+
+            const ttEdit = 'Dettaglio acquisto';
+            const ttToggle = isPaid ? 'Segna come Da Pagare' : 'Segna come Pagata';
             const ttDelete = 'Elimina acquisto';
 
             table.append(`
-                <tr>
+                <tr class="${rowClass}">
                     <td>${p.number || ''}</td>
-                    <td>${formatDateForDisplay(p.date)}</td>
+                    <td>${docDate}</td>
+                    <td>${refDate}</td>
                     <td>${sup.name || ''}</td>
                     <td class="text-end">€ ${total.toFixed(2)}</td>
                     <td>${p.dataScadenza ? formatDateForDisplay(p.dataScadenza) : ''}</td>
-                    <td>${status}</td>
-                    <td class="text-end">
-                        <button class="btn btn-sm btn-outline-primary btn-edit-purchase" data-id="${p.id}" data-bs-toggle="tooltip" title="${ttEdit}" aria-label="${ttEdit}">
-                            <i class="fas fa-edit"></i>
+                    <td>${statusBadge}</td>
+                    <td class="text-end"><button class="btn btn-sm btn-outline-primary btn-edit-purchase" data-id="${p.id}" data-bs-toggle="tooltip" title="${ttEdit}" aria-label="${ttEdit}">
+                            <i class="fas fa-eye"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-success btn-toggle-purchase-status" data-id="${p.id}" data-bs-toggle="tooltip" title="${ttToggle}" aria-label="${ttToggle}">
                             <i class="fas fa-check"></i>
@@ -257,6 +425,10 @@
 
         // Esposta globalmente (usata dalla navigazione)
         window.preparePurchaseForm = function preparePurchaseForm(purchaseObj = null) {
+            try {
+                const $h2 = $('#nuovo-acquisto h2');
+                if ($h2.length) $h2.text(purchaseObj ? 'Modifica Acquisto' : 'Nuovo Acquisto');
+            } catch (e) { }
             CURRENT_EDITING_PURCHASE_ID = null;
             $('#purchaseForm')[0].reset();
             $('#purchase-id').val('Nuovo');
@@ -286,7 +458,7 @@
                 $('#purchase-status').val(purchaseObj.status || 'Da Pagare');
                 $('#purchase-notes').val(purchaseObj.notes || '');
 
-                window.tempPurchaseLines = Array.isArray(purchaseObj.lines) ? purchaseObj.lines : [];
+                window.tempPurchaseLines = Array.isArray(purchaseObj.lines) ? purchaseObj.lines.map(function (l) { return (window.DomainNormalizers && typeof window.DomainNormalizers.normalizePurchaseInfo === 'function') ? window.DomainNormalizers.normalizePurchaseInfo({ lines: [l] }).lines[0] : l; }) : [];
                 renderLocalPurchaseLines();
                 updatePurchaseTotalsDisplay();
             }
@@ -365,7 +537,7 @@
                 }
 
                 const totals = updatePurchaseTotalsDisplay();
-                const data = {
+                const rawData = {
                     supplierId: String(supplierId),
                     number: $('#purchase-number').val(),
                     date: $('#purchase-date').val(),
@@ -379,46 +551,50 @@
                     ivaTotale: totals.ivaTot,
                     totaleDocumento: totals.totale
                 };
+                const data = (window.DomainNormalizers && typeof window.DomainNormalizers.normalizePurchaseInfo === 'function')
+                    ? window.DomainNormalizers.normalizePurchaseInfo(rawData)
+                    : rawData;
 
                 const id = CURRENT_EDITING_PURCHASE_ID
                     ? String(CURRENT_EDITING_PURCHASE_ID)
                     : String(getNextId(getData('purchases')));
 
 
-// Controllo duplicati "soft" (non blocca: chiede conferma prima di salvare)
-try {
-    const num = String(data.number || '').trim();
-    const dateStr = String(data.date || '');
-    const year = (dateStr && dateStr.length >= 4) ? dateStr.substring(0, 4) : '';
+                // Controllo duplicati "soft" (non blocca: chiede conferma prima di salvare)
+                try {
+                    const num = String(data.number || '').trim();
+                    const dateStr = String(data.date || '');
+                    const year = (dateStr && dateStr.length >= 4) ? dateStr.substring(0, 4) : '';
 
-    if (num && year) {
-        const dupes = (getData('purchases') || []).filter(p => {
-            if (!p) return false;
-            if (CURRENT_EDITING_PURCHASE_ID && String(p.id) === String(CURRENT_EDITING_PURCHASE_ID)) return false;
+                    if (num && year) {
+                        const dupes = (getData('purchases') || []).filter(p => {
+                            if (!p) return false;
+                            if (CURRENT_EDITING_PURCHASE_ID && String(p.id) === String(CURRENT_EDITING_PURCHASE_ID)) return false;
 
-            const pNum = String(p.number || '').trim();
-            const pYear = p.date ? String(p.date).substring(0, 4) : '';
+                            const pNum = String(p.number || '').trim();
+                            const pYear = p.date ? String(p.date).substring(0, 4) : '';
 
-            return (
-                String(p.supplierId || '') === String(data.supplierId || '') &&
-                pNum.toLowerCase() === num.toLowerCase() &&
-                pYear === year
-            );
-        });
+                            return (
+                                String(p.supplierId || '') === String(data.supplierId || '') &&
+                                pNum.toLowerCase() === num.toLowerCase() &&
+                                pYear === year
+                            );
+                        });
 
-        if (dupes.length) {
-            const sup = (getData('suppliers') || []).find(s => String(s.id) === String(data.supplierId)) || {};
-            const label = sup.name || 'Fornitore';
-            const msg = `Possibile duplicato: esiste già un acquisto n. ${num} (${year}) per ${label} (${dupes.length} record).\n\nVuoi salvare comunque?`;
-            if (typeof confirm === 'function' && !confirm(msg)) return;
-        }
-    }
-} catch (e) {
-    console.warn('Duplicate check purchases:', e);
-}
+                        if (dupes.length) {
+                            const sup = (getData('suppliers') || []).find(s => String(s.id) === String(data.supplierId)) || {};
+                            const label = sup.name || 'Fornitore';
+                            const msg = `Possibile duplicato: esiste già un acquisto n. ${num} (${year}) per ${label} (${dupes.length} record).\n\nVuoi salvare comunque?`;
+                            if (typeof confirm === 'function' && !confirm(msg)) return;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Duplicate check purchases:', e);
+                }
 
 
                 await saveDataToCloud('purchases', data, id);
+                if (window.UiRefresh && typeof window.UiRefresh.refreshPurchasesAndAnalysis === 'function') window.UiRefresh.refreshPurchasesAndAnalysis();
 
                 alert("Acquisto salvato!");
                 $('.sidebar .nav-link[data-target="elenco-acquisti"]').click();
@@ -436,6 +612,12 @@ try {
                 renderPurchasesTable();
             });
 
+        $('#purchase-date-from-filter, #purchase-date-to-filter')
+            .off('change.purchasesList')
+            .on('change.purchasesList', function () {
+                renderPurchasesTable();
+            });
+
         $('#purchase-search-filter')
             .off('keyup.purchasesList')
             .on('keyup.purchasesList', function () {
@@ -445,9 +627,9 @@ try {
         $('#purchase-reset-filters-btn')
             .off('click.purchasesList')
             .on('click.purchasesList', function () {
-                try { if (typeof refreshPurchaseYearFilter === 'function') refreshPurchaseYearFilter(); } catch (e) {}
-                try { if (typeof refreshPurchaseSupplierFilter === 'function') refreshPurchaseSupplierFilter(); } catch (e) {}
-                try { if (typeof refreshPurchaseStatusFilter === 'function') refreshPurchaseStatusFilter(); } catch (e) {}
+                try { if (typeof refreshPurchaseYearFilter === 'function') refreshPurchaseYearFilter(); } catch (e) { }
+                try { if (typeof refreshPurchaseSupplierFilter === 'function') refreshPurchaseSupplierFilter(); } catch (e) { }
+                try { if (typeof refreshPurchaseStatusFilter === 'function') refreshPurchaseStatusFilter(); } catch (e) { }
                 $('#purchase-search-filter').val('');
 
                 const currentYear = String(new Date().getFullYear());
@@ -458,36 +640,64 @@ try {
                 }
                 $('#purchase-supplier-filter').val('all');
                 $('#purchase-status-filter').val('all');
+                $('#purchase-date-from-filter').val('');
+                $('#purchase-date-to-filter').val('');
                 renderPurchasesTable();
             });
-
 
         $('#purchases-table-body')
             .off('click.purchases', '.btn-edit-purchase')
             .on('click.purchases', '.btn-edit-purchase', function () {
+                hideTooltipFor(this);
                 const id = $(this).attr('data-id');
                 const p = (getData('purchases') || []).find(x => String(x.id) === String(id));
                 if (!p) return;
-                window.preparePurchaseForm(p);
-                $('.sidebar .nav-link[data-target="nuovo-acquisto"]').click();
+                showPurchaseDetailModal(p);
+
             });
 
         $('#purchases-table-body')
             .off('click.purchases', '.btn-delete-purchase')
             .on('click.purchases', '.btn-delete-purchase', function () {
-                deleteDataFromCloud('purchases', $(this).attr('data-id'));
+                hideTooltipFor(this);
+                const id = $(this).attr('data-id');
+                if (window.deleteDataFromCloud) window.deleteDataFromCloud('purchases', id, { skipRender: true }).then(() => {
+                    if (window.UiRefresh && typeof window.UiRefresh.refreshPurchasesAnalysisAndScadenziario === 'function') {
+                        window.UiRefresh.refreshPurchasesAnalysisAndScadenziario();
+                    } else if (window.UiRefresh && typeof window.UiRefresh.refreshPurchasesAndAnalysis === 'function') {
+                        window.UiRefresh.refreshPurchasesAndAnalysis();
+                    } else if (typeof renderPurchasesTable === 'function') {
+                        renderPurchasesTable();
+                    } else {
+                        if (typeof renderPurchasesTable === 'function') renderPurchasesTable();
+                        if (typeof renderScadenziarioPage === 'function') renderScadenziarioPage();
+                        if (typeof renderHomePage === 'function') renderHomePage();
+                    }
+                });
             });
 
         $('#purchases-table-body')
             .off('click.purchases', '.btn-toggle-purchase-status')
             .on('click.purchases', '.btn-toggle-purchase-status', async function () {
+                hideTooltipFor(this);
                 const id = $(this).attr('data-id');
                 const p = (getData('purchases') || []).find(x => String(x.id) === String(id));
                 if (!p) return;
 
                 const newStatus = (p.status === 'Pagata') ? 'Da Pagare' : 'Pagata';
-                await saveDataToCloud('purchases', { ...p, status: newStatus }, String(id));
-                if (typeof renderAll === 'function') renderAll();
+                const updated = (window.DomainNormalizers && typeof window.DomainNormalizers.normalizePurchaseInfo === 'function') ? window.DomainNormalizers.normalizePurchaseInfo({ ...p, status: newStatus }) : { ...p, status: newStatus };
+                await saveDataToCloud('purchases', updated, String(id));
+                if (window.UiRefresh && typeof window.UiRefresh.refreshPurchasesAnalysisAndScadenziario === 'function') {
+                    window.UiRefresh.refreshPurchasesAnalysisAndScadenziario();
+                } else if (window.UiRefresh && typeof window.UiRefresh.refreshPurchasesAndAnalysis === 'function') {
+                    window.UiRefresh.refreshPurchasesAndAnalysis();
+                } else if (typeof renderPurchasesTable === 'function') {
+                    renderPurchasesTable();
+                } else {
+                    if (typeof renderPurchasesTable === 'function') renderPurchasesTable();
+                    if (typeof renderScadenziarioPage === 'function') renderScadenziarioPage();
+                    if (typeof renderHomePage === 'function') renderHomePage();
+                }
             });
     };
 })();

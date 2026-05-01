@@ -42,9 +42,88 @@
       }
     });
 
+
+    $(document).off('click', '#toggle-password-visibility').on('click', '#toggle-password-visibility', function () {
+      const $password = $('#password');
+      const $icon = $(this).find('i');
+      const isVisible = $password.attr('type') === 'text';
+      $password.attr('type', isVisible ? 'password' : 'text');
+      $(this).attr('title', isVisible ? 'Mostra password' : 'Nascondi password');
+      $(this).attr('aria-label', isVisible ? 'Mostra password' : 'Nascondi password');
+      $icon.toggleClass('fa-eye fa-eye-slash');
+    });
+
+
+
+    $(document).off('click', '#btn-open-password-reset').on('click', '#btn-open-password-reset', function () {
+      const currentEmail = String($('#email').val() || '').trim();
+      $('#reset-email').val(currentEmail);
+      $('#password-reset-success, #password-reset-error').addClass('d-none').text('');
+      $('#password-reset-feedback').addClass('d-none').text('');
+      const modalEl = document.getElementById('passwordResetModal');
+      if (modalEl && window.bootstrap && bootstrap.Modal) {
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      } else {
+        $('#reset-email').trigger('focus');
+      }
+    });
+
+    $(document).off('submit', '#password-reset-form').on('submit', function (e) {
+      e.preventDefault();
+
+      const email = String($('#reset-email').val() || '').trim();
+      if (!email) {
+        $('#password-reset-error').removeClass('d-none').text('Inserisci un indirizzo email valido.');
+        $('#password-reset-success').addClass('d-none').text('');
+        return;
+      }
+
+      $('#password-reset-success, #password-reset-error').addClass('d-none').text('');
+      $('#password-reset-spinner').removeClass('d-none');
+      $('#btn-send-password-reset').prop('disabled', true);
+
+      try {
+        if (auth) auth.languageCode = 'it';
+      } catch (langErr) {
+        console.warn('Impossibile impostare la lingua Firebase Auth:', langErr);
+      }
+
+      auth
+        .sendPasswordResetEmail(email)
+        .then(() => {
+          const message = 'Se l’indirizzo è registrato, riceverai un’email con il link per reimpostare la password.';
+          $('#password-reset-success').removeClass('d-none').text(message);
+          $('#password-reset-feedback').removeClass('d-none').text(message);
+          $('#password-reset-form')[0].reset();
+        })
+        .catch((err) => {
+          console.error('Password reset error:', err);
+          const neutralMessage = 'Se l’indirizzo è registrato, riceverai un’email con il link per reimpostare la password.';
+          if (err && err.code === 'auth/user-not-found') {
+            $('#password-reset-success').removeClass('d-none').text(neutralMessage);
+            $('#password-reset-feedback').removeClass('d-none').text(neutralMessage);
+            $('#password-reset-form')[0].reset();
+            return;
+          }
+
+          let message = 'Non è stato possibile inviare il link di reset. Verifica l’indirizzo email e riprova.';
+          if (err && err.code === 'auth/invalid-email') {
+            message = 'L’indirizzo email inserito non è valido.';
+          } else if (err && err.code === 'auth/too-many-requests') {
+            message = 'Troppe richieste ravvicinate. Riprova più tardi.';
+          }
+          $('#password-reset-error').removeClass('d-none').text(message);
+        })
+        .finally(() => {
+          $('#password-reset-spinner').addClass('d-none');
+          $('#btn-send-password-reset').prop('disabled', false);
+        });
+    });
+
     $('#login-form').on('submit', function (e) {
       e.preventDefault();
       $('#login-error').addClass('d-none');
+      $('#password-reset-feedback').addClass('d-none').text('');
       $('#login-spinner').removeClass('d-none');
       $('#btn-login-submit').prop('disabled', true);
 

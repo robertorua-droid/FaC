@@ -6,6 +6,12 @@
 
   let _bound = false;
 
+  function getSuppliersStore() {
+    if (window.AppStore && typeof window.AppStore.get === 'function') return window.AppStore.get('suppliers') || [];
+    if (typeof window.getData === 'function') return window.getData('suppliers') || [];
+    return [];
+  }
+
   function bind() {
     if (_bound) return;
     _bound = true;
@@ -36,10 +42,11 @@
         note: $('#supplier-note').val() || ''
       };
 
-      let id = CURRENT_EDITING_ID ? String(CURRENT_EDITING_ID) : String(getNextId(getData('suppliers')));
+      let id = CURRENT_EDITING_ID ? String(CURRENT_EDITING_ID) : String(getNextId(getSuppliersStore()));
       await saveDataToCloud('suppliers', data, id);
       $('#supplierModal').modal('hide');
-      renderAll();
+      if (window.UiRefresh && typeof window.UiRefresh.refreshPurchasesArea === 'function') window.UiRefresh.refreshPurchasesArea();
+      else if (typeof renderPurchasesArea === 'function') renderPurchasesArea();
     });
 
     $('#suppliers-table-body').on('click', '.btn-edit-supplier', function (e) {
@@ -47,7 +54,11 @@
     });
 
     $('#suppliers-table-body').on('click', '.btn-delete-supplier', function (e) {
-      deleteDataFromCloud('suppliers', $(e.currentTarget).attr('data-id'));
+      const id = $(e.currentTarget).attr('data-id');
+      if (window.deleteDataFromCloud) window.deleteDataFromCloud('suppliers', id, { skipRender: true }).then(() => {
+        if (window.UiRefresh && typeof window.UiRefresh.refreshPurchasesArea === 'function') window.UiRefresh.refreshPurchasesArea();
+        else if (typeof renderPurchasesArea === 'function') renderPurchasesArea();
+      });
     });
   }
 

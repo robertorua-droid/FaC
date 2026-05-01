@@ -28,12 +28,12 @@ Dati per utente:
   - `invoices` (fatture + note di credito)
   - `purchases` (acquisti)
   - `notes` (block-notes)
-  - `commesse` (commesse)
-  - `projects` (progetti)
-  - `worklogs` (timesheet)
+  - `commesse` (collegate a un cliente "Fatturo a")
+  - `projects` (collegate a una commessa; contengono **codice progetto** e **cliente finale**)
+  - `worklogs` (timesheet giornaliero; collegabili a una fattura tramite `invoiceId`)
 
 ## Pagine principali (menu)
-- **Home**: dashboard e block-notes
+- **Home**: dashboard, block-notes e calendario. Il calendario locale può essere sostituito da un Google Calendar incorporato in vista 7 giorni configurando l’URL embed/ID in **Dati Azienda**.
 - **Statistiche**: riepiloghi annuali
 - **Registri IVA** *(solo Ordinario)*
 - **Simulazioni fiscali**: Ordinario / LM
@@ -59,6 +59,6 @@ Il regime viene scelto in **Impostazioni → Azienda**.
 
 ## Concetti chiave per l’uso didattico
 - **Timesheet**: è salvato come `worklogs` (giorno/commessa/progetto/minuti) e viene esportato in CSV.
-- **Import ore in fattura**: dal timesheet puoi generare righe fattura e (opzionalmente) marcare worklog come fatturati.
+- **Import ore in fattura**: dal timesheet puoi generare righe fattura. Il sistema gestisce un **binding sicuro**: i worklog vengono marcati come "fatturati" solo al salvataggio definitivo della fattura, garantendo coerenza in caso di annullamento o modifiche del form.
 - **Gestione Dati**: backup, import, cancellazioni per anno, reset totale per “passaggio classe”.
 - **Uso dati (stima)**: utile per parlare di quote/limiti (stima su 1 GiB Spark).

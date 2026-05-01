@@ -1,4 +1,4 @@
-# Mappa selector/eventi → modulo/file (versione stabile)
+# Mappa selector/eventi → modulo/file (v12.25)
 
 Questa mappa elenca **dove** vengono gestiti i principali eventi UI.
 
@@ -20,6 +20,10 @@ Questa mappa elenca **dove** vengono gestiti i principali eventi UI.
 | Selector | Evento | Azione |
 |---|---|---|
 | `.sidebar .nav-link` | `click` | Switch pagina via `data-target` + guard regime |
+| `#sidebar-toggle-btn` | `click` | Toggle sidebar (collapsed/expanded) |
+| `.nav-section-header` | `click` | Toggle espansione singola sezione + persistenza |
+| `#btn-expand-all` | `click` | Espande tutte le sezioni del menu |
+| `#btn-collapse-all` | `click` | Comprime tutte le sezioni del menu |
 | `#invoice-year-filter` | `change` | `renderInvoicesTable()` |
 | `#stats-year-filter` | `change` | `renderStatisticsPage()` |
 | `#lm-year-select, #lm-only-paid, #lm-include-bollo` | `change` | `renderLMPage()` (solo forfettario) |
@@ -43,6 +47,8 @@ Questa mappa elenca **dove** vengono gestiti i principali eventi UI.
 |---|---|---|
 | `#newCustomerBtn` | `click` | reset form + apre modal |
 | `#saveCustomerBtn` | `click` | salva cliente → `renderAll()` |
+| `#customer-bolloAcaricoEmittente` | `change` | (opzionale) flag "Bollo a carico studio" usato in fatture/XML |
+| `#customer-timesheetPrefix` | `input` | (solo forfettario) prefisso descrizione import ore timesheet in fattura |
 | `#customers-table-body` | `click` su `.btn-edit-customer` | modifica |
 | `#customers-table-body` | `click` su `.btn-delete-customer` | elimina |
 
@@ -81,6 +87,10 @@ Questa mappa elenca **dove** vengono gestiti i principali eventi UI.
 | `#add-product-to-invoice-btn` | `click` | aggiunge riga a `tempInvoiceLines` |
 | `#invoice-lines-tbody` | `change` su `.line-qty,.line-price,.line-iva,.line-natura` | ricalcolo totali |
 | `#invoice-lines-tbody` | `click` su `.del-line` | elimina riga |
+
+### Fatture — editing inline descrizione riga
+- `#invoice-lines-tbody .line-desc-cell` → attiva edit descrizione (textarea) — `js/features/invoices/invoices-form-module.js`
+- `#invoice-lines-tbody textarea.line-desc-edit` → salva/annulla descrizione (blur / Ctrl+Invio / Esc) — `js/features/invoices/invoices-form-module.js`
 | `#invoice-product-select` | `change` | compila descrizione/prezzo/IVA da servizio |
 | `#invoice-modalitaPagamento` | `change` | show/hide banca + termini (solo bonifico) |
 | `#invoice-bank-select` | `change` | salva `bankChoice` |
@@ -147,6 +157,67 @@ Questa mappa elenca **dove** vengono gestiti i principali eventi UI.
 
 ---
 
+## Dashboard (`js/features/dashboard/dashboard-module.js`)
+
+| Selector | Evento | Azione |
+|---|---|---|
+| `#dash-mode` | `change` | Toggle visibilità mese + rinfresco dashboard |
+| `#dash-year, #dash-month` | `change` | Rinfresco dashboard |
+| `#dash-refresh-btn` | `click` | Rinfresco dashboard manuale |
+
+---
+
+## Commesse (`js/features/commesse/commesse-module.js`)
+
+| Selector | Evento | Azione |
+|---|---|---|
+| `#btn-new-commessa` | `click` | Reset form + apre modal |
+| `#commessa-save-btn` | `click` | Salva commessa (Firestore) → render |
+| `#commessa-table-body` | `click` su `.btn-edit-commessa` | Carica dati in modal |
+| `#commessa-table-body` | `click` su `.btn-delete-commessa` | Elimina commessa (se non ha legami) |
+
+---
+
+## Progetti (`js/features/commesse/projects-module.js`)
+
+| Selector | Evento | Azione |
+|---|---|---|
+| `#btn-new-project` | `click` | Reset form + eredita filtro commessa |
+| `#project-save-btn` | `click` | Salva progetto (code, endCustomer, etc.) |
+| `#project-default-product` | `change` | Eredita tariffa e tipo (Lavoro/Costo) dal servizio |
+| `#project-isLavoro, #project-isCosto` | `change` | Gestione flag mutuamente esclusivi |
+| `#projects-commessa-filter` | `change` | Filtra elenco progetti |
+| `#projects-table-body` | `click` su `.btn-edit-project` | Carica dati in modal |
+| `#projects-table-body` | `click` su `.btn-delete-project` | Elimina progetto (se non ha worklog) |
+
+---
+
+## Timesheet (`js/features/commesse/timesheet-module.js`)
+
+| Selector | Evento | Azione |
+|---|---|---|
+| `#ts-save-btn` | `click` | Salva worklog (Minutes e FinalMinutes) |
+| `#ts-commessa` | `change` | Popola select progetti collegati |
+| `#ts-project` | `change` | Aggiorna label Cliente Finale |
+| `#ts-hours, #ts-minutes` | `input` | Sync automatico ore Cliente Finale |
+| `#ts-hours-final, #ts-minutes-final` | `input` | Interrompe sync automatico ore CF |
+| `#ts-filter-from, #ts-filter-to, etc.` | `change` | Filtra elenco worklog |
+| `#ts-select-all-invoiced` | `change` | Selezione massiva worklog fatturati |
+| `#ts-unlock-selected-btn` | `click` | Sblocca worklog (reset `invoiceId`) |
+| `#timesheet-table-body` | `click` su `.btn-edit-worklog` | Carica nel form e scrolla in alto |
+| `#timesheet-table-body` | `click` su `.btn-delete-worklog` | Elimina worklog (con warning se fatturato) |
+
+---
+
+## Export Timesheet (`js/features/commesse/timesheet-export.js`)
+
+| Selector | Evento | Azione |
+|---|---|---|
+| `#ts-export-csv-btn` | `click` | Genera CSV (Dettaglio / Gruppi / Pivot) |
+| `#ts-export-group-select` | `change` | Cambia modalità raggruppamento (Dettaglio, Giorno, etc.) |
+
+---
+
 ## Migrazione/backup (`js/features/migration/migration-module.js`)
 
 | Selector | Evento | Azione |
@@ -154,3 +225,4 @@ Questa mappa elenca **dove** vengono gestiti i principali eventi UI.
 | `#backup-btn` | `click` | export JSON |
 | `#restore-btn` | `click` | import JSON |
 | `#delete-documents-form` | `submit` | elimina documenti per anno |
+| `#delete-purchases-form` | `submit` | elimina acquisti per anno (se presente) |

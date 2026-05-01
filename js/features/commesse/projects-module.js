@@ -12,6 +12,8 @@
     $('#project-id').val('');
     $('#project-commessa').val(prefCommessaId || '');
     $('#project-name').val('');
+    $('#project-code').val('');
+    $('#project-endCustomer').val('');
     $('#project-status').val('attivo');
     $('#project-default-product').val('');
     $('#project-hourly-rate').val('');
@@ -30,6 +32,8 @@
     $('#project-id').val(editingId);
     $('#project-commessa').val(String(pr.commessaId || ''));
     $('#project-name').val(pr.name || '');
+    $('#project-code').val(pr.code || '');
+    $('#project-endCustomer').val(String(pr.endCustomerId || ''));
     $('#project-status').val(pr.status || 'attivo');
     $('#project-default-product').val(String(pr.billingProductId || ''));
     $('#project-hourly-rate').val(pr.hourlyRate != null ? pr.hourlyRate : '');
@@ -67,7 +71,9 @@
 
     const data = {
       commessaId,
+      code: String($('#project-code').val() || '').trim(),
       name,
+      endCustomerId: String($('#project-endCustomer').val() || '').trim(),
       status: String($('#project-status').val() || 'attivo'),
       billingProductId: String($('#project-default-product').val() || '').trim(),
       hourlyRate: (() => {
@@ -147,6 +153,29 @@
         $('#project-isLavoro').prop('checked', false);
       } else {
         if (!$('#project-isLavoro').is(':checked')) $('#project-isLavoro').prop('checked', true);
+      }
+    });
+
+    // Selezione servizio: eredita tariffa e tipo (Lavoro/Costo) dal servizio
+    $('#project-default-product').on('change', function () {
+      try {
+        const prodId = String($(this).val() || '').trim();
+        if (!prodId) return;
+        const prod = (getData('products') || []).find(p => String(p.id) === prodId);
+        if (!prod) return;
+
+        // Tariffa: porta dietro il prezzo del servizio (modificabile dall'utente)
+        const sp = String(prod.salePrice || '').trim();
+        if (sp && !isNaN(parseFloat(sp))) {
+          $('#project-hourly-rate').val(parseFloat(sp));
+        }
+
+        // Tipo progetto: eredita isCosto/isLavoro dal servizio
+        const isCosto = (prod.isCosto === true || prod.isCosto === 'true');
+        $('#project-isCosto').prop('checked', isCosto).trigger('change');
+        $('#project-isLavoro').prop('checked', !isCosto).trigger('change');
+      } catch (e) {
+        console.warn('Eredita dati da servizio: errore', e);
       }
     });
 
