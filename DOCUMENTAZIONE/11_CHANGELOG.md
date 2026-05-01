@@ -1,3 +1,8 @@
+## V.13.10_step 14 — Fix caricamento acquisti dopo login
+- Risolto l'errore post-login `getNormalizedPurchases is not defined`, emerso durante il caricamento dei dati/dashboard.
+- Aggiunto nel modulo Acquisti un helper locale prudente che normalizza gli acquisti tramite `DomainNormalizers.normalizePurchaseInfo()` quando disponibile, mantenendo fallback sicuro ai dati grezzi.
+- Nessuna modifica a recupero password, Timesheet, fatturazione o Google Calendar Home.
+
 ## V.13.10_step 13 — Recupero password Firebase in login
 - aggiunto nella schermata di accesso il link **Password dimenticata?**.
 - introdotta una modale Bootstrap per inserire l'email e richiedere a Firebase Auth l'invio del link di reset password.

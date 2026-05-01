@@ -40,6 +40,18 @@
             .replace(/'/g, '&#39;');
     }
 
+    function getNormalizedPurchases() {
+        const purchases = (typeof window.getData === 'function') ? (window.getData('purchases') || []) : [];
+        if (!Array.isArray(purchases)) return [];
+        if (window.DomainNormalizers && typeof window.DomainNormalizers.normalizePurchaseInfo === 'function') {
+            return purchases.map(function (p) { return window.DomainNormalizers.normalizePurchaseInfo(p); });
+        }
+        if (typeof window.normalizePurchaseInfo === 'function') {
+            return purchases.map(function (p) { return window.normalizePurchaseInfo(p); });
+        }
+        return purchases;
+    }
+
     function ensurePurchaseDetailModal() {
         if (document.getElementById('purchaseDetailModal')) return;
         var html = ''

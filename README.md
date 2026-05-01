@@ -1,7 +1,8 @@
 ## Versione corrente
 
-V.13.10_step 13
+V.13.10_step 14
 
+- **Fix login/caricamento acquisti – V.13.10_step 14**: ripristinato il normalizzatore elenco acquisti usato dopo il login, evitando l'errore `getNormalizedPurchases is not defined` durante il caricamento dashboard/DB.
 - **Recupero password Firebase – V.13.10_step 13**: aggiunta nella schermata di login la funzione **Password dimenticata?** per inviare il link di reset password tramite Firebase Auth, senza backend custom e senza modifiche ai dati applicativi.
 
 - **Google Calendar in Home – V.13.10_step 12**: la Home può sostituire il calendario locale con un Google Calendar incorporato in vista 7 giorni, configurabile da Dati Azienda tramite URL embed o ID calendario. Se non configurato, resta il calendario locale precedente.
