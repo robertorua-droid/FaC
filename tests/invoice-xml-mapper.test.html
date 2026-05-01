@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Test – InvoiceXMLMapper</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #1f2937; }
+    .container { max-width: 980px; margin: 0 auto; }
+    .lead { color: #4b5563; }
+    code { background:#f3f4f6; padding:2px 5px; border-radius:4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Test unitari – <code>InvoiceXMLMapper</code></h1>
+    <p class="lead">Suite Fase 5 – Step 4. Verifica i principali frammenti del tracciato XML FatturaPA: ordinario, forfettario, nota di credito, pagamento, anagrafiche, bollo, rivalsa e scorporo.</p>
+    <p>Stato suite: <strong id="test-status">in esecuzione…</strong></p>
+    <div id="test-results"></div>
+  </div>
+
+  <script src="../js/core/domain-constants.js"></script>
+  <script src="../js/core/tax-regime-policy.js"></script>
+  <script src="../js/features/invoices/invoice-xml-mapper.js"></script>
+  <script src="./test-harness.js"></script>
+  <script src="./invoice-xml-mapper.spec.js"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Test – InvoiceXMLValidator</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #1f2937; }
+    .container { max-width: 980px; margin: 0 auto; }
+    .lead { color: #4b5563; }
+    code { background:#f3f4f6; padding:2px 5px; border-radius:4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Test unitari – <code>InvoiceXMLValidator</code></h1>
+    <p class="lead">Suite Fase 5 – Step 3. Verifica i controlli di esportabilità XML: dati documento, identità fiscale, sede azienda/cliente, pagamento con IBAN e casi delicati come la nota di credito.</p>
+    <p>Stato suite: <strong id="test-status">in esecuzione…</strong></p>
+    <div id="test-results"></div>
+  </div>
+
+  <script src="../js/features/invoices/invoice-validation-service.js"></script>
+  <script src="../js/features/invoices/invoice-xml-validator.js"></script>
+  <script src="./test-harness.js"></script>
+  <script src="./invoice-xml-validator.spec.js"></script>
+</body>
+</html>

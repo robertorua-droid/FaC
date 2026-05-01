@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Test – TaxRegimePolicy</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #1f2937; }
+    .container { max-width: 980px; margin: 0 auto; }
+    .lead { color: #4b5563; }
+    code { background:#f3f4f6; padding:2px 5px; border-radius:4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Test unitari – <code>TaxRegimePolicy</code></h1>
+    <p class="lead">Suite iniziale della Fase 5. Questa pagina verifica i casi di base e i fallback principali del layer di policy del regime fiscale.</p>
+    <p>Stato suite: <strong id="test-status">in esecuzione…</strong></p>
+    <div id="test-results"></div>
+  </div>
+
+  <script src="../js/core/domain-constants.js"></script>
+  <script src="../js/core/tax-regime-policy.js"></script>
+  <script src="./test-harness.js"></script>
+  <script src="./tax-regime-policy.spec.js"></script>
+</body>
+</html>
