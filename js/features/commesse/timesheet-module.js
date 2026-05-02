@@ -136,6 +136,7 @@
     $('#ts-hours-final').val(0);
     $('#ts-minutes-final').val(0);
     $('#ts-billable').prop('checked', true);
+    $('#ts-ticket').val('');
     $('#ts-note').val('');
     $('#ts-save-btn').text('Salva');
     $('#ts-cancel-edit-btn').addClass('d-none');
@@ -162,6 +163,7 @@
     setInputsFromMinutes(wl.minutes || 0);
     setInputsFromMinutesFinal((wl.minutesFinal != null && wl.minutesFinal !== '') ? wl.minutesFinal : (wl.minutes || 0));
     $('#ts-billable').prop('checked', wl.billable !== false);
+    $('#ts-ticket').val(wl.ticket || '');
     $('#ts-note').val(wl.note || '');
 
     _finalTouched = false;
@@ -187,6 +189,7 @@
     const minutes = minutesFromInputs();
     let minutesFinal = minutesFromInputsFinal();
     const billable = $('#ts-billable').is(':checked');
+    const ticket = String($('#ts-ticket').val() || '').trim();
     const note = String($('#ts-note').val() || '').trim();
 
     if (!date) {
@@ -232,6 +235,7 @@
       minutes,
       minutesFinal,
       billable,
+      ticket,
       note
     };
 

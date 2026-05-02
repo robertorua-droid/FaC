@@ -780,6 +780,7 @@ function renderTimesheetPage() {
                 <td class="text-end">${displayFinal}</td>
                 <td>${invBadge}</td>
                 <td>${(wl.billable !== false) ? '<span class="badge bg-success">SI</span>' : '<span class="badge bg-secondary">NO</span>'}</td>
+                <td>${escapeHtml(wl.ticket || '')}</td>
                 <td style="white-space:pre-line">${escapeHtml(wl.note || '')}</td>
                 <td class="text-end">
                   <button class="btn btn-sm btn-outline-primary btn-edit-worklog" data-id="${wl.id}" title="Modifica"><i class="fas fa-edit"></i></button>

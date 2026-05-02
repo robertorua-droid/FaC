@@ -174,6 +174,7 @@
           base: r,
           minutesByProject: new Map(),
           endCustomerNames: new Set(),
+          tickets: [],
           notes: [],
           billableStates: [],
           totalFinalMinutes: 0
@@ -190,6 +191,10 @@
         g.minutesByProject.set(pn, (g.minutesByProject.get(pn) || 0) + mins);
       }
       g.billableStates.push(r.billable !== false);
+      if (cleanText(r.ticket || '')) {
+        const ticket = cleanText(r.ticket || '');
+        g.tickets.push(pn ? `[${pn}] ${ticket}` : ticket);
+      }
       if (cleanText(r.note || '')) {
         const note = cleanText(r.note || '');
         g.notes.push(pn ? `[${pn}] ${note}` : note);
@@ -202,7 +207,7 @@
       return String(a.base.commessaName || '').localeCompare(String(b.base.commessaName || ''));
     });
 
-    const header = ['Date', 'EndCustomer', 'BillToCustomer', 'Commessa', ...projectNames, 'TotalHours', 'FinalTotalMinutes', 'FinalTotalHours', 'Billable', 'Note'];
+    const header = ['Date', 'EndCustomer', 'BillToCustomer', 'Commessa', ...projectNames, 'TotalHours', 'FinalTotalMinutes', 'FinalTotalHours', 'Billable', 'Ticket', 'Note'];
     const lines = [header.map(escapeCsvField).join(';')];
 
     sorted.forEach(g => {
@@ -227,6 +232,7 @@
         String(g.totalFinalMinutes || 0),
         minutesToHours(g.totalFinalMinutes || 0),
         billableOut,
+        g.tickets.join(' | '),
         g.notes.join(' | ')
       ].map(escapeCsvField).join(';');
 
@@ -238,7 +244,7 @@
 
   function buildCsv(groups, mode) {
     // Dettaglio + raggruppamenti: includo anche Codice Progetto e ore/minuti "cliente finale"
-    const header = ['Date', 'EndCustomer', 'BillToCustomer', 'Commessa', 'ProjectCode', 'Project', 'Minutes', 'Hours', 'FinalMinutes', 'FinalHours', 'Billable'];
+    const header = ['Date', 'EndCustomer', 'BillToCustomer', 'Commessa', 'ProjectCode', 'Project', 'Minutes', 'Hours', 'FinalMinutes', 'FinalHours', 'Billable', 'Ticket', 'Note'];
     const lines = [header.join(';')];
 
     // Dettaglio: una riga per ogni worklog
@@ -258,7 +264,9 @@
             minutesToHours(mins),
             String(minsFinal),
             minutesToHours(minsFinal),
-            (r.billable !== false) ? 'SI' : 'NO'
+            (r.billable !== false) ? 'SI' : 'NO',
+            cleanText(r.ticket || ''),
+            cleanText(r.note || '')
           ].map(escapeCsvField).join(';');
           lines.push(line);
         });
@@ -285,6 +293,8 @@
       const allTrue = list.every(r => (r.billable !== false) === true);
       const allFalse = list.every(r => (r.billable !== false) === false);
       const billableOut = allTrue ? 'SI' : (allFalse ? 'NO' : 'MISTO');
+      const ticketOut = list.map(r => cleanText(r.ticket || '')).filter(Boolean).join(' | ');
+      const noteOut = list.map(r => cleanText(r.note || '')).filter(Boolean).join(' | ');
 
       const row = [
         dateOut,
@@ -297,7 +307,9 @@
         minutesToHours(totalMinutes),
         String(totalMinutesFinal),
         minutesToHours(totalMinutesFinal),
-        billableOut
+        billableOut,
+        ticketOut,
+        noteOut
       ].map(escapeCsvField).join(';');
 
       lines.push(row);
