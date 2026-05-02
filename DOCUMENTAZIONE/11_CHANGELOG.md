@@ -1,3 +1,9 @@
+## V.13.10_step 15 — Ticket Timesheet ed export CSV
+- **Timesheet**: aggiunto campo opzionale **Ticket** sul worklog, utile per indicare il numero ticket/richiesta collegato all’intervento.
+- **Tabella Timesheet**: aggiunta colonna **Ticket** accanto alle note.
+- **Export Timesheet CSV**: aggiunte colonne **Ticket** e **Note** nell’export di dettaglio; nei raggruppamenti e nel pivot i valori vengono aggregati con separatore ` | `.
+- Modifica circoscritta al timesheet e all’export CSV: nessuna variazione a fatturazione, calcoli ore o import in fattura.
+
 ## V.13.10_step 14 — Fix caricamento acquisti dopo login
 - Risolto l'errore post-login `getNormalizedPurchases is not defined`, emerso durante il caricamento dei dati/dashboard.
 - Aggiunto nel modulo Acquisti un helper locale prudente che normalizza gli acquisti tramite `DomainNormalizers.normalizePurchaseInfo()` quando disponibile, mantenendo fallback sicuro ai dati grezzi.

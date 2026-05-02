@@ -285,7 +285,7 @@
                 <i class="fas fa-rocket fa-4x"></i>
               </div>
               <div class="col-md-10">
-                <h3 class="mb-1">Gestionale Cloud - V.13.10_step 14</h3>
+                <h3 class="mb-1">Gestionale Cloud - V.13.10_step 15</h3>
                 <p class="text-muted">Versione Stabile Cloud per Professionisti.</p>
                 <p class="small text-muted mb-0"><i class="fas fa-check-circle text-success"></i> Sincronizzazione Cloud
                   Attiva</p>
@@ -1219,7 +1219,7 @@
                         <i class="fas fa-rocket fa-4x text-primary"></i>
                       </div>
                       <div class="col-md-10">
-                        <h3 class="mb-1">Gestionale Cloud - V.13.10_step 14</h3>
+                        <h3 class="mb-1">Gestionale Cloud - V.13.10_step 15</h3>
                         <p class="text-muted">Versione Stabile Cloud per Professionisti.</p>
                         <div class="mt-4">
                           <button class="btn btn-primary" id="btn-view-changelog">
@@ -1412,20 +1412,25 @@
                 </div>
               </div>
               <div class="row g-2 mt-2 align-items-end">
-                <div class="col-md-8">
+                <div class="col-md-3">
+                  <label class="form-label mb-0">Ticket</label>
+                  <input type="text" class="form-control form-control-sm" id="ts-ticket" placeholder="N. ticket (opzionale)"
+                    tabindex="8" />
+                </div>
+                <div class="col-md-5">
                   <label class="form-label mb-0">Nota</label>
                   <textarea class="form-control form-control-sm" id="ts-note" rows="2" placeholder="(opzionale)"
-                    tabindex="8"></textarea>
+                    tabindex="9"></textarea>
                 </div>
                 <div class="col-md-1">
                   <div class="form-check" style="margin-bottom: 5px;">
-                    <input class="form-check-input" type="checkbox" id="ts-billable" checked tabindex="9" />
+                    <input class="form-check-input" type="checkbox" id="ts-billable" checked tabindex="10" />
                     <label class="form-check-label" for="ts-billable">Fatt.</label>
                   </div>
                 </div>
                 <div class="col-md-3">
                   <div class="d-flex flex-column gap-1">
-                    <button class="btn btn-primary btn-sm w-100" type="button" id="ts-save-btn" tabindex="10"><i
+                    <button class="btn btn-primary btn-sm w-100" type="button" id="ts-save-btn" tabindex="11"><i
                         class="fas fa-save"></i> Salva</button>
                     <button class="btn btn-outline-secondary btn-sm w-100 d-none" type="button"
                       id="ts-cancel-edit-btn"><i class="fas fa-times"></i> Annulla</button>
@@ -1503,6 +1508,7 @@
                 <th class="text-end" style="width:100px">Ore / Min (CF)</th>
                 <th style="width:120px">Fattura</th>
                 <th style="width:90px">Fatturabile</th>
+                <th style="width:120px">Ticket</th>
                 <th>Nota</th>
                 <th class="text-end" style="width:120px">Azioni</th>
               </tr>

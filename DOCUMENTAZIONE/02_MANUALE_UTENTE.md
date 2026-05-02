@@ -419,11 +419,13 @@ Ogni worklog può contenere:
 - progetto
 - minuti / ore
 - minuti / ore cliente finale, se previsti
+- numero **Ticket** opzionale collegato all’intervento
 - flag fatturabile
 - note
 
 ### Buone pratiche
 - usa sempre commessa e progetto coerenti
+- indica il numero ticket quando l’intervento fa riferimento a una richiesta tracciata
 - descrivi le attività nelle note in modo chiaro
 - marca come non fatturabili le attività interne o escluse dalla rendicontazione
 
@@ -473,7 +475,7 @@ Per questo conviene fare attenzione soprattutto nelle esercitazioni dove si prov
 ## 2.8 Export Timesheet CSV
 Menu: **Commesse → Export CSV**
 
-Puoi esportare i worklog con diversi filtri e formati.
+Puoi esportare i worklog con diversi filtri e formati. L’export include anche i campi **Ticket** e **Note**, così da mantenere nel CSV il riferimento alla richiesta e il dettaglio operativo dell’intervento.
 
 Utilissimo per:
 - esercitazioni

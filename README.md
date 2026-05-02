@@ -1,7 +1,8 @@
 ## Versione corrente
 
-V.13.10_step 14
+V.13.10_step 15
 
+- **Timesheet Ticket e CSV – V.13.10_step 15**: aggiunto campo opzionale **Ticket** nelle righe Timesheet; l’export CSV include ora sia **Ticket** sia **Note** nei formati dettaglio e raggruppati.
 - **Fix login/caricamento acquisti – V.13.10_step 14**: ripristinato il normalizzatore elenco acquisti usato dopo il login, evitando l'errore `getNormalizedPurchases is not defined` durante il caricamento dashboard/DB.
 - **Recupero password Firebase – V.13.10_step 13**: aggiunta nella schermata di login la funzione **Password dimenticata?** per inviare il link di reset password tramite Firebase Auth, senza backend custom e senza modifiche ai dati applicativi.
 

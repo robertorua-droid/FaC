@@ -7,6 +7,7 @@ Esportare i worklog (timesheet) in CSV, con:
 - date in formato italiano **gg/mm/aaaa**
 - intestazioni e colonne in ordine stabile
 - nessun carattere “\n” sporcante nei campi
+- inclusione di **Ticket** e **Note** per rendicontazioni operative
 
 ## Filtri disponibili
 - **Da / A** (intervallo date)
@@ -20,12 +21,12 @@ Esportare i worklog (timesheet) in CSV, con:
 ### Dettaglio (default)
 - una riga per ogni worklog
 - colonne:
-  `Date | EndCustomer | BillToCustomer | Commessa | ProjectCode | Project | Minutes | Hours | FinalMinutes | FinalHours | Billable`
+  `Date | EndCustomer | BillToCustomer | Commessa | ProjectCode | Project | Minutes | Hours | FinalMinutes | FinalHours | Billable | Ticket | Note`
 
 ### Giorno (progetti in colonne) – pivot
 - una riga per **Giorno + Commessa**
 - ogni progetto diventa una colonna con le ore
-- aggiunge anche `TotalHours`, `FinalTotalMinutes`, `FinalTotalHours`, `Billable` (SI/NO/MISTO) e `Note`
+- aggiunge anche `TotalHours`, `FinalTotalMinutes`, `FinalTotalHours`, `Billable` (SI/NO/MISTO), `Ticket` e `Note`
 
 ### Altri raggruppamenti
 - Giorno + Progetto
@@ -55,4 +56,6 @@ Esportare i worklog (timesheet) in CSV, con:
 - **FinalMinutes**: minuti per il cliente finale (se non compilati, uguali a Minutes)
 - **FinalHours**: FinalMinutes convertiti in ore (2 decimali)
 - **Billable**: `SI` / `NO` / `MISTO`
+- **Ticket**: numero ticket/richiesta collegato all’intervento, se compilato
+- **Note**: note operative del worklog; nei raggruppamenti più note vengono aggregate con ` | `
 
