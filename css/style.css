@@ -3,14 +3,22 @@
     --card-bg: #ffffff;
     --text-main: #212529;
     --text-muted: #6c757d;
-    --sidebar-bg: #2c3e50;
-    --sidebar-text: #bdc3c7;
-    --sidebar-active: #ffffff;
+    --sidebar-bg: #ffffff;
+    --sidebar-text: #495057;
+    --sidebar-muted: #6c757d;
+    --sidebar-active: #212529;
+    --sidebar-hover-bg: #eef3f8;
+    --sidebar-active-bg: #0d6efd;
+    --sidebar-border: #dee2e6;
+    --sidebar-toggle-bg: #f8f9fa;
+    --sidebar-toggle-border: #dee2e6;
     --border-color: #dee2e6;
     --input-bg: #ffffff;
     --input-text: #212529;
     --header-bg: #ffffff;
     --shadow-sm: 0 4px 8px rgba(0, 0, 0, 0.1);
+    --brand-panel-bg: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
+    --brand-panel-border: #dce8f8;
 }
 
 [data-theme="dark"] {
@@ -19,13 +27,21 @@
     --text-main: #ecf0f1;
     --text-muted: #bdc3c7;
     --sidebar-bg: #141d26;
-    --sidebar-text: #8b97a2;
+    --sidebar-text: #bdc3c7;
+    --sidebar-muted: #8b97a2;
     --sidebar-active: #ffffff;
+    --sidebar-hover-bg: rgba(255, 255, 255, 0.06);
+    --sidebar-active-bg: #3498db;
+    --sidebar-border: rgba(255, 255, 255, 0.1);
+    --sidebar-toggle-bg: rgba(255, 255, 255, 0.04);
+    --sidebar-toggle-border: rgba(255, 255, 255, 0.08);
     --border-color: rgba(255, 255, 255, 0.1);
     --input-bg: #34495e;
     --input-text: #ecf0f1;
     --header-bg: #2c3e50;
     --shadow-sm: 0 4px 8px rgba(0, 0, 0, 0.4);
+    --brand-panel-bg: linear-gradient(135deg, rgba(255,255,255,0.96) 0%, rgba(242,248,255,0.96) 100%);
+    --brand-panel-border: rgba(255,255,255,0.16);
 }
 
 /* Transizioni globali per cambio tema fluido */
@@ -315,6 +331,21 @@ body {
     box-shadow: var(--shadow-sm);
 }
 
+.login-brand {
+    padding: 14px 16px 10px;
+    border: 1px solid var(--brand-panel-border);
+    border-radius: 14px;
+    background: var(--brand-panel-bg);
+}
+
+.login-brand-logo {
+    max-width: 100%;
+    width: min(100%, 320px);
+    height: auto;
+    display: inline-block;
+}
+
+
 /* Layout principale dell'applicazione */
 #main-app {
     display: flex;
@@ -338,7 +369,7 @@ body {
     overflow-x: hidden;
     scrollbar-gutter: stable;
     scrollbar-width: thin;
-    scrollbar-color: #455d75 var(--sidebar-bg);
+    scrollbar-color: var(--sidebar-muted) var(--sidebar-bg);
     /* Riserva spazio per la scrollbar su Windows preventivamente */
     transition: transform 0.3s ease;
     z-index: 1050;
@@ -355,12 +386,12 @@ body {
 }
 
 .sidebar::-webkit-scrollbar-thumb {
-    background: #455d75;
+    background: var(--sidebar-muted);
     border-radius: 10px;
 }
 
 .sidebar::-webkit-scrollbar-thumb:hover {
-    background: #5d7a96;
+    background: var(--sidebar-text);
 }
 
 .sidebar-collapsed .sidebar {
@@ -369,23 +400,66 @@ body {
 
 .sidebar-header {
     padding: 15px;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--sidebar-border);
     margin-bottom: 10px;
 }
 
+.sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+    padding: 8px 10px;
+    border: 1px solid var(--sidebar-border);
+    border-radius: 12px;
+    background: var(--sidebar-toggle-bg);
+    text-align: left;
+}
+
+.sidebar-brand-icon {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    display: block;
+}
+
+.sidebar-brand-text {
+    min-width: 0;
+}
+
+.sidebar-brand-name {
+    color: var(--sidebar-active);
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: 0.04em;
+}
+
+.sidebar-brand-subtitle {
+    color: var(--sidebar-muted);
+    font-size: 0.72rem;
+    line-height: 1.2;
+}
+
 .sidebar h4 {
-    color: #ffffff;
+    color: var(--sidebar-active);
     font-size: 1.1rem;
     margin-bottom: 2px;
 }
 
+.sidebar-header #company-name-sidebar {
+    margin-top: 2px;
+}
+
 .sidebar #user-name-sidebar {
+    color: var(--sidebar-muted) !important;
     font-size: 0.8rem;
     margin-bottom: 0;
+    word-break: break-word;
 }
 
 .sidebar .nav-link {
-    color: #bdc3c7;
+    color: var(--sidebar-text);
     padding: 8px 20px;
     font-size: 0.95rem;
     transition: all 0.2s;
@@ -393,15 +467,15 @@ body {
 }
 
 .sidebar .nav-link:hover {
-    background-color: rgba(255, 255, 255, 0.05);
-    color: white;
-    border-left-color: rgba(255, 255, 255, 0.3);
+    background-color: var(--sidebar-hover-bg);
+    color: var(--sidebar-active);
+    border-left-color: var(--sidebar-muted);
 }
 
 .sidebar .nav-link.active {
-    background-color: #3498db;
-    color: white;
-    border-left-color: white;
+    background-color: var(--sidebar-active-bg);
+    color: #ffffff;
+    border-left-color: #ffffff;
 }
 
 /* Sezioni Collassabili */
@@ -411,7 +485,7 @@ body {
     align-items: center;
     padding: 12px 20px;
     cursor: pointer;
-    color: var(--text-muted);
+    color: var(--sidebar-muted);
     font-size: 0.8rem;
     font-weight: bold;
     text-transform: uppercase;
@@ -420,8 +494,8 @@ body {
 }
 
 .nav-section-header:hover {
-    background-color: rgba(255, 255, 255, 0.03);
-    color: var(--text-main);
+    background-color: var(--sidebar-hover-bg);
+    color: var(--sidebar-active);
 }
 
 .nav-section-header i.chevron {
@@ -431,7 +505,7 @@ body {
 
 .sidebar-action-icon {
     font-size: 0.85rem;
-    color: #7f8c8d;
+    color: var(--sidebar-muted);
     cursor: pointer;
     transition: all 0.2s;
     width: 28px;
@@ -443,8 +517,8 @@ body {
 }
 
 .sidebar-action-icon:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-    color: white;
+    background-color: var(--sidebar-hover-bg);
+    color: var(--sidebar-active);
 }
 
 .nav-section-container.collapsed .nav-section-content {
@@ -465,9 +539,9 @@ body {
 .sidebar-theme-toggle {
     margin: 0 4px;
     padding: 10px 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--sidebar-toggle-border);
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--sidebar-toggle-bg);
 }
 
 .sidebar-theme-toggle .form-check {
@@ -479,7 +553,7 @@ body {
 }
 
 .sidebar-theme-toggle .form-check-label {
-    color: #d7e3ef;
+    color: var(--sidebar-active);
     display: inline-flex;
     align-items: center;
     font-size: 0.92rem;
@@ -490,8 +564,8 @@ body {
     float: none;
     margin: 0;
     cursor: pointer;
-    background-color: rgba(255,255,255,0.2);
-    border-color: rgba(255,255,255,0.25);
+    background-color: var(--input-bg);
+    border-color: var(--sidebar-border);
 }
 
 .sidebar-theme-toggle .form-check-input:checked {

@@ -1,3 +1,36 @@
+## V.13.10_step 21 — Rifinitura finale spazi payoff logo FAC
+- Corretta ulteriormente la spaziatura del payoff del logo nella schermata di login.
+- Aumentata la distanza tra **Fast** e **Accounting** per evitare l’effetto di parola attaccata.
+- Mantenuti spazi più uniformi tra **Fast**, **Accounting**, **&** e **Control**.
+- Nessuna modifica alla logica applicativa o agli altri asset di branding.
+
+## V.13.10_step 20 — Uniformazione spazi payoff logo FAC
+- Rifinita la spaziatura del payoff del logo nella schermata di login.
+- Gli spazi tra **Fast**, **Accounting**, **&** e **Control** sono stati riallineati per una resa più uniforme.
+- Nessuna modifica a favicon, sidebar compatta o logica applicativa.
+
+## V.13.10_step 19 — Fix spaziatura payoff logo FAC
+- Corretto il payoff del logo orizzontale nella schermata di login, aumentando la distanza visiva tra “Accounting”, “&” e “Control”.
+- Per evitare differenze di rendering tra browser, nella login viene usata la versione **PNG trasparente** del logo completo.
+- Nessuna modifica alla favicon, alla sidebar compatta o alla logica applicativa.
+
+## V.13.10_step 18 — Rifinitura logo/login FAC
+- Corretta la spaziatura del payoff nel logo orizzontale per evitare sovrapposizioni tra “Accounting” e “&”.
+- Rimossa dalla schermata di login la riga ripetuta “Fast Accounting & Control” sotto il logo, per una presentazione più pulita.
+- Nessuna modifica alla favicon, alla sidebar compatta o al comportamento applicativo.
+
+## V.13.10_step 17 — Branding FAC (logo + favicon)
+- Integrati gli asset ufficiali **FAC – Fast Accounting & Control** nella UI.
+- Aggiunta favicon globale in `index.html` e nuovi asset nella cartella `assets/brand/`.
+- Inserito il logo orizzontale nella schermata di login.
+- Inserito un brand compatto con icona FAC nella testata della sidebar.
+- Asset PNG con trasparenza: nessuno sfondo bianco incorporato nel logo o nella favicon, così restano puliti in Light e Dark Mode.
+
+## V.13.10_step 16 — Tema applicato anche alla sidebar/menu
+- Il toggle **Dark mode** ora modifica anche la sidebar di navigazione e la barra menu, non solo la finestra principale.
+- In modalità chiara la sidebar usa sfondo, bordi, testi, hover e toggle coerenti con il tema Light; in modalità scura mantiene il look blu notte esistente.
+- Modifica solo CSS/UI: nessuna variazione a dati, Firestore, Timesheet, fatture o calendario.
+
 ## V.13.10_step 15 — Ticket Timesheet ed export CSV
 - **Timesheet**: aggiunto campo opzionale **Ticket** sul worklog, utile per indicare il numero ticket/richiesta collegato all’intervento.
 - **Tabella Timesheet**: aggiunta colonna **Ticket** accanto alle note.

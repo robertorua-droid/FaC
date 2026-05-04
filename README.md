@@ -1,7 +1,8 @@
 ## Versione corrente
 
-V.13.10_step 15
+V.13.10_step 21
 
+- **Tema sidebar/menu – V.13.10_step 16**: il toggle Chiaro/Scuro ora cambia anche la sidebar di navigazione e la barra menu, non solo l'area contenuto principale; in Light Mode il menu usa sfondi e testi chiari, mentre in Dark Mode mantiene il look blu notte.
 - **Timesheet Ticket e CSV – V.13.10_step 15**: aggiunto campo opzionale **Ticket** nelle righe Timesheet; l’export CSV include ora sia **Ticket** sia **Note** nei formati dettaglio e raggruppati.
 - **Fix login/caricamento acquisti – V.13.10_step 14**: ripristinato il normalizzatore elenco acquisti usato dopo il login, evitando l'errore `getNormalizedPurchases is not defined` durante il caricamento dashboard/DB.
 - **Recupero password Firebase – V.13.10_step 13**: aggiunta nella schermata di login la funzione **Password dimenticata?** per inviare il link di reset password tramite Firebase Auth, senza backend custom e senza modifiche ai dati applicativi.

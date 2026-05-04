@@ -106,7 +106,7 @@ In **Forfettario** verifica invece:
 ### 2.2.3 Preferenze App
 Nella pagina Azienda trovi anche le **Preferenze App**, tra cui il tema.
 
-In più, nella sidebar è presente un toggle rapido **Dark mode** per passare velocemente tra chiaro e scuro.
+In più, nella sidebar è presente un toggle rapido **Dark mode** per passare velocemente tra chiaro e scuro. Il cambio tema aggiorna anche la sidebar/menu di navigazione, oltre alla finestra principale.
 
 ### 2.2.4 Google Calendar in Home
 Il campo opzionale **Google Calendar Home** permette di sostituire il calendario locale della Home con un calendario Google incorporato in vista **7 giorni**.
