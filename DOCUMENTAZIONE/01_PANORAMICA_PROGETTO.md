@@ -41,8 +41,7 @@ Dati per utente:
 - **Documenti**: Nuova Fattura, Nuova Nota Credito, Elenco Documenti
 - **Acquisti** *(solo Ordinario)*: Nuovo Acquisto, Elenco Acquisti
 - **Scadenziario**: incassi, pagamenti, scadenze IVA
-- **Commesse / Progetti / Timesheet**
-- **Export Timesheet**
+- **Commesse / Progetti / Timesheet** con export CSV/JSON integrato nella pagina Timesheet
 - **Impostazioni**: Azienda, Uso dati (stima), Gestione Dati
 
 ## Regime gestionale: effetto sulle funzionalità
@@ -58,7 +57,7 @@ Il regime viene scelto in **Impostazioni → Azienda**.
 - Abilita: simulazione quadro LM.
 
 ## Concetti chiave per l’uso didattico
-- **Timesheet**: è salvato come `worklogs` (giorno/commessa/progetto/minuti) e viene esportato in CSV.
+- **Timesheet**: è salvato come `worklogs` (giorno/commessa/progetto/minuti) e viene esportato in CSV/JSON dalla pagina Timesheet.
 - **Import ore in fattura**: dal timesheet puoi generare righe fattura. Il sistema gestisce un **binding sicuro**: i worklog vengono marcati come "fatturati" solo al salvataggio definitivo della fattura, garantendo coerenza in caso di annullamento o modifiche del form.
 - **Gestione Dati**: backup, import, cancellazioni per anno, reset totale per “passaggio classe”.
 - **Uso dati (stima)**: utile per parlare di quote/limiti (stima su 1 GiB Spark).

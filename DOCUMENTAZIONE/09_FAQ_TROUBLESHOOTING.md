@@ -20,7 +20,7 @@ Non è bloccante.
 ## Export Timesheet: le combo filtro non si aprono
 Se succede (in genere dopo modifiche o cache vecchie):
 - ricarica la pagina
-- verifica di essere su **Export Timesheet** e non su **Timesheet**
+- verifica di essere nella pagina **Timesheet** e di usare il dropdown **Esporta** nella card dei filtri
 
 Nella versione stabile le combo **Fatturo a / Commessa / Progetto** sono popolate all’apertura della pagina Export.
 

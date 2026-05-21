@@ -143,7 +143,7 @@ Capire la differenza tra lavoro registrato e fatturazione.
 
 ### Passaggi
 1. Inserisci worklog su più giorni e progetti.
-2. Vai in **Export CSV**.
+2. Vai in **Timesheet** e usa il dropdown **Esporta** nella card dei filtri.
 3. Prova i filtri per periodo, commessa, progetto e fatturabilità.
 4. Esporta:
    - dettaglio

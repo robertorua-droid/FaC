@@ -473,7 +473,7 @@ Per questo conviene fare attenzione soprattutto nelle esercitazioni dove si prov
 ---
 
 ## 2.8 Export Timesheet CSV
-Menu: **Commesse → Export CSV**
+Percorso: **Commesse → Timesheet**, card filtri, dropdown **Esporta**
 
 Puoi esportare i worklog con diversi filtri e formati. L’export include anche i campi **Ticket** e **Note**, così da mantenere nel CSV il riferimento alla richiesta e il dettaglio operativo dell’intervento.
 
@@ -564,3 +564,7 @@ Questo ordine riduce errori e rende più chiaro il legame tra i moduli.
 Nel form fattura, sotto i pulsanti di importazione ore dal Timesheet, puoi attivare l'opzione **Allega il dettaglio non aggregato del timesheet all'XML della fattura (PDF)**.
 
 Quando è attiva, il gestionale genera durante l'export XML un allegato PDF con il dettaglio dei worklog collegati alla fattura. Puoi anche scegliere se **includere le note operative** del timesheet. L'allegato è solo descrittivo e non modifica i totali fiscali della fattura.
+
+
+### Export Timesheet JSON
+Il dropdown **Esporta** nella pagina Timesheet permette di scaricare sia **CSV** sia **JSON**. Il JSON usa gli stessi filtri e raggruppamenti del CSV e mantiene Ticket e Note.

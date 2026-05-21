@@ -50,6 +50,23 @@
     return true;
   }
 
+  function isTimesheetSectionActive() {
+    return $('#timesheet').length && !$('#timesheet').hasClass('d-none');
+  }
+
+  function getExportValue(exportSelector, inlineSelector, fallback) {
+    if (isTimesheetSectionActive() && inlineSelector && $(inlineSelector).length) {
+      const inlineVal = String($(inlineSelector).val() || '').trim();
+      if (inlineVal) return inlineVal;
+    }
+    const exportVal = String($(exportSelector).val() || '').trim();
+    return exportVal || fallback || '';
+  }
+
+  function getExportMode() {
+    return getExportValue('#ts-exp-groupby', '#ts-inline-export-groupby', 'detail') || 'detail';
+  }
+
   function getNamesCache() {
     const commesse = getData('commesse') || [];
     const projects = getData('projects') || [];
@@ -63,13 +80,14 @@
   }
 
   function buildRowsFiltered() {
-    const from = String($('#ts-exp-from').val() || '').trim();
-    const to = String($('#ts-exp-to').val() || '').trim();
-    const commessaId = String($('#ts-exp-commessa').val() || '').trim();
-    const projectId = String($('#ts-exp-project').val() || '').trim();
-    const billToId = String($('#ts-exp-billto').val() || '').trim();
-    const billable = String($('#ts-exp-billable').val() || 'all');
-    const invoiced = String($('#ts-exp-invoiced-filter').val() || 'all');
+    const inlineContext = isTimesheetSectionActive();
+    const from = getExportValue('#ts-exp-from', '#ts-filter-from', '');
+    const to = getExportValue('#ts-exp-to', '#ts-filter-to', '');
+    const commessaId = getExportValue('#ts-exp-commessa', '#ts-commessa-filter', 'all');
+    const projectId = getExportValue('#ts-exp-project', '#ts-project-filter', 'all');
+    const billToId = inlineContext ? 'all' : String($('#ts-exp-billto').val() || '').trim();
+    const billable = getExportValue('#ts-exp-billable', '#ts-billable-filter', 'all') || 'all';
+    const invoiced = getExportValue('#ts-exp-invoiced-filter', '#ts-invoiced-filter', 'all') || 'all';
 
     const { commessaById, projectById, customerById } = getNamesCache();
 
@@ -242,6 +260,201 @@
     return lines.join('\r\n');
   }
 
+  function normalizeJsonRow(r) {
+    const mins = parseInt(r.minutes, 10) || 0;
+    const minsFinal = (r.minutesFinal != null && r.minutesFinal !== '') ? (parseInt(r.minutesFinal, 10) || 0) : mins;
+    return {
+      id: cleanText(r.id || ''),
+      date: cleanText(r.date || ''),
+      dateIT: formatDateIT(r.date || ''),
+      endCustomer: cleanText(r.endCustomerName || ''),
+      billToCustomer: cleanText(r.billToCustomerName || ''),
+      commessaId: cleanText(r.commessaId || ''),
+      commessa: cleanText(r.commessaName || ''),
+      projectId: cleanText(r.projectId || ''),
+      projectCode: cleanText(r.projectCode || ''),
+      project: cleanText(r.projectName || ''),
+      minutes: mins,
+      hours: Number(minutesToHours(mins)),
+      finalMinutes: minsFinal,
+      finalHours: Number(minutesToHours(minsFinal)),
+      billable: r.billable !== false,
+      invoiced: !!r.invoiceId,
+      invoiceId: cleanText(r.invoiceId || ''),
+      ticket: cleanText(r.ticket || ''),
+      note: cleanText(r.note || '')
+    };
+  }
+
+  function getCurrentFilters() {
+    const inlineContext = isTimesheetSectionActive();
+    return {
+      from: getExportValue('#ts-exp-from', '#ts-filter-from', ''),
+      to: getExportValue('#ts-exp-to', '#ts-filter-to', ''),
+      billToCustomerId: inlineContext ? 'all' : (String($('#ts-exp-billto').val() || '').trim() || 'all'),
+      commessaId: getExportValue('#ts-exp-commessa', '#ts-commessa-filter', 'all') || 'all',
+      projectId: getExportValue('#ts-exp-project', '#ts-project-filter', 'all') || 'all',
+      invoiced: getExportValue('#ts-exp-invoiced-filter', '#ts-invoiced-filter', 'all') || 'all',
+      billable: getExportValue('#ts-exp-billable', '#ts-billable-filter', 'all') || 'all',
+      groupBy: getExportMode()
+    };
+  }
+
+  function summarizeRows(rows) {
+    const totalMinutes = (rows || []).reduce((s, r) => s + (parseInt(r.minutes, 10) || 0), 0);
+    const totalFinalMinutes = (rows || []).reduce((s, r) => {
+      const mins = parseInt(r.minutes, 10) || 0;
+      const minsFinal = (r.minutesFinal != null && r.minutesFinal !== '') ? (parseInt(r.minutesFinal, 10) || 0) : mins;
+      return s + minsFinal;
+    }, 0);
+    return {
+      rows: (rows || []).length,
+      totalMinutes,
+      totalHours: Number(minutesToHours(totalMinutes)),
+      totalFinalMinutes,
+      totalFinalHours: Number(minutesToHours(totalFinalMinutes))
+    };
+  }
+
+  function buildPivotDayJson(rows) {
+    const projectNames = Array.from(
+      new Set(rows.map(r => String(r.projectName || '').trim()).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b));
+
+    const groups = new Map();
+
+    rows.forEach(r => {
+      const key = `${r.date || ''}||${r.commessaId || ''}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          base: r,
+          minutesByProject: new Map(),
+          endCustomerNames: new Set(),
+          tickets: [],
+          notes: [],
+          billableStates: [],
+          totalFinalMinutes: 0,
+          rowIds: []
+        });
+      }
+      const g = groups.get(key);
+      g.rowIds.push(cleanText(r.id || ''));
+      const ec = cleanText(r.endCustomerName || '');
+      if (ec) g.endCustomerNames.add(ec);
+      const pn = String(r.projectName || '').trim();
+      const mins = parseInt(r.minutes, 10) || 0;
+      const minsFinal = (r.minutesFinal != null && r.minutesFinal !== '') ? (parseInt(r.minutesFinal, 10) || 0) : mins;
+      g.totalFinalMinutes += minsFinal;
+      if (pn) {
+        g.minutesByProject.set(pn, (g.minutesByProject.get(pn) || 0) + mins);
+      }
+      g.billableStates.push(r.billable !== false);
+      if (cleanText(r.ticket || '')) {
+        const ticket = cleanText(r.ticket || '');
+        g.tickets.push(pn ? `[${pn}] ${ticket}` : ticket);
+      }
+      if (cleanText(r.note || '')) {
+        const note = cleanText(r.note || '');
+        g.notes.push(pn ? `[${pn}] ${note}` : note);
+      }
+    });
+
+    return Array.from(groups.values()).sort((a, b) => {
+      const d = String(a.base.date || '').localeCompare(String(b.base.date || ''));
+      if (d !== 0) return d;
+      return String(a.base.commessaName || '').localeCompare(String(b.base.commessaName || ''));
+    }).map(g => {
+      const base = g.base || {};
+      const totalMinutes = Array.from(g.minutesByProject.values()).reduce((s, n) => s + (parseInt(n, 10) || 0), 0);
+      const allTrue = g.billableStates.every(v => v === true);
+      const allFalse = g.billableStates.every(v => v === false);
+      const billableOut = allTrue ? 'SI' : (allFalse ? 'NO' : 'MISTO');
+      const hoursByProject = {};
+      const minutesByProject = {};
+      projectNames.forEach(pn => {
+        const m = g.minutesByProject.get(pn) || 0;
+        minutesByProject[pn] = m;
+        hoursByProject[pn] = Number(minutesToHours(m));
+      });
+      return {
+        date: cleanText(base.date || ''),
+        dateIT: formatDateIT(base.date || ''),
+        endCustomer: summarizeEndCustomers(Array.from(g.endCustomerNames || []).map(n => ({ endCustomerName: n }))),
+        billToCustomer: cleanText(base.billToCustomerName || ''),
+        commessaId: cleanText(base.commessaId || ''),
+        commessa: cleanText(base.commessaName || ''),
+        minutesByProject,
+        hoursByProject,
+        totalMinutes,
+        totalHours: Number(minutesToHours(totalMinutes)),
+        finalTotalMinutes: g.totalFinalMinutes || 0,
+        finalTotalHours: Number(minutesToHours(g.totalFinalMinutes || 0)),
+        billable: billableOut,
+        ticket: g.tickets.join(' | '),
+        note: g.notes.join(' | '),
+        sourceRowIds: g.rowIds.filter(Boolean)
+      };
+    });
+  }
+
+  function buildJsonPayload(rows, mode) {
+    let outputRows = [];
+    const columns = ['date', 'dateIT', 'endCustomer', 'billToCustomer', 'commessaId', 'commessa', 'projectId', 'projectCode', 'project', 'minutes', 'hours', 'finalMinutes', 'finalHours', 'billable', 'invoiced', 'invoiceId', 'ticket', 'note'];
+
+    if (mode === 'day_pivot') {
+      outputRows = buildPivotDayJson(rows);
+    } else if (mode === 'detail') {
+      outputRows = rows.map(normalizeJsonRow);
+    } else {
+      outputRows = groupRows(rows, mode).map(g => {
+        const list = g.rows || [];
+        const base = list[0] || {};
+        const totalMinutes = list.reduce((s, r) => s + (parseInt(r.minutes, 10) || 0), 0);
+        const totalFinalMinutes = list.reduce((s, r) => {
+          const mins = parseInt(r.minutes, 10) || 0;
+          const minsFinal = (r.minutesFinal != null && r.minutesFinal !== '') ? (parseInt(r.minutesFinal, 10) || 0) : mins;
+          return s + minsFinal;
+        }, 0);
+        const allTrue = list.every(r => (r.billable !== false) === true);
+        const allFalse = list.every(r => (r.billable !== false) === false);
+        const billableOut = allTrue ? 'SI' : (allFalse ? 'NO' : 'MISTO');
+        return {
+          groupKey: cleanText(g.key || ''),
+          mode,
+          date: mode === 'day_project' ? cleanText(base.date || '') : '',
+          dateIT: mode === 'day_project' ? formatDateIT(base.date || '') : '',
+          endCustomer: summarizeEndCustomers(list),
+          billToCustomer: cleanText(base.billToCustomerName || ''),
+          commessaId: cleanText(base.commessaId || ''),
+          commessa: cleanText(base.commessaName || ''),
+          projectId: (mode === 'day_project' || mode === 'project') ? cleanText(base.projectId || '') : '',
+          projectCode: (mode === 'day_project' || mode === 'project') ? cleanText(base.projectCode || '') : '',
+          project: (mode === 'day_project' || mode === 'project') ? cleanText(base.projectName || '') : '',
+          minutes: totalMinutes,
+          hours: Number(minutesToHours(totalMinutes)),
+          finalMinutes: totalFinalMinutes,
+          finalHours: Number(minutesToHours(totalFinalMinutes)),
+          billable: billableOut,
+          ticket: list.map(r => cleanText(r.ticket || '')).filter(Boolean).join(' | '),
+          note: list.map(r => cleanText(r.note || '')).filter(Boolean).join(' | '),
+          sourceRowIds: list.map(r => cleanText(r.id || '')).filter(Boolean)
+        };
+      });
+    }
+
+    return {
+      exportType: 'timesheet',
+      format: 'json',
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      filters: getCurrentFilters(),
+      grouping: mode,
+      summary: summarizeRows(rows),
+      columns: mode === 'day_pivot' ? ['date', 'dateIT', 'endCustomer', 'billToCustomer', 'commessaId', 'commessa', 'minutesByProject', 'hoursByProject', 'totalMinutes', 'totalHours', 'finalTotalMinutes', 'finalTotalHours', 'billable', 'ticket', 'note', 'sourceRowIds'] : columns,
+      rows: outputRows
+    };
+  }
+
   function buildCsv(groups, mode) {
     // Dettaglio + raggruppamenti: includo anche Codice Progetto e ore/minuti "cliente finale"
     const header = ['Date', 'EndCustomer', 'BillToCustomer', 'Commessa', 'ProjectCode', 'Project', 'Minutes', 'Hours', 'FinalMinutes', 'FinalHours', 'Billable', 'Ticket', 'Note'];
@@ -334,6 +547,17 @@
     URL.revokeObjectURL(a.href);
   }
 
+
+  function downloadJson(payload, filename) {
+    const jsonText = JSON.stringify(payload, null, 2);
+    const blob = new Blob([jsonText], { type: 'application/json;charset=utf-8' });
+    const a = document.createElement('a');
+    a.download = filename;
+    a.href = URL.createObjectURL(blob);
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   function bind() {
     if (_bound) return;
     _bound = true;
@@ -365,9 +589,22 @@
       if (typeof renderTimesheetExportPage === 'function') renderTimesheetExportPage();
     });
 
-    $('#ts-export-btn').on('click', function () {
+    function buildExportFilename(extension) {
+      const filters = getCurrentFilters();
+      const from = String(filters.from || '').replace(/-/g, '');
+      const to = String(filters.to || '').replace(/-/g, '');
+      return `timesheet_${from || 'all'}_${to || 'all'}.${extension}`;
+    }
+
+    function runTimesheetExport(format) {
       const rows = buildRowsFiltered();
-      const mode = String($('#ts-exp-groupby').val() || 'detail');
+      const mode = getExportMode();
+
+      if (format === 'json') {
+        const payload = buildJsonPayload(rows, mode);
+        downloadJson(payload, buildExportFilename('json'));
+        return;
+      }
 
       let csv = '';
       if (mode === 'day_pivot') {
@@ -376,11 +613,15 @@
         const groups = groupRows(rows, mode);
         csv = buildCsv(groups, mode);
       }
+      downloadCsv(csv, buildExportFilename('csv'));
+    }
 
-      const from = String($('#ts-exp-from').val() || '').replace(/-/g, '');
-      const to = String($('#ts-exp-to').val() || '').replace(/-/g, '');
-      const filename = `timesheet_${from || 'all'}_${to || 'all'}.csv`;
-      downloadCsv(csv, filename);
+    $('#ts-export-btn, #ts-inline-export-csv').on('click', function () {
+      runTimesheetExport('csv');
+    });
+
+    $('#ts-export-json-btn, #ts-inline-export-json').on('click', function () {
+      runTimesheetExport('json');
     });
 
     // expose for render

@@ -200,8 +200,6 @@
                   class="fas fa-diagram-project"></i> Progetti</a></li>
             <li class="nav-item"><a class="nav-link" data-target="timesheet" href="#"><i class="fas fa-clock"></i>
                 Timesheet</a></li>
-            <li class="nav-item"><a class="nav-link" data-target="export-timesheet" href="#"><i
-                  class="fas fa-file-export"></i> Export CSV</a></li>
           </div>
         </div>
 
@@ -299,7 +297,7 @@
                 <i class="fas fa-rocket fa-4x"></i>
               </div>
               <div class="col-md-10">
-                <h3 class="mb-1">FAC - V.13.10_step 21</h3>
+                <h3 class="mb-1">FAC - V.13.10_step 23</h3>
                 <p class="text-muted">Versione Stabile Cloud per Professionisti.</p>
                 <p class="small text-muted mb-0"><i class="fas fa-check-circle text-success"></i> Sincronizzazione Cloud
                   Attiva</p>
@@ -1233,7 +1231,7 @@
                         <i class="fas fa-rocket fa-4x text-primary"></i>
                       </div>
                       <div class="col-md-10">
-                        <h3 class="mb-1">FAC - V.13.10_step 21</h3>
+                        <h3 class="mb-1">FAC - V.13.10_step 23</h3>
                         <p class="text-muted">Versione Stabile Cloud per Professionisti.</p>
                         <div class="mt-4">
                           <button class="btn btn-primary" id="btn-view-changelog">
@@ -1494,11 +1492,33 @@
                     <option value="invoiced">Solo fatturati</option>
                   </select>
                 </div>
-                <div class="col-md-9 text-end">
-                  <button class="btn btn-outline-warning btn-sm" type="button" id="ts-unlock-selected-btn" disabled
-                    title="Sblocca i worklog selezionati (rimuove il collegamento alla fattura)">
-                    <i class="fas fa-unlink"></i> Sblocca selezionati
-                  </button>
+                <div class="col-md-3">
+                  <label class="form-label mb-0">Raggruppa export</label>
+                  <select class="form-select form-select-sm" id="ts-inline-export-groupby">
+                    <option value="detail">Dettaglio</option>
+                    <option value="day_pivot">Giorno (progetti in colonne)</option>
+                    <option value="day_project">Giorno + Progetto</option>
+                    <option value="project">Progetto</option>
+                    <option value="commessa">Commessa</option>
+                  </select>
+                </div>
+                <div class="col-md-6 text-end">
+                  <div class="d-flex justify-content-end align-items-end gap-2 flex-wrap">
+                    <button class="btn btn-outline-warning btn-sm" type="button" id="ts-unlock-selected-btn" disabled
+                      title="Sblocca i worklog selezionati (rimuove il collegamento alla fattura)">
+                      <i class="fas fa-unlink"></i> Sblocca selezionati
+                    </button>
+                    <div class="btn-group">
+                      <button class="btn btn-outline-success btn-sm dropdown-toggle" type="button"
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-file-export"></i> Esporta
+                      </button>
+                      <ul class="dropdown-menu dropdown-menu-end">
+                        <li><button class="dropdown-item" type="button" id="ts-inline-export-csv"><i class="fas fa-file-csv me-2"></i>CSV</button></li>
+                        <li><button class="dropdown-item" type="button" id="ts-inline-export-json"><i class="fas fa-file-code me-2"></i>JSON</button></li>
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="mt-2 text-muted small">
@@ -1533,8 +1553,8 @@
 
         <!-- EXPORT TIMESHEET -->
         <div class="content-section d-none" id="export-timesheet">
-          <h2>Export Timesheet (CSV)</h2>
-          <p class="text-muted">Esporta le ore/minuti filtrate in CSV (separatore <code>;</code>) con opzioni di
+          <h2>Export Timesheet (CSV / JSON)</h2>
+          <p class="text-muted">Esporta le ore/minuti filtrate in CSV (separatore <code>;</code>) o JSON con le stesse opzioni di
             raggruppamento.</p>
 
           <div class="card mb-3">
@@ -1599,8 +1619,12 @@
                   </div>
                 </div>
                 <div class="col-md-3 text-end">
-                  <button class="btn btn-success w-100" type="button" id="ts-export-btn"><i
-                      class="fas fa-file-export"></i> Esporta CSV</button>
+                  <div class="d-grid gap-2">
+                    <button class="btn btn-success" type="button" id="ts-export-btn"><i
+                        class="fas fa-file-export"></i> Esporta CSV</button>
+                    <button class="btn btn-outline-success" type="button" id="ts-export-json-btn"><i
+                        class="fas fa-file-code"></i> Esporta JSON</button>
+                  </div>
                 </div>
               </div>
             </div>

@@ -1,6 +1,6 @@
 # 7. Export Timesheet in CSV
 
-Percorso: **Commesse → Export Timesheet**.
+Percorso: **Commesse → Timesheet**, nella card dei filtri usa **Raggruppa export** e il dropdown **Esporta**.
 
 ## Obiettivo
 Esportare i worklog (timesheet) in CSV, con:
@@ -59,3 +59,7 @@ Esportare i worklog (timesheet) in CSV, con:
 - **Ticket**: numero ticket/richiesta collegato all’intervento, se compilato
 - **Note**: note operative del worklog; nei raggruppamenti più note vengono aggregate con ` | `
 
+
+## Export JSON
+
+Il dropdown **Esporta** nella pagina **Timesheet** permette anche di scaricare un file `.json` con gli stessi filtri e raggruppamenti del CSV. Il file include metadati di esportazione, filtri applicati, riepilogo totali e righe esportate. I campi **Ticket** e **Note** sono mantenuti anche nel formato JSON.

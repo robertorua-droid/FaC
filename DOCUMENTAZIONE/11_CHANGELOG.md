@@ -1,3 +1,16 @@
+## V.13.10_step 23 — Export Timesheet integrato nella pagina Timesheet
+- Rimossa dalla sidebar la voce separata **Export CSV**, per compattare il menu laterale.
+- Aggiunto nella pagina **Timesheet** un dropdown **Esporta** con scelte **CSV** e **JSON**.
+- Aggiunto un selettore compatto **Raggruppa export** nella card dei filtri Timesheet.
+- L’export riusa la logica esistente di `timesheet-export.js`, applicando i filtri già presenti nella pagina Timesheet.
+- La vecchia sezione tecnica `export-timesheet` resta nel codice come supporto/fallback interno, ma non è più esposta nel menu.
+
+## V.13.10_step 22 — Export Timesheet JSON
+- Aggiunto nella pagina **Export Timesheet** il pulsante **Esporta JSON** accanto all’export CSV.
+- Il JSON riusa gli stessi filtri e le stesse modalità di raggruppamento del CSV: dettaglio, giorno pivot, giorno + progetto, progetto e commessa.
+- Nel JSON sono inclusi anche **Ticket** e **Note**, coerentemente con l’export CSV introdotto nello step 15.
+- Nessuna modifica al modello dati Timesheet, a Firestore, alla fatturazione o all’import ore in fattura.
+
 ## V.13.10_step 21 — Rifinitura finale spazi payoff logo FAC
 - Corretta ulteriormente la spaziatura del payoff del logo nella schermata di login.
 - Aumentata la distanza tra **Fast** e **Accounting** per evitare l’effetto di parola attaccata.
