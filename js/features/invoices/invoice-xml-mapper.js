@@ -49,6 +49,15 @@
     };
   }
 
+  function buildNumeroCivicoXml(numeroCivico, indent) {
+    const value = String(numeroCivico || '').trim();
+    // In FatturaPA NumeroCivico è opzionale, ma se presente deve avere lunghezza 1-8.
+    // Un tag vuoto causa scarto XSD; se il dato non è compatibile lo omettiamo,
+    // considerando che spesso il civico è già incluso nel campo Indirizzo.
+    if (!value || value.length > 8) return '';
+    return `${indent}<NumeroCivico>${esc(value)}</NumeroCivico>\n`;
+  }
+
   function resolveCustomerIdentity(customer) {
     const c = customer || {};
     const nome = pickFirst(c.nome, c.firstName);
@@ -209,7 +218,6 @@
         `\t<ImponibileCassa>${signed(totalePrestazioni).toFixed(2)}</ImponibileCassa>\n` +
         `\t<AliquotaIVA>${aliqIvaCassa.toFixed(2)}</AliquotaIVA>\n` +
         (natCassa ? `\t<Natura>${esc(natCassa)}</Natura>\n` : ``) +
-        (isForfettario ? `\t<RiferimentoNormativo>${esc(rifNormForfettario)}</RiferimentoNormativo>\n` : ``) +
         `</DatiCassaPrevidenziale>`;
     }
 
@@ -230,10 +238,10 @@
           `\t\t\t<DatiRiepilogo>\n` +
           `\t\t\t\t<AliquotaIVA>${aliq.toFixed(2)}</AliquotaIVA>\n` +
           (aliq > 0 ? `` : `\t\t\t\t<Natura>${esc(nat || INVOICE_NATURE_FORFETTARIO)}</Natura>\n`) +
-          (aliq > 0 || !rifNorm ? `` : `\t\t\t\t<RiferimentoNormativo>${esc(rifNorm)}</RiferimentoNormativo>\n`) +
           `\t\t\t\t<ImponibileImporto>${signed(s.imponibile || 0).toFixed(2)}</ImponibileImporto>\n` +
           `\t\t\t\t<Imposta>${signed(s.imposta || 0).toFixed(2)}</Imposta>\n` +
           (aliq > 0 ? `\t\t\t\t<EsigibilitaIVA>I</EsigibilitaIVA>\n` : ``) +
+          (aliq > 0 || !rifNorm ? `` : `\t\t\t\t<RiferimentoNormativo>${esc(rifNorm)}</RiferimentoNormativo>\n`) +
           `\t\t\t</DatiRiepilogo>\n`;
       });
 
@@ -309,7 +317,7 @@
       `\t\t\t</DatiAnagrafici>\n` +
       `\t\t\t<Sede>\n` +
       `\t\t\t\t<Indirizzo>${esc(companyAddress.address || '')}</Indirizzo>\n` +
-      `\t\t\t\t<NumeroCivico>${esc(companyAddress.numeroCivico || '')}</NumeroCivico>\n` +
+      buildNumeroCivicoXml(companyAddress.numeroCivico, '\t\t\t\t') +
       `\t\t\t\t<CAP>${esc(companyAddress.cap || '')}</CAP>\n` +
       `\t\t\t\t<Comune>${esc(companyAddress.comune || '')}</Comune>\n` +
       (sedeProvinciaCed ? `\t\t\t\t<Provincia>${sedeProvinciaCed}</Provincia>\n` : ``) +

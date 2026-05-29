@@ -1,3 +1,9 @@
+## V.13.10_step 24 — Fix XML FatturaPA forfettario con rivalsa
+- Corretto `InvoiceXMLMapper` per rimuovere `RiferimentoNormativo` da `DatiCassaPrevidenziale`, nodo non previsto dal tracciato FatturaPA in quel blocco.
+- Corretto l’ordine di `RiferimentoNormativo` in `DatiRiepilogo`: ora viene scritto dopo `ImponibileImporto` e `Imposta`, come richiesto dalla sequenza XSD.
+- Il tag `NumeroCivico` del cedente viene ora omesso quando è vuoto o non compatibile con il limite FatturaPA, invece di generare un tag vuoto.
+- Aggiunti controlli nella suite `invoice-xml-mapper.spec.js` per prevenire regressioni su questi casi.
+
 ## V.13.10_step 23 — Export Timesheet integrato nella pagina Timesheet
 - Rimossa dalla sidebar la voce separata **Export CSV**, per compattare il menu laterale.
 - Aggiunto nella pagina **Timesheet** un dropdown **Esporta** con scelte **CSV** e **JSON**.

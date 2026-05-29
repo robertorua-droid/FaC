@@ -100,6 +100,8 @@
     const result = M.buildInvoiceXmlPayload(ctx);
     H.assertIncludes(result.xml, '<Natura>N2.2</Natura>');
     H.assertIncludes(result.xml, '<RiferimentoNormativo>Operazione in franchigia da IVA ai sensi dell&apos;art. 1, commi 54-89, L. 190/2014</RiferimentoNormativo>');
+    const riepilogo = result.xml.slice(result.xml.indexOf('<DatiRiepilogo>'), result.xml.indexOf('</DatiRiepilogo>'));
+    H.assertEqual(riepilogo.indexOf('<RiferimentoNormativo>') > riepilogo.indexOf('<Imposta>'), true, 'RiferimentoNormativo deve seguire Imposta in DatiRiepilogo');
   });
 
   H.test('nota di credito usa TD04 e rende negativi totale documento, pagamento e quantità', function () {
@@ -191,6 +193,8 @@
     H.assertIncludes(result.xml, '<TipoCassa>TC22</TipoCassa>');
     H.assertIncludes(result.xml, '<AlCassa>4.00</AlCassa>');
     H.assertIncludes(result.xml, '<ImportoContributoCassa>40.00</ImportoContributoCassa>');
+    const cassa = result.xml.slice(result.xml.indexOf('<DatiCassaPrevidenziale>'), result.xml.indexOf('</DatiCassaPrevidenziale>'));
+    H.assertEqual(cassa.includes('<RiferimentoNormativo>'), false, 'DatiCassaPrevidenziale non deve contenere RiferimentoNormativo');
   });
 
   H.test('priceType gross con factorScorporo valorizzato esporta imponibile di riga scorporato', function () {
@@ -262,4 +266,10 @@
   window.addEventListener('load', function () {
     H.renderResults('test-results');
   });
+
+  H.test('omette NumeroCivico quando il dato è vuoto o non compatibile con FatturaPA', function () {
+    const result = M.buildInvoiceXmlPayload(buildContext({ company: { numeroCivico: '' } }));
+    H.assertEqual(result.xml.includes('<NumeroCivico></NumeroCivico>'), false, 'NumeroCivico vuoto deve essere omesso');
+  });
+
 })();
