@@ -15,6 +15,19 @@
       .trim();
   }
 
+  function cleanJsonText(val) {
+    // JSON: preserva le righe a capo delle note/descrizioni.
+    // Le sequenze legacy "\\n" vengono riconvertite in newline reali.
+    return String(val ?? '')
+      .replace(/\r\n|\r/g, '\n')
+      .replace(/\\n/g, '\n')
+      .split('\n')
+      .map(line => line.replace(/[ \t]+/g, ' ').trim())
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
   function formatDateIT(dateStr) {
     const s = cleanText(dateStr);
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
@@ -282,7 +295,7 @@
       invoiced: !!r.invoiceId,
       invoiceId: cleanText(r.invoiceId || ''),
       ticket: cleanText(r.ticket || ''),
-      note: cleanText(r.note || '')
+      note: cleanJsonText(r.note || '')
     };
   }
 
@@ -353,8 +366,8 @@
         const ticket = cleanText(r.ticket || '');
         g.tickets.push(pn ? `[${pn}] ${ticket}` : ticket);
       }
-      if (cleanText(r.note || '')) {
-        const note = cleanText(r.note || '');
+      if (cleanJsonText(r.note || '')) {
+        const note = cleanJsonText(r.note || '');
         g.notes.push(pn ? `[${pn}] ${note}` : note);
       }
     });
@@ -391,7 +404,7 @@
         finalTotalHours: Number(minutesToHours(g.totalFinalMinutes || 0)),
         billable: billableOut,
         ticket: g.tickets.join(' | '),
-        note: g.notes.join(' | '),
+        note: g.notes.join('\n'),
         sourceRowIds: g.rowIds.filter(Boolean)
       };
     });
@@ -436,7 +449,7 @@
           finalHours: Number(minutesToHours(totalFinalMinutes)),
           billable: billableOut,
           ticket: list.map(r => cleanText(r.ticket || '')).filter(Boolean).join(' | '),
-          note: list.map(r => cleanText(r.note || '')).filter(Boolean).join(' | '),
+          note: list.map(r => cleanJsonText(r.note || '')).filter(Boolean).join('\n'),
           sourceRowIds: list.map(r => cleanText(r.id || '')).filter(Boolean)
         };
       });

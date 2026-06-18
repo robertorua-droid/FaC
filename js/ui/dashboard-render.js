@@ -199,10 +199,11 @@ function renderDashboardPage() {
 
     if (mode === 'month') {
         const m = parseInt(month, 10) || (new Date().getMonth() + 1);
-        const startDate = new Date(parseInt(year, 10), m - 1, 1);
-        const endDate = new Date(parseInt(year, 10), m, 0);
-        start = startDate.toISOString().slice(0, 10);
-        end = endDate.toISOString().slice(0, 10);
+        const yNum = parseInt(year, 10) || new Date().getFullYear();
+        // Costruzione manuale per evitare slittamenti con toISOString() e fuso orario.
+        start = `${yNum}-${_dashPad2(m)}-01`;
+        const lastDay = new Date(yNum, m, 0).getDate();
+        end = `${yNum}-${_dashPad2(m)}-${_dashPad2(lastDay)}`;
     }
 
     const commesseMap = new Map((getData('commesse') || []).map(c => [String(c.id), c]));

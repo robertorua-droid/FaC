@@ -743,8 +743,15 @@ function renderTimesheetPage() {
     rows.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
 
     const totalMinutes = rows.reduce((s, r) => s + (parseInt(r.minutes, 10) || 0), 0);
+    const totalMinutesFinal = rows.reduce((s, r) => {
+        const base = parseInt(r.minutes, 10) || 0;
+        if (r.minutesFinal != null && r.minutesFinal !== '') return parseInt(r.minutesFinal, 10) || 0;
+        return base;
+    }, 0);
     $('#ts-total-minutes').text(totalMinutes);
     $('#ts-total-hours').text((totalMinutes / 60).toFixed(2));
+    $('#ts-total-minutes-final').text(totalMinutesFinal);
+    $('#ts-total-hours-final').text((totalMinutesFinal / 60).toFixed(2));
 
     $tbody.empty();
     rows.forEach(wl => {

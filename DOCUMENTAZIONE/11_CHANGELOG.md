@@ -1,3 +1,10 @@
+## V.13.10_step 26 — Fix Timesheet JSON, contatori e Dashboard mensile
+- **Export Timesheet JSON**: le note/descrizioni preservano ora le righe a capo logiche invece di essere appiattite su una sola riga. Nei raggruppamenti JSON le note vengono concatenate con newline, mentre il CSV mantiene la sanitizzazione su singola riga.
+- **Timesheet**: corretto il contatore in testata **Totale (cliente finale)**, che ora somma `minutesFinal` quando presente e usa `minutes` come fallback.
+- **Dashboard mensile**: corretto il calcolo del periodo mese evitando `toISOString()`, che in alcuni fusi orari anticipava primo/fine mese di un giorno. Ora il mese va sempre dal giorno 01 all’ultimo giorno reale del mese selezionato.
+- **Export CSV**: corretto un allineamento interno della riga di dettaglio per evitare una data duplicata rispetto all’intestazione.
+- Nessuna modifica a Firestore, fatturazione, import ore in fattura o struttura dati.
+
 ## V.13.10_step 25 — Chiusura commessa e archiviazione progetti collegati
 - Quando una commessa **esistente** viene salvata passando da **Attiva** a **Chiusa**, l’app verifica i progetti collegati non ancora archiviati.
 - Se sono presenti progetti collegati ancora attivi, viene chiesta conferma all’utente prima di aggiornarli.
