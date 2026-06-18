@@ -1,6 +1,6 @@
 ## Versione corrente
 
-V.13.10_step 24
+V.13.10_step 25
 
 - **Tema sidebar/menu – V.13.10_step 16**: il toggle Chiaro/Scuro ora cambia anche la sidebar di navigazione e la barra menu, non solo l'area contenuto principale; in Light Mode il menu usa sfondi e testi chiari, mentre in Dark Mode mantiene il look blu notte.
 - **Timesheet Ticket e CSV – V.13.10_step 15**: aggiunto campo opzionale **Ticket** nelle righe Timesheet; l’export CSV include ora sia **Ticket** sia **Note** nei formati dettaglio e raggruppati.

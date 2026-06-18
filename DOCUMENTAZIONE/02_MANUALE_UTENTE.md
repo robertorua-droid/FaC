@@ -365,6 +365,8 @@ Per ogni commessa definisci almeno:
 - cliente “Fatturo a”
 - stato
 
+Quando salvi una commessa esistente cambiandone lo stato da **Attiva** a **Chiusa**, l’app verifica se ci sono progetti collegati ancora attivi. In quel caso chiede se vuoi archiviarli automaticamente: scegliendo **Sì** i progetti collegati vengono impostati come **archiviati**, scegliendo **No** restano invariati.
+
 La commessa è il livello giusto per rappresentare un incarico, un contratto o una linea di lavoro verso un cliente.
 
 ### Esempio

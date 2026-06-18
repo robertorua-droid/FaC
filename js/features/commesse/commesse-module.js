@@ -49,12 +49,69 @@
     return { ok: true };
   }
 
+  function getActiveProjectsForCommessa(commessaId) {
+    const id = String(commessaId || '');
+    if (!id) return [];
+    return (getData('projects') || []).filter(project => {
+      const projectCommessaId = String(project.commessaId || '');
+      const status = String(project.status || 'attivo').trim().toLowerCase();
+      return projectCommessaId === id && status !== 'archiviato';
+    });
+  }
+
+  async function archiveProjectsForClosedCommessa(projects) {
+    const list = Array.isArray(projects) ? projects : [];
+    if (!list.length) return;
+
+    const updates = list
+      .filter(project => project && project.id != null)
+      .map(project => ({
+        id: String(project.id),
+        data: { status: 'archiviato' }
+      }));
+
+    if (!updates.length) return;
+
+    if (typeof batchSaveDataToCloud === 'function') {
+      await batchSaveDataToCloud('projects', updates);
+      if (window.AppStore && typeof window.AppStore.notify === 'function') {
+        window.AppStore.notify('projects');
+      }
+      return;
+    }
+
+    for (const update of updates) {
+      await saveDataToCloud('projects', update.data, update.id);
+    }
+  }
+
+  async function maybeArchiveProjectsAfterClosingCommessa(commessaId, wasOpen, isNowClosed) {
+    if (!wasOpen || !isNowClosed) return;
+
+    const activeProjects = getActiveProjectsForCommessa(commessaId);
+    if (!activeProjects.length) return;
+
+    const noun = activeProjects.length === 1 ? 'progetto collegato ancora attivo' : 'progetti collegati ancora attivi';
+    const ok = confirm(`La commessa è stata chiusa. Sono presenti ${activeProjects.length} ${noun}.\n\nVuoi archiviarli ora?`);
+    if (!ok) return;
+
+    await archiveProjectsForClosedCommessa(activeProjects);
+    alert(activeProjects.length === 1
+      ? 'Il progetto collegato è stato archiviato.'
+      : `Sono stati archiviati ${activeProjects.length} progetti collegati.`);
+  }
+
   async function saveFromModal() {
     const name = String($('#commessa-name').val() || '').trim();
     if (!name) {
       alert('Inserisci il nome della Commessa.');
       return;
     }
+
+    const previousCommessa = editingId
+      ? (getData('commesse') || []).find(x => String(x.id) === String(editingId))
+      : null;
+    const previousStatus = String((previousCommessa && previousCommessa.status) || 'attiva').trim().toLowerCase();
 
     const data = {
       name,
@@ -68,11 +125,17 @@
       id = String(getNextId(getData('commesse') || []));
     }
 
+    const currentStatus = String(data.status || 'attiva').trim().toLowerCase();
+    const wasOpen = !!previousCommessa && previousStatus !== 'chiusa';
+    const isNowClosed = currentStatus === 'chiusa';
+
     await saveDataToCloud('commesse', data, id);
 
     // chiudi
     const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('commessaModal'));
     modal.hide();
+
+    await maybeArchiveProjectsAfterClosingCommessa(id, wasOpen, isNowClosed);
 
     // refresh
     if (typeof renderCommessePage === 'function') renderCommessePage();

@@ -1,3 +1,9 @@
+## V.13.10_step 25 — Chiusura commessa e archiviazione progetti collegati
+- Quando una commessa **esistente** viene salvata passando da **Attiva** a **Chiusa**, l’app verifica i progetti collegati non ancora archiviati.
+- Se sono presenti progetti collegati ancora attivi, viene chiesta conferma all’utente prima di aggiornarli.
+- Rispondendo **Sì**, solo i progetti collegati alla commessa vengono aggiornati con `status: 'archiviato'`; rispondendo **No**, i progetti restano invariati.
+- La modifica non elimina dati e non tocca Timesheet, fatturazione, export o struttura Firestore.
+
 ## V.13.10_step 24 — Fix XML FatturaPA forfettario con rivalsa
 - Corretto `InvoiceXMLMapper` per rimuovere `RiferimentoNormativo` da `DatiCassaPrevidenziale`, nodo non previsto dal tracciato FatturaPA in quel blocco.
 - Corretto l’ordine di `RiferimentoNormativo` in `DatiRiepilogo`: ora viene scritto dopo `ImponibileImporto` e `Imposta`, come richiesto dalla sequenza XSD.
