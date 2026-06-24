@@ -973,3 +973,19 @@ html[data-theme="dark"] .google-calendar-card .card-footer {
     color: var(--text-muted) !important;
     border-top-color: var(--border-color);
 }
+
+
+/* Commesse budget table alignment */
+.table-commesse th,
+.table-commesse td {
+    vertical-align: middle;
+}
+
+.table-commesse td.text-end,
+.table-commesse th.text-end {
+    white-space: nowrap;
+}
+
+.table-commesse .btn {
+    margin-left: 0.25rem;
+}

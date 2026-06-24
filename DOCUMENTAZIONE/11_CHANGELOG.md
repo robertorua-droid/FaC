@@ -1,3 +1,9 @@
+## V.13.10_step 28 — Fix allineamento tabella Commesse
+- Corretto il rischio di disallineamento nella tabella Commesse dopo l’aggiunta delle colonne **Ore previste**, **Ore caricate** e **Ore residue**.
+- Aggiunto versionamento agli asset locali JS/CSS caricati da `index.html`, così il browser non riutilizza versioni vecchie di `ui-render.js` o altri moduli dopo il deploy.
+- Rafforzata la resa della tabella Commesse con allineamento verticale e celle numeriche non spezzate.
+- Nessuna modifica a dati, Timesheet, fatturazione o logiche fiscali.
+
 ## V.13.10_step 27 — Ore previste e residue sulle Commesse
 - Aggiunto nella modale Commessa il campo opzionale **Ore previste**, salvato come dato gestionale della commessa.
 - La tabella Commesse mostra ora **Ore previste**, **Ore caricate** dal Timesheet e **Ore residue** calcolate a video.
