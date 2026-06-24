@@ -14,6 +14,7 @@
     $('#commessa-billToCustomer').val('');
     $('#commessa-status').val('attiva');
     $('#commessa-notes').val('');
+    $('#commessa-estimated-hours').val('');
     $('#commessaModalLabel').text('Nuova Commessa');
     const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('commessaModal'));
     modal.show();
@@ -29,6 +30,7 @@
     $('#commessa-billToCustomer').val(cm.billToCustomerId || '');
     $('#commessa-status').val(cm.status || 'attiva');
     $('#commessa-notes').val(cm.notes || '');
+    $('#commessa-estimated-hours').val(cm.estimatedHours != null && cm.estimatedHours !== '' ? cm.estimatedHours : '');
     $('#commessaModalLabel').text('Modifica Commessa');
 
     const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('commessaModal'));
@@ -113,11 +115,19 @@
       : null;
     const previousStatus = String((previousCommessa && previousCommessa.status) || 'attiva').trim().toLowerCase();
 
+    const estimatedHoursRaw = String($('#commessa-estimated-hours').val() || '').trim().replace(',', '.');
+    const estimatedHours = estimatedHoursRaw === '' ? null : parseFloat(estimatedHoursRaw);
+    if (estimatedHoursRaw !== '' && (!isFinite(estimatedHours) || estimatedHours < 0)) {
+      alert('Inserisci un valore valido per le Ore previste, oppure lascia il campo vuoto.');
+      return;
+    }
+
     const data = {
       name,
       billToCustomerId: String($('#commessa-billToCustomer').val() || '').trim(),
       status: String($('#commessa-status').val() || 'attiva'),
       notes: String($('#commessa-notes').val() || '').trim(),
+      estimatedHours: estimatedHoursRaw === '' ? null : estimatedHours,
     };
 
     let id = editingId;

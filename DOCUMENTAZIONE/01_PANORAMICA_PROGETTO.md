@@ -28,7 +28,7 @@ Dati per utente:
   - `invoices` (fatture + note di credito)
   - `purchases` (acquisti)
   - `notes` (block-notes)
-  - `commesse` (collegate a un cliente "Fatturo a")
+  - `commesse` (collegate a un cliente "Fatturo a"; possono avere **Ore previste** come budget gestionale opzionale)
   - `projects` (collegate a una commessa; contengono **codice progetto** e **cliente finale**)
   - `worklogs` (timesheet giornaliero; collegabili a una fattura tramite `invoiceId`)
 

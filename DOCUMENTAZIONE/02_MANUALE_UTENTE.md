@@ -570,3 +570,7 @@ Quando è attiva, il gestionale genera durante l'export XML un allegato PDF con 
 
 ### Export Timesheet JSON
 Il dropdown **Esporta** nella pagina Timesheet permette di scaricare sia **CSV** sia **JSON**. Il JSON usa gli stessi filtri e raggruppamenti del CSV e mantiene Ticket e Note.
+
+
+### Commesse: ore previste e residue
+Le commesse possono avere un campo opzionale **Ore previste**. La tabella calcola a video **Ore caricate** dal Timesheet e **Ore residue**. Il calcolo non modifica Timesheet, fatture o import ore in fattura.

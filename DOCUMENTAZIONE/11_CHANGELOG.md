@@ -1,3 +1,10 @@
+## V.13.10_step 27 — Ore previste e residue sulle Commesse
+- Aggiunto nella modale Commessa il campo opzionale **Ore previste**, salvato come dato gestionale della commessa.
+- La tabella Commesse mostra ora **Ore previste**, **Ore caricate** dal Timesheet e **Ore residue** calcolate a video.
+- Le ore residue hanno evidenza visiva: positivo = disponibilità residua, zero = commessa esaurita, negativo = ore superate.
+- Le ore residue non vengono salvate come dato persistente: sono sempre calcolate dai worklog collegati alla commessa.
+- Nessuna modifica alla struttura del Timesheet, alla fatturazione, all’import ore in fattura o all’XML.
+
 ## V.13.10_step 26 — Fix Timesheet JSON, contatori e Dashboard mensile
 - **Export Timesheet JSON**: le note/descrizioni preservano ora le righe a capo logiche invece di essere appiattite su una sola riga. Nei raggruppamenti JSON le note vengono concatenate con newline, mentre il CSV mantiene la sanitizzazione su singola riga.
 - **Timesheet**: corretto il contatore in testata **Totale (cliente finale)**, che ora somma `minutesFinal` quando presente e usa `minutes` come fallback.

@@ -546,18 +546,50 @@ function renderCommessePage() {
     }
 
     const commesse = (getData('commesse') || []).slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    const worklogs = getData('worklogs') || [];
+    const loadedMinutesByCommessa = {};
+    worklogs.forEach(wl => {
+        const commessaId = String(wl.commessaId || '');
+        if (!commessaId) return;
+        loadedMinutesByCommessa[commessaId] = (loadedMinutesByCommessa[commessaId] || 0) + (parseInt(wl.minutes, 10) || 0);
+    });
+
+    const formatDecimalHours = (value) => {
+        if (value == null || value === '' || !isFinite(Number(value))) return '';
+        return Number(value).toFixed(2);
+    };
+    const formatSignedHours = (value) => {
+        if (value == null || value === '' || !isFinite(Number(value))) return '';
+        const num = Number(value);
+        return `${num < 0 ? '-' : ''}${Math.abs(num).toFixed(2)}`;
+    };
+    const getResidualBadgeClass = (residualHours) => {
+        if (residualHours == null || !isFinite(Number(residualHours))) return 'text-bg-secondary';
+        if (Number(residualHours) < 0) return 'text-bg-danger';
+        if (Number(residualHours) === 0) return 'text-bg-warning';
+        return 'text-bg-success';
+    };
 
     $tbody.empty();
     commesse.forEach(cm => {
         const billTo = cm.billToCustomerId ? getCustomerById(cm.billToCustomerId) : null;
         const commessaName = String(cm.name || '');
         const billToName = (billTo && billTo.name) ? String(billTo.name) : '';
+        const estimatedHours = (cm.estimatedHours != null && cm.estimatedHours !== '' && isFinite(Number(cm.estimatedHours))) ? Number(cm.estimatedHours) : null;
+        const loadedMinutes = loadedMinutesByCommessa[String(cm.id)] || 0;
+        const loadedHours = loadedMinutes / 60;
+        const residualHours = estimatedHours == null ? null : estimatedHours - loadedHours;
+        const residualLabel = residualHours == null ? '' : formatSignedHours(residualHours);
+        const residualBadge = residualHours == null ? '<span class="text-muted">—</span>' : `<span class="badge ${getResidualBadgeClass(residualHours)}">${escapeHtml(residualLabel)}</span>`;
         $tbody.append(`
           <tr>
             <td>${escapeHtml(cm.id)}</td>
             <td title="${escapeHtml(commessaName)}">${escapeHtml(commessaName)}</td>
             <td class="commessa-billto" title="${escapeHtml(billToName)}">${escapeHtml(billToName)}</td>
             <td>${escapeHtml(cm.status || '')}</td>
+            <td class="text-end">${escapeHtml(formatDecimalHours(estimatedHours))}</td>
+            <td class="text-end">${escapeHtml(formatDecimalHours(loadedHours))}</td>
+            <td class="text-end">${residualBadge}</td>
             <td class="text-end">
               <button class="btn btn-sm btn-outline-primary btn-edit-commessa" data-id="${cm.id}" title="Modifica"><i class="fas fa-edit"></i></button>
               <button class="btn btn-sm btn-outline-danger btn-delete-commessa" data-id="${cm.id}" title="Elimina"><i class="fas fa-trash"></i></button>
