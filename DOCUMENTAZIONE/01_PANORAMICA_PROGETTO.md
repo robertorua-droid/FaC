@@ -39,6 +39,7 @@ Dati per utente:
 - **Simulazioni fiscali**: Ordinario / LM
 - **Anagrafiche**: Clienti, Fornitori *(solo Ordinario)*, Servizi
 - **Documenti**: Nuova Fattura, Nuova Nota Credito, Elenco Documenti
+- Le fatture in stato **Bozza** possono essere stampate con filigrana “BOZZA”, utile per distinguere copie non definitive.
 - **Acquisti** *(solo Ordinario)*: Nuovo Acquisto, Elenco Acquisti
 - **Scadenziario**: incassi, pagamenti, scadenze IVA
 - **Commesse / Progetti / Timesheet** con export CSV/JSON integrato nella pagina Timesheet

@@ -574,3 +574,7 @@ Il dropdown **Esporta** nella pagina Timesheet permette di scaricare sia **CSV**
 
 ### Commesse: ore previste e residue
 Le commesse possono avere un campo opzionale **Ore previste**. La tabella calcola a video **Ore caricate** dal Timesheet e **Ore residue**. Il calcolo non modifica Timesheet, fatture o import ore in fattura.
+
+### Stampa delle fatture in bozza
+
+Se una fattura è salvata con stato **Bozza**, la stampa dal dettaglio documento mostra una filigrana **BOZZA**. La filigrana serve a distinguere chiaramente le stampe non definitive e non modifica XML, importi, stato documento o dati salvati.

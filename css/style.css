@@ -864,6 +864,35 @@ tr.invoice-paid .btn {
     .no-print {
         display: none !important;
     }
+
+    #invoiceDetailModal.invoice-print-draft .modal-body {
+        position: relative !important;
+    }
+
+    #invoiceDetailModal.invoice-print-draft .modal-body::before {
+        content: "BOZZA";
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-32deg);
+        z-index: 0;
+        visibility: visible !important;
+        pointer-events: none;
+        font-size: 96pt;
+        line-height: 1;
+        font-weight: 900;
+        letter-spacing: 0.18em;
+        color: rgba(108, 117, 125, 0.16);
+        border: 0.08em solid rgba(108, 117, 125, 0.12);
+        border-radius: 0.12em;
+        padding: 0.08em 0.18em;
+        text-transform: uppercase;
+    }
+
+    #invoiceDetailModal.invoice-print-draft .modal-body > * {
+        position: relative;
+        z-index: 1;
+    }
 }
 
 /* ============================================

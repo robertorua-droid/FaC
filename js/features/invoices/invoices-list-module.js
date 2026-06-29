@@ -177,6 +177,9 @@ if (window.deleteDataFromCloud) {
         $('#export-xml-btn').data('invoiceId', inv.id);
         const _isDraft = (inv.isDraft === true || String(inv.status || '') === 'Bozza');
         $('#export-xml-btn').prop('disabled', _isDraft);
+        $('#invoiceDetailModal')
+          .toggleClass('invoice-print-draft', _isDraft)
+          .attr('data-print-status', _isDraft ? 'bozza' : 'finale');
         $('#invoiceDetailModalTitle').text(`${inv.type} ${inv.number}${_isDraft ? ' (BOZZA)' : ''}`);
 
         const sf = typeof safeFloat === 'function'
@@ -435,6 +438,9 @@ if (window.deleteDataFromCloud) {
       }
     });
     $('#print-invoice-btn').click(() => window.print());
+    $('#invoiceDetailModal').on('hidden.bs.modal', function () {
+      $(this).removeClass('invoice-print-draft').removeAttr('data-print-status');
+    });
   }
 
   window.AppModules.invoicesList.bind = bind;

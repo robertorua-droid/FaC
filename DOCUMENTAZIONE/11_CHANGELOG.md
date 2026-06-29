@@ -1,3 +1,9 @@
+## V.13.10_step 29 — Filigrana BOZZA nella stampa fattura
+- Aggiunta una filigrana **BOZZA** nelle stampe delle fatture salvate con stato Bozza.
+- La filigrana è applicata solo in fase di stampa/anteprima stampa dal dettaglio fattura.
+- Le fatture emesse, inviate o pagate non mostrano la filigrana.
+- Modifica solo UI/CSS di stampa: nessuna variazione a XML, calcoli, Firestore o stati documento.
+
 ## V.13.10_step 28 — Fix allineamento tabella Commesse
 - Corretto il rischio di disallineamento nella tabella Commesse dopo l’aggiunta delle colonne **Ore previste**, **Ore caricate** e **Ore residue**.
 - Aggiunto versionamento agli asset locali JS/CSS caricati da `index.html`, così il browser non riutilizza versioni vecchie di `ui-render.js` o altri moduli dopo il deploy.
