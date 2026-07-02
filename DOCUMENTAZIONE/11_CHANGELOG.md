@@ -1,3 +1,9 @@
+## V.13.10_step 30 — Percentuali fiscali decimali
+- Abilitato l’inserimento di valori decimali nei principali campi percentuali fiscali dell’anagrafica azienda, inclusi **INPS %** forfettario, **Coeff. Redditività %**, **Imposta Sostitutiva %** e **Rivalsa INPS %**.
+- Il campo **INPS %** forfettario può ora accettare valori come `26.07`, evitando la validazione HTML che prima consentiva solo interi.
+- Aggiornata la normalizzazione numerica usata dai calcoli per interpretare anche la virgola italiana (`26,07`) come valore decimale.
+- Nessuna modifica alle formule fiscali, alle fatture, all’XML, al Timesheet o ai dati già salvati.
+
 ## V.13.10_step 29 — Filigrana BOZZA nella stampa fattura
 - Aggiunta una filigrana **BOZZA** nelle stampe delle fatture salvate con stato Bozza.
 - La filigrana è applicata solo in fase di stampa/anteprima stampa dal dettaglio fattura.

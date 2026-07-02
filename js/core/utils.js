@@ -129,7 +129,12 @@ window.stopInactivityWatch = stopInactivityWatch;
         const store = window.AppStore ? window.AppStore.get() : globalData;
         return store[key] || [];
     }
-    function safeFloat(val) { const n = parseFloat(val); return isNaN(n) ? 0 : n; }
+    function safeFloat(val) {
+        if (val === null || val === undefined) return 0;
+        const normalized = String(val).trim().replace(',', '.');
+        const n = parseFloat(normalized);
+        return isNaN(n) ? 0 : n;
+    }
 
     
     // =========================================================

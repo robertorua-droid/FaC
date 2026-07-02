@@ -41,3 +41,8 @@ Non c’è “undo”.
 Per evitare problemi, salva sempre:
 1) un backup “standard” per l’esercitazione
 2) un backup “fine esercizio” per confronto/valutazione
+
+
+## Posso inserire aliquote fiscali decimali come 26.07?
+Sì. I campi percentuali fiscali supportano valori decimali. Per massima compatibilità puoi digitare il punto (`26.07`); la normalizzazione dei calcoli interpreta anche la virgola italiana (`26,07`).
+

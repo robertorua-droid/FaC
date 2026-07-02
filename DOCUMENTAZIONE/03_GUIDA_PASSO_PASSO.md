@@ -87,6 +87,7 @@ Vedere come cambia il gestionale in regime forfettario.
 - natura corretta in XML
 - acquisti e fornitori non centrali / nascosti
 - focus su compensi e simulazione forfettaria
+- possibilità di usare percentuali fiscali decimali, ad esempio INPS `26.07`
 
 ---
 

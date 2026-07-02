@@ -62,3 +62,6 @@ Il regime viene scelto in **Impostazioni → Azienda**.
 - **Import ore in fattura**: dal timesheet puoi generare righe fattura. Il sistema gestisce un **binding sicuro**: i worklog vengono marcati come "fatturati" solo al salvataggio definitivo della fattura, garantendo coerenza in caso di annullamento o modifiche del form.
 - **Gestione Dati**: backup, import, cancellazioni per anno, reset totale per “passaggio classe”.
 - **Uso dati (stima)**: utile per parlare di quote/limiti (stima su 1 GiB Spark).
+
+### Nota fiscale UI
+I campi percentuali fiscali dell’anagrafica azienda supportano valori decimali, utili per aliquote contributive come `26.07`. La normalizzazione numerica accetta anche la virgola italiana nei calcoli.

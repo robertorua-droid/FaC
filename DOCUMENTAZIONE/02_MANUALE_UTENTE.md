@@ -522,6 +522,8 @@ Disponibile in regime forfettario.
 
 Serve per stimare il comportamento del reddito forfettario e dei contributi/imposte.
 
+Nei dati azienda i campi percentuali fiscali supportano valori decimali. Per esempio, nel campo **INPS %** del forfettario è possibile indicare `26.07`; i calcoli accettano anche la virgola italiana (`26,07`) normalizzandola internamente.
+
 > Le simulazioni sono strumenti didattici: vanno interpretate come supporto allo studio, non come consulenza fiscale ufficiale.
 
 ---

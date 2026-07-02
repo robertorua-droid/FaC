@@ -1,7 +1,8 @@
 ## Versione corrente
+- **Percentuali fiscali decimali – V.13.10_step 30**: i campi percentuali fiscali accettano valori decimali, in particolare INPS % forfettario (es. `26.07`), e i calcoli normalizzano anche la virgola italiana nei valori numerici.
 - **Filigrana BOZZA in stampa fattura – V.13.10_step 29**: le fatture salvate con stato **Bozza** mostrano una filigrana “BOZZA” solo in stampa/anteprima stampa; i documenti finalizzati non vengono modificati.
 
-V.13.10_step 29
+V.13.10_step 30
 
 - **Tema sidebar/menu – V.13.10_step 16**: il toggle Chiaro/Scuro ora cambia anche la sidebar di navigazione e la barra menu, non solo l'area contenuto principale; in Light Mode il menu usa sfondi e testi chiari, mentre in Dark Mode mantiene il look blu notte.
 - **Timesheet Ticket e CSV – V.13.10_step 15**: aggiunto campo opzionale **Ticket** nelle righe Timesheet; l’export CSV include ora sia **Ticket** sia **Note** nei formati dettaglio e raggruppati.

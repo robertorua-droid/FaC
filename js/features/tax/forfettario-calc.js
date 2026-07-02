@@ -27,7 +27,8 @@
   // Helpers
   // -----------------------------
   function safeFloat(v) {
-    var n = parseFloat(v);
+    if (v === null || v === undefined) return 0;
+    var n = parseFloat(String(v).trim().replace(',', '.'));
     return isNaN(n) ? 0 : n;
   }
 
