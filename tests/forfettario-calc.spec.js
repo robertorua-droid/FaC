@@ -176,5 +176,33 @@
   });
 
 
+  h.test('ForfettarioCalc mantiene gli acconti F24 dell’anno senza applicarli automaticamente come versati', function () {
+    const backup = {
+      companyInfo: {
+        coefficienteRedditivita: 67,
+        aliquotaSostitutiva: 15,
+        aliquotaContributi: 26.07,
+        taxAdjustmentsByYear: {
+          '2026': {
+            lm: { acconto1F24: 229, acconto2F24: 229 },
+            inps: { acconto1F24: 1513.52, acconto2F24: 1513.52 }
+          }
+        }
+      },
+      invoices: [
+        { date: '2026-01-10', type: 'Fattura', status: 'Pagata', totalePrestazioni: 1000, totaleImponibile: 1000, importoBollo: 0, total: 1000 }
+      ]
+    };
+    const out = F.computeYearlySummary(backup, { year: 2026 });
+    h.assertApprox(out.companyParams.accontiImpostaVersati, 0, 0.001);
+    h.assertApprox(out.companyParams.inpsVersatiAnno, 0, 0.001);
+    h.assertApprox(out.companyParams.fiscalAdjustments.incomeYearData.lm.acconto1F24, 229, 0.001);
+    h.assertApprox(out.companyParams.fiscalAdjustments.incomeYearData.lm.acconto2F24, 229, 0.001);
+    h.assertApprox(out.companyParams.fiscalAdjustments.incomeYearData.inps.acconto1F24, 1513.52, 0.001);
+    h.assertApprox(out.companyParams.fiscalAdjustments.incomeYearData.inps.acconto2F24, 1513.52, 0.001);
+  });
+
+
+
   h.run();
 })();

@@ -1,4 +1,4 @@
-# Mappa moduli — chi chiama cosa (V.13.20_step 03)
+# Mappa moduli — chi chiama cosa (V.13.20_step 04)
 
 Questa mappa descrive flusso, dipendenze e responsabilità principali.
 
@@ -107,7 +107,7 @@ Chiamate tipiche (con logica *conditional* per regime):
 - filtri + azioni (spunte) con tooltips
 
 ### `features/tax/*`
-- `forfettario-calc.js`: simulazione Quadro LM + Quadro RR/PXX (didattica) con dati dichiarativi annuali `companyInfo.taxAdjustmentsByYear`; il riquadro versamenti dello step 03 usa il suo output senza introdurre nuove formule
+- `forfettario-calc.js`: simulazione Quadro LM + Quadro RR/PXX (didattica) con dati dichiarativi annuali `companyInfo.taxAdjustmentsByYear`; il riquadro versamenti dello step 03 e il riporto assistito acconti dello step 04 usano il suo output senza introdurre nuove formule
 - `ordinario-calc.js` + `ordinario-sim-module.js`: simulazione redditi ordinario (RE/RN/RR; saldo/acconti)
 
 ---
@@ -122,3 +122,10 @@ Chiamate tipiche (con logica *conditional* per regime):
 - `tax-render.js` reintroduce il riquadro operativo dei versamenti stimati nella pagina Fiscalità.
 - Il riquadro legge `forfettarioSimulation.versamenti`, preferisce i valori F24/manuali se presenti e altrimenti mostra la stima FAC.
 - Nessuna nuova dipendenza e nessuna modifica ai servizi fatture/XML/Timesheet.
+
+---
+
+### V.13.20_step 04 — Riporto assistito acconti F24
+- `tax-render.js` mostra un riquadro di suggerimento quando l’anno selezionato contiene acconti F24 già registrati in `taxAdjustmentsByYear`.
+- I pulsanti copiano 1790+1791 e PXX nei rispettivi campi “già versati”, ma non salvano automaticamente.
+- Nessuna nuova dipendenza e nessuna modifica a motore fiscale, servizi fatture/XML/Timesheet o schema dati.

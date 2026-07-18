@@ -98,6 +98,16 @@ Principi tecnici:
 - le scadenze 30/06 e 30/11 sono riepilogative e didattiche, senza introdurre nuove logiche di rateazione, proroga, interessi o compensazione F24;
 - nessun impatto su fatture, XML, Timesheet, export documenti, Firestore esistente o regime Ordinario.
 
+### Riporto assistito acconti F24
+Lo step V.13.20_step 04 aggiunge un suggerimento UI per gli acconti F24 già salvati sull’anno selezionato.
+
+Principi tecnici:
+- `tax-render.js` legge gli acconti già presenti in `companyInfo.taxAdjustmentsByYear[anno].lm.acconto1F24/acconto2F24` e `companyInfo.taxAdjustmentsByYear[anno].inps.acconto1F24/acconto2F24`;
+- il riquadro appare solo se l’anno specifico selezionato contiene acconti F24 registrati;
+- i pulsanti compilano solo i campi UI `#lm-dich-acconti-imposta` e `#lm-dich-inps-versati-anno`;
+- nessun salvataggio automatico viene eseguito: l’utente deve premere **Salva e ricalcola**;
+- non vengono modificate formule fiscali, schema dati, fatture, XML, Timesheet, export documenti o regime Ordinario.
+
 ### Quadro RR/PXX e Help F24 Fiscalità
 Lo step V.13.20_step 02 è una rifinitura prudente della UI fiscale forfettaria.
 

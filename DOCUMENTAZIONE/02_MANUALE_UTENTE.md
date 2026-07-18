@@ -589,6 +589,19 @@ Il riquadro serve come riepilogo operativo rapido e mostra:
 
 Se hai inserito valori F24/manuali nei dati dichiarativi annuali, il riquadro li usa e li segnala come **F24 inserito**. Se non hai inserito valori manuali, mostra la **stima FAC**.
 
+#### Riporto assistito degli acconti F24
+Dal ramo **V.13.20_step 04**, quando apri un anno che contiene acconti F24 già registrati dall’anno precedente, FAC mostra un riquadro di suggerimento.
+
+Esempio operativo:
+- visualizzando il **2025**, inserisci gli acconti 2026 ricevuti dal commercialista: **1790**, **1791** e rate **PXX**;
+- questi importi vengono salvati sull’anno **2026**;
+- quando in futuro apri la Fiscalità **2026**, FAC ti propone di copiarli nei campi “già versati” del 2026.
+
+Il riporto non è automatico. Devi premere esplicitamente:
+- **Usa per acconti imposta 2026**, per copiare 1790 + 1791 nel campo **Acconti imposta già versati**;
+- **Usa per contributi RR/PXX 2026**, per copiare le rate PXX nel campo **Contributi RR/PXX già versati per l’anno**.
+
+Dopo il click devi premere **Salva e ricalcola**. Questa scelta evita applicazioni nascoste e riduce il rischio di doppio conteggio se il commercialista fornisce rettifiche o valori aggiornati.
 
 > Le simulazioni sono strumenti didattici: vanno interpretate come supporto allo studio, non come consulenza fiscale ufficiale.
 

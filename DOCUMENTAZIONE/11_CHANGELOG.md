@@ -1,3 +1,9 @@
+## V.13.20_step 04 — Riporto assistito acconti F24
+- Aggiunto nella pagina **Fiscalità → Simulazione Fiscale (Quadro LM + Quadro RR/PXX)** un riquadro di suggerimento quando l’anno selezionato contiene acconti F24 già registrati come anno successivo da una dichiarazione precedente.
+- Il riquadro propone il riporto esplicito di **1790 + 1791** nel campo **Acconti imposta già versati** e degli acconti **PXX** nel campo **Contributi RR/PXX già versati per l’anno**.
+- Nessun dato viene applicato automaticamente: l’utente deve premere i pulsanti di copia e poi **Salva e ricalcola**, riducendo il rischio di doppio conteggio.
+- La modifica è limitata alla UI e al binding dei pulsanti in `tax-render.js`; non cambia formule fiscali, schema `taxAdjustmentsByYear`, fatture, XML, Timesheet, export documenti o regime Ordinario.
+
 ## V.13.20_step 03 — Riquadro Versamenti stimati FAC
 - Reintrodotto nella pagina **Fiscalità → Simulazione Fiscale (Quadro LM + Quadro RR/PXX)** un riquadro sintetico **Versamenti stimati FAC**, recuperando la leggibilità operativa della vecchia sezione “VERSAMENTI (stima)”.
 - Il riquadro usa il nuovo modello annuale `companyInfo.taxAdjustmentsByYear`: se sono presenti importi F24/manuali, li evidenzia come **F24 inserito**; altrimenti mostra la **stima FAC**.

@@ -1,4 +1,4 @@
-# Mappa selector/eventi → modulo/file (V.13.20_step 03)
+# Mappa selector/eventi → modulo/file (V.13.20_step 04)
 
 Questa mappa elenca **dove** vengono gestiti i principali eventi UI.
 
@@ -240,5 +240,11 @@ Questa mappa elenca **dove** vengono gestiti i principali eventi UI.
 | `#delete-purchases-form` | `submit` | elimina acquisti per anno (se presente) |
 
 
-### Note UI V.13.20_step 03
-- Il riquadro **Versamenti stimati FAC** non introduce nuovi selector interattivi: viene renderizzato da `renderLMPage()` usando i dati già calcolati dal motore forfettario.
+### Note UI V.13.20_step 04
+- Il riquadro **Versamenti stimati FAC** dello step 03 resta renderizzato da `renderLMPage()` usando i dati già calcolati dal motore forfettario.
+- Lo step 04 aggiunge il riporto assistito degli acconti F24 con due selector interattivi prudenti:
+
+| Selector | Evento | Azione |
+|---|---|---|
+| `#lm-use-acconti-imposta-carryover` | `click` | Copia 1790+1791 nel campo `#lm-dich-acconti-imposta` senza salvare automaticamente |
+| `#lm-use-inps-carryover` | `click` | Copia le rate PXX nel campo `#lm-dich-inps-versati-anno` senza salvare automaticamente |

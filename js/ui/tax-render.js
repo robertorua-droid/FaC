@@ -329,6 +329,21 @@ function renderLMPage() {
     const incomeNotes = adj.incomeYearNotes || '';
     const nextNotes = adj.nextYearNotes || '';
 
+    const incomeYearData = (adj.incomeYearData && typeof adj.incomeYearData === 'object') ? adj.incomeYearData : {};
+    const incomeYearLm = (incomeYearData.lm && typeof incomeYearData.lm === 'object') ? incomeYearData.lm : {};
+    const incomeYearInps = (incomeYearData.inps && typeof incomeYearData.inps === 'object') ? incomeYearData.inps : {};
+    const carryoverAccontoImposta1 = safeFloat(incomeYearLm.acconto1F24);
+    const carryoverAccontoImposta2 = safeFloat(incomeYearLm.acconto2F24);
+    const carryoverAccontiImpostaTotale = carryoverAccontoImposta1 + carryoverAccontoImposta2;
+    const carryoverAccontoInps1 = safeFloat(incomeYearInps.acconto1F24);
+    const carryoverAccontoInps2 = safeFloat(incomeYearInps.acconto2F24);
+    const carryoverAccontiInpsTotale = carryoverAccontoInps1 + carryoverAccontoInps2;
+    const hasCarryoverAccontiImposta = carryoverAccontiImpostaTotale > 0;
+    const hasCarryoverAccontiInps = carryoverAccontiInpsTotale > 0;
+    const hasCarryoverHint = !yearLocked && (hasCarryoverAccontiImposta || hasCarryoverAccontiInps);
+    const accontiImpostaAlreadyApplied = hasCarryoverAccontiImposta && Math.abs(safeFloat(params.accontiImpostaVersati) - carryoverAccontiImpostaTotale) < 0.005;
+    const accontiInpsAlreadyApplied = hasCarryoverAccontiInps && Math.abs(safeFloat(params.inpsVersatiAnno) - carryoverAccontiInpsTotale) < 0.005;
+
     const yearLockNote = yearLocked
         ? `<div class="alert alert-warning py-2 mb-2">Seleziona un anno specifico (non “Tutti”) per inserire e salvare i dati dichiarativi annuali.</div>`
         : `<div class="text-muted small mb-2">I dati inseriti qui vengono salvati per anno: il saldo si riferisce all’anno redditi <b>${yearNum}</b>; gli acconti si riferiscono all’anno successivo <b>${nextYear}</b>.</div>`;
@@ -409,6 +424,40 @@ function renderLMPage() {
       </div>
     `;
 
+    const carryoverHintHtml = hasCarryoverHint ? `
+      <div class="alert alert-info mt-3 mb-3 small" id="lm-f24-carryover-hint">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+          <div>
+            <h6 class="alert-heading mb-1"><i class="fas fa-arrow-right-arrow-left"></i> Acconti F24 già registrati per l’anno ${yearNum}</h6>
+            <div>
+              Sono presenti acconti F24 salvati sull’anno selezionato. Puoi copiarli nei campi “già versati” solo dopo verifica, evitando applicazioni automatiche e doppi conteggi.
+            </div>
+          </div>
+        </div>
+        <div class="row g-2 mt-2">
+          <div class="col-lg-6">
+            <div class="border rounded bg-white p-2 h-100">
+              <div><b>LM / imposta:</b> 1790 € ${money(carryoverAccontoImposta1)} + 1791 € ${money(carryoverAccontoImposta2)} = <b>€ ${money(carryoverAccontiImpostaTotale)}</b></div>
+              <button class="btn btn-sm btn-outline-primary mt-2" id="lm-use-acconti-imposta-carryover" type="button" ${(!hasCarryoverAccontiImposta || accontiImpostaAlreadyApplied) ? 'disabled' : ''}>
+                <i class="fas fa-copy"></i> Usa per acconti imposta ${yearNum}
+              </button>
+              ${accontiImpostaAlreadyApplied ? '<div class="text-success mt-1">Già riportati nel campo “Acconti imposta già versati”.</div>' : '<div class="text-muted mt-1">Il pulsante compila il campo, poi premi “Salva e ricalcola”.</div>'}
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="border rounded bg-white p-2 h-100">
+              <div><b>RR/PXX:</b> 1ª rata € ${money(carryoverAccontoInps1)} + 2ª rata € ${money(carryoverAccontoInps2)} = <b>€ ${money(carryoverAccontiInpsTotale)}</b></div>
+              <button class="btn btn-sm btn-outline-primary mt-2" id="lm-use-inps-carryover" type="button" ${(!hasCarryoverAccontiInps || accontiInpsAlreadyApplied) ? 'disabled' : ''}>
+                <i class="fas fa-copy"></i> Usa per contributi RR/PXX ${yearNum}
+              </button>
+              ${accontiInpsAlreadyApplied ? '<div class="text-success mt-1">Già riportati nel campo “Contributi RR/PXX già versati”.</div>' : '<div class="text-muted mt-1">Il pulsante compila il campo, poi premi “Salva e ricalcola”.</div>'}
+            </div>
+          </div>
+        </div>
+        <div class="text-muted mt-2">Il suggerimento non modifica dati finché non premi i pulsanti e poi <b>Salva e ricalcola</b>.</div>
+      </div>
+    ` : '';
+
     const declarativeHtml = `
       <div class="mt-3 p-3 border rounded bg-white">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
@@ -426,6 +475,7 @@ function renderLMPage() {
           </div>
         </div>
         ${yearLockNote}
+        ${carryoverHintHtml}
 
         <div class="collapse" id="lm-f24-help">
           <div class="alert alert-secondary small mb-3">
@@ -438,6 +488,7 @@ function renderLMPage() {
               <li>Se la riga PXX ha periodo ${yearNum || 'anno redditi'}, è saldo/conguaglio dell’anno redditi; se ha periodo ${nextYear || 'anno successivo'}, è acconto dell’anno successivo.</li>
             </ol>
             <div class="mb-1"><b>Regola pratica:</b> i valori di saldo restano sull’anno selezionato; gli acconti 1790/1791/PXX dell’anno successivo vengono salvati sull’anno successivo per non contaminare il 2024, 2025, 2026, ecc.</div>
+            <div class="mb-1"><b>Anno dopo:</b> quando visualizzi l’anno degli acconti, FAC può proporti di copiarli nei campi “già versati”, ma lo fa solo con pulsante esplicito per evitare doppi conteggi.</div>
             <div class="text-muted">I campi accettano decimali con punto o virgola. Se copi importi F24 con separatore migliaia, il salvataggio normalizza anche formati come <code>1.513,52</code>.</div>
           </div>
         </div>
@@ -706,6 +757,16 @@ function renderLMPage() {
         </div>
 
     `);
+
+    $('#lm-use-acconti-imposta-carryover').off('click').on('click', function () {
+        $('#lm-dich-acconti-imposta').val(money(carryoverAccontiImpostaTotale));
+        $('#lm-dich-acconti-imposta').trigger('input').focus();
+    });
+
+    $('#lm-use-inps-carryover').off('click').on('click', function () {
+        $('#lm-dich-inps-versati-anno').val(money(carryoverAccontiInpsTotale));
+        $('#lm-dich-inps-versati-anno').trigger('input').focus();
+    });
 
     // Salva i dati dichiarativi annuali e ricalcola
     $('#lm-save-tax-adjustments-btn').off('click').on('click', async function () {

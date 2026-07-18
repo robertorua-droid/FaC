@@ -106,7 +106,29 @@ Quando in futuro aprirai il **2024**, il gestionale userà solo eventuali dati d
 
 ---
 
-## 6. Formato degli importi
+## 6. Riporto assistito degli acconti nell’anno successivo
+
+Gli acconti inseriti come **anno successivo** vengono salvati sull’anno di competenza.
+
+Esempio:
+- mentre guardi il **2025**, inserisci 1790, 1791 e PXX relativi al **2026**;
+- FAC li salva nell’anno **2026**;
+- quando selezioni **2026**, FAC mostra un riquadro che propone di riportarli nei campi già versati.
+
+Il riporto è sempre manuale:
+
+| Pulsante | Cosa fa | Dove copia |
+|---|---|---|
+| **Usa per acconti imposta 2026** | Somma 1790 + 1791 | **Acconti imposta già versati** |
+| **Usa per contributi RR/PXX 2026** | Somma le rate PXX | **Contributi RR/PXX già versati per l’anno** |
+
+Dopo aver premuto il pulsante controlla i valori e premi **Salva e ricalcola**.
+
+Il gestionale non applica mai questi importi in automatico, per evitare doppio conteggio se il commercialista fornisce un prospetto aggiornato o se hai già inserito manualmente gli stessi valori.
+
+---
+
+## 7. Formato degli importi
 
 I campi accettano importi con punto o virgola decimale.
 
@@ -120,7 +142,7 @@ Il gestionale normalizza questi valori al salvataggio.
 
 ---
 
-## 7. Riquadro Versamenti stimati FAC
+## 8. Riquadro Versamenti stimati FAC
 
 Dopo aver salvato i dati dichiarativi annuali, la pagina Fiscalità aggiorna il riquadro **Versamenti stimati FAC**.
 
@@ -138,7 +160,7 @@ Se vedi il badge **F24 inserito**, il valore arriva dai dati del commercialista 
 
 ---
 
-## 8. Cosa non viene modificato
+## 9. Cosa non viene modificato
 
 L’inserimento dei dati dichiarativi annuali non modifica:
 
