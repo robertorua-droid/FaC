@@ -1,13 +1,14 @@
-/*!
+/*! 
  * Forfettario Calculation Engine
  * --------------------------------
  * Input: backup JSON exported by the gestionale (Firebase/local export)
- * Output: yearly tax-relevant aggregates (ready to map to Quadro LM)
+ * Output: yearly tax-relevant aggregates (ready to map to Quadro LM + Quadro RR/PXX)
  *
  * Design goals:
  * - Pure functions (no DOM, no Firebase)
  * - No assumptions about UI
  * - Backward compatible with existing backup structure
+ * - V.13.20_step 02: annual declarative data are read by fiscal year and exposed as LM + RR/PXX comparison.
  *
  * Works in:
  * - Browser (window.ForfettarioCalc)
@@ -28,42 +29,41 @@
   // -----------------------------
   function safeFloat(v) {
     if (v === null || v === undefined) return 0;
-    var n = parseFloat(String(v).trim().replace(',', '.'));
+    var raw = String(v).trim().replace(/\s/g, '');
+    if (!raw) return 0;
+    // Supporta sia 1513.52/1513,52 sia importi F24 copiati come 1.513,52.
+    if (raw.indexOf(',') >= 0) {
+      raw = raw.replace(/\./g, '').replace(',', '.');
+    }
+    var n = parseFloat(raw);
     return isNaN(n) ? 0 : n;
   }
 
   function safeObj(o) {
-    return (o && typeof o === "object") ? o : {};
+    return (o && typeof o === "object" && !Array.isArray(o)) ? o : {};
   }
 
-  // Reads a numeric value stored "per anno" inside companyInfo maps like:
-  // - contributiVersatiByYear: { "2025": 123.45 }
-  // Falls back to a legacy/global field ONLY for the current year (to ease migration),
-  // otherwise returns 0 when the year-specific value is missing.
-  function getYearMapNumber(companyInfo, mapField, year, legacyField, useLegacyForCurrentYear) {
-    companyInfo = companyInfo || {};
-    var nowY = new Date().getFullYear();
+  function hasOwn(o, key) {
+    return !!(o && Object.prototype.hasOwnProperty.call(o, key));
+  }
 
-    if (year === null || year === undefined || year === "all") {
-      return safeFloat(companyInfo[legacyField]);
+  function hasMeaningfulValue(v) {
+    return v !== undefined && v !== null && String(v).trim() !== "";
+  }
+
+  function getNested(obj, path) {
+    var cur = obj;
+    for (var i = 0; i < path.length; i++) {
+      if (!cur || typeof cur !== "object" || !hasOwn(cur, path[i])) return undefined;
+      cur = cur[path[i]];
     }
+    return cur;
+  }
 
+  function parseYear(year) {
+    if (year === null || year === undefined || year === "all") return null;
     var y = parseInt(year, 10);
-    if (isNaN(y)) return safeFloat(companyInfo[legacyField]);
-
-    var map = safeObj(companyInfo[mapField]);
-    var key = String(y);
-
-    if (Object.prototype.hasOwnProperty.call(map, key)) return safeFloat(map[key]);
-
-    if (useLegacyForCurrentYear && y === nowY &&
-        companyInfo[legacyField] !== undefined &&
-        companyInfo[legacyField] !== null &&
-        String(companyInfo[legacyField]).trim() !== "") {
-      return safeFloat(companyInfo[legacyField]);
-    }
-
-    return 0;
+    return isNaN(y) ? null : y;
   }
 
   function yearFromISODate(isoDate) {
@@ -99,19 +99,157 @@
     return !isCreditNote(inv);
   }
 
+  function getFiscalYearBucket(companyInfo, year) {
+    var y = parseYear(year);
+    if (y === null) return {};
+    var byYear = safeObj(companyInfo && companyInfo.taxAdjustmentsByYear);
+    return safeObj(byYear[String(y)]);
+  }
+
+  function getFiscalYearNumber(companyInfo, year, section, field) {
+    var y = parseYear(year);
+    if (y === null) return { value: 0, found: false };
+    var value = getNested(safeObj(companyInfo && companyInfo.taxAdjustmentsByYear), [String(y), section, field]);
+    if (hasMeaningfulValue(value)) return { value: safeFloat(value), found: true };
+    return { value: 0, found: false };
+  }
+
+  // Reads a numeric value stored "per anno" inside legacy companyInfo maps like:
+  // - contributiVersatiByYear: { "2025": 123.45 }
+  // Falls back to a legacy/global field ONLY for the current year (to ease migration),
+  // otherwise returns 0 when the year-specific value is missing.
+  function getYearMapNumber(companyInfo, mapField, year, legacyField, useLegacyForCurrentYear) {
+    companyInfo = companyInfo || {};
+    var nowY = new Date().getFullYear();
+
+    if (year === null || year === undefined || year === "all") {
+      return safeFloat(companyInfo[legacyField]);
+    }
+
+    var y = parseInt(year, 10);
+    if (isNaN(y)) return safeFloat(companyInfo[legacyField]);
+
+    var map = safeObj(companyInfo[mapField]);
+    var key = String(y);
+
+    if (hasOwn(map, key)) return safeFloat(map[key]);
+
+    if (useLegacyForCurrentYear && y === nowY &&
+        companyInfo[legacyField] !== undefined &&
+        companyInfo[legacyField] !== null &&
+        String(companyInfo[legacyField]).trim() !== "") {
+      return safeFloat(companyInfo[legacyField]);
+    }
+
+    return 0;
+  }
+
+  function getYearNumberWithFallback(companyInfo, year, section, field, legacyMapField, legacyField, useLegacyForCurrentYear) {
+    var nested = getFiscalYearNumber(companyInfo, year, section, field);
+    if (nested.found) return nested;
+
+    if (legacyMapField || legacyField) {
+      var legacy = getYearMapNumber(companyInfo, legacyMapField, year, legacyField, useLegacyForCurrentYear);
+      return { value: legacy, found: legacy !== 0 };
+    }
+
+    return { value: 0, found: false };
+  }
+
+  function getYearString(companyInfo, year, field) {
+    var y = parseYear(year);
+    if (y === null) return "";
+    var value = getNested(safeObj(companyInfo && companyInfo.taxAdjustmentsByYear), [String(y), field]);
+    return hasMeaningfulValue(value) ? String(value) : "";
+  }
+
   function defaultCompanyParams(companyInfo, year) {
     companyInfo = companyInfo || {};
+    var y = parseYear(year);
+    var nextY = y === null ? null : y + 1;
+
+    var lmContribDed = getYearNumberWithFallback(
+      companyInfo,
+      y,
+      "lm",
+      "contributiDeducibiliVersati",
+      "contributiDeducibiliByYear",
+      "contributiDeducibiliVersati",
+      false
+    );
+
+    var lmAcconti = getYearNumberWithFallback(
+      companyInfo,
+      y,
+      "lm",
+      "accontiImpostaVersati",
+      "accontiVersatiByYear",
+      "accontiImpostaVersati",
+      false
+    );
+
+    var lmCrediti = getYearNumberWithFallback(
+      companyInfo,
+      y,
+      "lm",
+      "creditiImposta",
+      "creditiImpostaByYear",
+      "creditiImposta",
+      false
+    );
+
+    var lmSaldoF24 = getYearNumberWithFallback(companyInfo, y, "lm", "saldoF24", "saldoImpostaF24ByYear", "saldoImpostaF24", false);
+
+    var inpsVersati = getYearNumberWithFallback(
+      companyInfo,
+      y,
+      "inps",
+      "versatiAnno",
+      "contributiVersatiByYear",
+      "contributiVersati",
+      false
+    );
+
+    var inpsSaldoF24 = getYearNumberWithFallback(companyInfo, y, "inps", "saldoF24", "saldoInpsF24ByYear", "saldoInpsF24", false);
+
+    var lmNextA1 = getYearNumberWithFallback(companyInfo, nextY, "lm", "acconto1F24", "accontoImposta1F24ByYear", "", false);
+    var lmNextA2 = getYearNumberWithFallback(companyInfo, nextY, "lm", "acconto2F24", "accontoImposta2F24ByYear", "", false);
+    var inpsNextA1 = getYearNumberWithFallback(companyInfo, nextY, "inps", "acconto1F24", "accontoInps1F24ByYear", "", false);
+    var inpsNextA2 = getYearNumberWithFallback(companyInfo, nextY, "inps", "acconto2F24", "accontoInps2F24ByYear", "", false);
+
     return {
       coefficienteRedditivita: safeFloat(companyInfo.coefficienteRedditivita), // %
       aliquotaSostitutiva: safeFloat(companyInfo.aliquotaSostitutiva),        // %
       aliquotaContributi: safeFloat(companyInfo.aliquotaContributi),          // %
-      contributiVersati: getYearMapNumber(companyInfo, 'contributiVersatiByYear', year, 'contributiVersati', true),            // € (per-anno)
 
-      // Versamenti / crediti (per una simulazione più realistica)
-      // - acconti imposta già versati sull'anno simulato (riduce il saldo)
-      // - crediti/compensazioni disponibili (RX) utilizzabili anche sugli acconti, se desiderato in UI
-      accontiImpostaVersati: getYearMapNumber(companyInfo, 'accontiVersatiByYear', year, 'accontiImpostaVersati', true),    // € (per-anno)
-      creditiImposta: getYearMapNumber(companyInfo, 'creditiImpostaByYear', year, 'creditiImposta', true)                  // € (per-anno)
+      // LM / imposta sostitutiva - dati manuali per anno redditi
+      contributiDeducibiliVersati: lmContribDed.value,
+      hasContributiDeducibiliVersati: lmContribDed.found,
+      accontiImpostaVersati: lmAcconti.value,
+      creditiImposta: lmCrediti.value,
+      saldoImpostaF24: lmSaldoF24.value,
+      hasSaldoImpostaF24: lmSaldoF24.found,
+
+      // INPS / PXX - dati manuali per anno redditi
+      contributiVersati: inpsVersati.value, // alias legacy usato dalla UI precedente
+      inpsVersatiAnno: inpsVersati.value,
+      inpsSaldoF24: inpsSaldoF24.value,
+      hasInpsSaldoF24: inpsSaldoF24.found,
+
+      // Acconti dell'anno successivo, memorizzati nell'anno di competenza successivo
+      accontoImpostaAnnoSuccessivo1F24: lmNextA1.value,
+      accontoImpostaAnnoSuccessivo2F24: lmNextA2.value,
+      accontoInpsAnnoSuccessivo1F24: inpsNextA1.value,
+      accontoInpsAnnoSuccessivo2F24: inpsNextA2.value,
+
+      fiscalAdjustments: {
+        incomeYear: y,
+        nextYear: nextY,
+        incomeYearData: getFiscalYearBucket(companyInfo, y),
+        nextYearData: getFiscalYearBucket(companyInfo, nextY),
+        incomeYearNotes: getYearString(companyInfo, y, "notes"),
+        nextYearNotes: getYearString(companyInfo, nextY, "notes")
+      }
     };
   }
 
@@ -146,6 +284,19 @@
     };
   }
 
+  function computeInpsAcconti(contributiDovutiStimati) {
+    // Stima didattica prudente per PXX: 80% del contributo stimato, ripartito in due rate uguali.
+    // Il valore reale può dipendere dal prospetto del commercialista/F24.
+    var base = Math.max(0, safeFloat(contributiDovutiStimati));
+    var totale = base * 0.80;
+    return {
+      metodo: "80% in due rate uguali (stima)",
+      accontoTotale: totale,
+      acconto1: totale / 2,
+      acconto2: totale / 2
+    };
+  }
+
   // -----------------------------
   // Core aggregations
   // -----------------------------
@@ -177,11 +328,13 @@
   }
 
   /**
-   * Computes yearly totals suitable for Quadro LM prefill.
+   * Computes yearly totals suitable for Quadro LM prefill and RR/PXX comparison.
    *
    * Key accounting choice:
    * - "compensiBase" uses invoice.totaleImponibile (prestazioni + rivalsa INPS).
    * - Bollo (invoice.importoBollo) is reported separately and can optionally be included.
+   * - If annual LM35 contributions are manually inserted, the imposta sostitutiva uses them;
+   *   otherwise it preserves the legacy theoretical estimate based on contributi INPS stimati.
    *
    * @param {object} backup - gestionale backup JSON
    * @param {object} options
@@ -249,17 +402,21 @@
     var redditoForfettario = (coeff > 0) ? baseForCalc * (coeff / 100) : 0;
     var contributiINPS = (aliquotaInps > 0) ? redditoForfettario * (aliquotaInps / 100) : 0;
 
-    // Deduct previously paid contributions if provided (optional policy)
-    var contributiVersati = params.contributiVersati;
-    var contributiDaVersareStimati = Math.max(0, contributiINPS - contributiVersati);
+    var inpsVersatiAnno = params.inpsVersatiAnno;
+    var contributiDaVersareStimati = Math.max(0, contributiINPS - inpsVersatiAnno);
 
-    var imponibileImposta = Math.max(0, redditoForfettario - contributiINPS);
+    // Legacy-preserving policy:
+    // - without annual LM35 data, keep previous theoretical behavior (deduct estimated INPS);
+    // - with annual LM35 data, use the manually inserted deductible paid contributions.
+    var contributiDeducibiliPerImposta = params.hasContributiDeducibiliVersati ? params.contributiDeducibiliVersati : contributiINPS;
+    var imponibileImposta = Math.max(0, redditoForfettario - contributiDeducibiliPerImposta);
     var impostaSostitutiva = (aliquotaImposta > 0) ? imponibileImposta * (aliquotaImposta / 100) : 0;
 
     // -----------------------------
-    // Versamenti (stima) - più realistica
+    // Versamenti / confronto dichiarativo
     // -----------------------------
     var accontiStorico = computeAccontiStorico(impostaSostitutiva);
+    var inpsAccontiStimati = computeInpsAcconti(contributiINPS);
     var accontiVersatiImposta = safeFloat(params.accontiImpostaVersati);
     var creditiImposta = safeFloat(params.creditiImposta);
 
@@ -268,7 +425,7 @@
     var saldoNetto = Math.max(0, saldoDopoAcconti - creditiImposta);
     var creditoResiduoDopoSaldo = Math.max(0, creditiImposta - saldoDopoAcconti);
 
-    // Uso del credito anche sugli acconti (comune in F24 tramite compensazione)
+    // Uso del credito anche sugli acconti (stima)
     var creditoTmp = creditoResiduoDopoSaldo;
     var acconto1Netto = Math.max(0, accontiStorico.acconto1 - creditoTmp);
     creditoTmp = Math.max(0, creditoTmp - accontiStorico.acconto1);
@@ -278,6 +435,9 @@
     var versamenti = {
       imposta: {
         dovutaAnno: impostaSostitutiva,
+        contributiDeducibiliUsati: contributiDeducibiliPerImposta,
+        contributiDeducibiliManuali: params.contributiDeducibiliVersati,
+        usaContributiDeducibiliManuali: !!params.hasContributiDeducibiliVersati,
         accontiVersatiAnno: accontiVersatiImposta,
         creditiDisponibili: creditiImposta,
         saldoDopoAcconti: saldoDopoAcconti,
@@ -293,12 +453,25 @@
         // Compensazione credito su acconti (stima)
         acconto1NettoDaVersare: acconto1Netto,
         acconto2NettoDaVersare: acconto2Netto,
-        creditoResiduoDopoAcconti: creditoTmp
+        creditoResiduoDopoAcconti: creditoTmp,
+
+        saldoF24: params.saldoImpostaF24,
+        hasSaldoF24: params.saldoImpostaF24 > 0,
+        accontoAnnoSuccessivo1F24: params.accontoImpostaAnnoSuccessivo1F24,
+        accontoAnnoSuccessivo2F24: params.accontoImpostaAnnoSuccessivo2F24
       },
       inps: {
         dovutiStimati: contributiINPS,
-        versatiAnno: contributiVersati,
-        saldoNettoDaVersareStimato: contributiDaVersareStimati
+        versatiAnno: inpsVersatiAnno,
+        saldoNettoDaVersareStimato: contributiDaVersareStimati,
+        saldoF24: params.inpsSaldoF24,
+        hasSaldoF24: params.inpsSaldoF24 > 0,
+        accontoTotaleStimato: inpsAccontiStimati.accontoTotale,
+        acconto1Stimato: inpsAccontiStimati.acconto1,
+        acconto2Stimato: inpsAccontiStimati.acconto2,
+        accontoMetodoStimato: inpsAccontiStimati.metodo,
+        accontoAnnoSuccessivo1F24: params.accontoInpsAnnoSuccessivo1F24,
+        accontoAnnoSuccessivo2F24: params.accontoInpsAnnoSuccessivo2F24
       }
     };
 
@@ -358,13 +531,16 @@
         redditoForfettario: redditoForfettario,
         aliquotaContributi: aliquotaInps,
         contributiINPSStimati: contributiINPS,
-        contributiVersati: contributiVersati,
+        contributiVersati: inpsVersatiAnno,
+        inpsVersatiAnno: inpsVersatiAnno,
         contributiDaVersareStimati: contributiDaVersareStimati,
+        contributiDeducibiliPerImposta: contributiDeducibiliPerImposta,
+        usaContributiDeducibiliManuali: !!params.hasContributiDeducibiliVersati,
         imponibileImposta: imponibileImposta,
         aliquotaSostitutiva: aliquotaImposta,
         impostaSostitutivaStimata: impostaSostitutiva,
 
-        // Nuovo: versamenti/saldi/acconti (stima)
+        // Versamenti/saldi/acconti (stima + confronto dichiarativo)
         versamenti: versamenti
       }
     };
@@ -377,6 +553,7 @@
     safeFloat: safeFloat,
     yearFromISODate: yearFromISODate,
     listAvailableYears: listAvailableYears,
+    getFiscalYearBucket: getFiscalYearBucket,
     computeYearlySummary: computeYearlySummary
   };
 });

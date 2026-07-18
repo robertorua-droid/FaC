@@ -1,6 +1,6 @@
 // =========================================================
 // UI Tax Render - Fase 2B (estrazione cauta)
-// Simulazioni Ordinario / Quadro LM e filtri anno dedicati
+// Simulazioni Ordinario / Quadro LM + Quadro RR/PXX e filtri anno dedicati
 // =========================================================
 (function (window) {
     'use strict';
@@ -271,12 +271,12 @@ function renderLMPage() {
     const companyLM = (getData('companyInfo') || {});
     const isForf = getTaxRegimeCapabilities(companyLM).canUseLmSimulation;
     if (!isForf) {
-        $out.html('<div class="alert alert-info mb-0">La simulazione Quadro LM è disponibile solo per il regime <b>Forfettario</b>.</div>');
+        $out.html('<div class="alert alert-info mb-0">La simulazione Quadro LM + Quadro RR/PXX è disponibile solo per il regime <b>Forfettario</b>.</div>');
         return;
     }
 
     if (typeof ForfettarioCalc === 'undefined' || !ForfettarioCalc.computeYearlySummary) {
-        $out.html('<div class="alert alert-warning mb-0">Motore LM non disponibile (file forfettario-calc.js non caricato).</div>');
+        $out.html('<div class="alert alert-warning mb-0">Motore LM/RR non disponibile (file forfettario-calc.js non caricato).</div>');
         return;
     }
 
@@ -286,7 +286,7 @@ function renderLMPage() {
 
     // backup minimo dal globalData
     const backup = {
-        companyInfo: getData('companyInfo') || {},
+        companyInfo: companyLM,
         invoices: getData('invoices') || []
     };
 
@@ -299,100 +299,268 @@ function renderLMPage() {
     const t = summary.totals || {};
     const s = summary.forfettarioSimulation || {};
     const params = summary.companyParams || {};
-
-    const money = (v) => (typeof v === 'number' && isFinite(v)) ? v.toFixed(2) : '0.00';
-    const numVal = (v) => (v === null || v === undefined || v === '') ? '' : String(v);
-
-    // Versamenti (stima realistica)
     const v = (s.versamenti || {});
     const vImp = (v.imposta || {});
     const vInps = (v.inps || {});
+    const adj = params.fiscalAdjustments || {};
+
+    const money = (value) => {
+        const n = (typeof value === 'number') ? value : parseFloat(String(value || '0').replace(',', '.'));
+        return (isFinite(n) ? n : 0).toFixed(2);
+    };
+    const numVal = (value) => {
+        if (value === null || value === undefined || value === '') return '';
+        const n = parseFloat(String(value).replace(',', '.'));
+        return (!isFinite(n) || n === 0) ? '' : String(value);
+    };
+    const diffHtml = (sim, f24, hasF24) => {
+        if (!hasF24) return '<span class="text-muted">—</span>';
+        const d = (parseFloat(sim || 0) - parseFloat(f24 || 0));
+        const cls = Math.abs(d) < 0.05 ? 'text-success' : 'text-danger';
+        return `<span class="${cls}">€ ${money(d)}</span>`;
+    };
 
     const metaYear = (summary.meta && summary.meta.year) ? summary.meta.year : yearVal;
     const yearNum = (String(metaYear) !== 'all' && !isNaN(parseInt(metaYear, 10))) ? parseInt(metaYear, 10) : null;
     const nextYear = (yearNum !== null) ? (yearNum + 1) : null;
-
     const yearLocked = (yearNum === null);
     const disAttr = yearLocked ? 'disabled' : '';
+
+    const incomeNotes = adj.incomeYearNotes || '';
+    const nextNotes = adj.nextYearNotes || '';
+
     const yearLockNote = yearLocked
-        ? `<div class="text-muted" style="font-size:0.9em;">Seleziona un anno specifico (non “Tutti”) per inserire e salvare i valori di versamento per-anno.</div>`
-        : `<div class="text-muted" style="font-size:0.9em;">Valori memorizzati per l’anno selezionato: <b>${yearNum}</b>.</div>`;
+        ? `<div class="alert alert-warning py-2 mb-2">Seleziona un anno specifico (non “Tutti”) per inserire e salvare i dati dichiarativi annuali.</div>`
+        : `<div class="text-muted small mb-2">I dati inseriti qui vengono salvati per anno: il saldo si riferisce all’anno redditi <b>${yearNum}</b>; gli acconti si riferiscono all’anno successivo <b>${nextYear}</b>.</div>`;
 
-    // Sezione acconti (mostra sia lordi che "netti" dopo compensazione credito)
-    let accontiHtml = '';
-    if (vImp && typeof vImp.accontoTotaleStimato === 'number') {
-        const a1 = vImp.acconto1Stimato || 0;
-        const a2 = vImp.acconto2Stimato || 0;
-        const unica = vImp.accontoUnicaRataStimata || 0;
-        const a1n = vImp.acconto1NettoDaVersare || 0;
-        const a2n = vImp.acconto2NettoDaVersare || 0;
-        const thNo = (vImp.soglieAcconti && vImp.soglieAcconti.noAcconto) ? vImp.soglieAcconti.noAcconto : 51.65;
-        const thTwo = (vImp.soglieAcconti && vImp.soglieAcconti.dueRate) ? vImp.soglieAcconti.dueRate : 257.52;
+    const accontiImpostaStimatiHtml = (vImp.accontoUnicaRataStimata || 0) > 0 && (vImp.acconto1Stimato || 0) === 0
+        ? `Unica rata: € ${money(vImp.accontoUnicaRataStimata)}`
+        : `1ª rata: € ${money(vImp.acconto1Stimato || 0)} — 2ª rata: € ${money(vImp.acconto2Stimato || 0)}`;
 
-        if ((a1 + a2) <= 0) {
-            accontiHtml = `<div class="mt-2 text-muted"><b>Acconti imposta:</b> nessun acconto (sotto € ${money(thNo)})</div>`;
-        } else if (unica > 0 && a1 === 0) {
-            accontiHtml = `<div class="mt-2"><b>Acconto imposta (unica rata):</b> € ${money(unica)} <span class="text-muted">(sotto € ${money(thTwo)})</span> — <b>Netto dopo crediti:</b> € ${money(a2n)}</div>`;
-        } else {
-            accontiHtml = `<div class="mt-2"><b>Acconti imposta:</b> 1° (40%) € ${money(a1)} — 2° (60%) € ${money(a2)} — <b>Netti dopo crediti:</b> € ${money(a1n)} + € ${money(a2n)}</div>`;
-        }
-    }
+    const hasManualImpAcconti = (safeFloat(vImp.accontoAnnoSuccessivo1F24) > 0 || safeFloat(vImp.accontoAnnoSuccessivo2F24) > 0);
+    const hasManualInpsAcconti = (safeFloat(vInps.accontoAnnoSuccessivo1F24) > 0 || safeFloat(vInps.accontoAnnoSuccessivo2F24) > 0);
 
-    // Box versamenti (F24) con input modificabili e persistiti su companyInfo
-    const versamentiHtml = `
-      <div class="mt-3 p-2 border rounded">
-        <div class="mb-1"><span class="badge bg-warning text-dark">VERSAMENTI (stima)</span></div>
-        ${yearLockNote}
+    const riepilogoSaldoImposta = vImp.hasSaldoF24 ? vImp.saldoF24 : (vImp.saldoNettoDaVersare || 0);
+    const riepilogoSaldoInps = vInps.hasSaldoF24 ? vInps.saldoF24 : (vInps.saldoNettoDaVersareStimato || 0);
+    const riepilogoAccontoImp1 = hasManualImpAcconti ? (vImp.accontoAnnoSuccessivo1F24 || 0) : (vImp.acconto1NettoDaVersare || 0);
+    const riepilogoAccontoImp2 = hasManualImpAcconti ? (vImp.accontoAnnoSuccessivo2F24 || 0) : (vImp.acconto2NettoDaVersare || 0);
+    const riepilogoAccontoInps1 = hasManualInpsAcconti ? (vInps.accontoAnnoSuccessivo1F24 || 0) : (vInps.acconto1Stimato || 0);
+    const riepilogoAccontoInps2 = hasManualInpsAcconti ? (vInps.accontoAnnoSuccessivo2F24 || 0) : (vInps.acconto2Stimato || 0);
+    const riepilogoPrimaScadenza = riepilogoSaldoImposta + riepilogoAccontoImp1 + riepilogoSaldoInps + riepilogoAccontoInps1;
+    const riepilogoSecondaScadenza = riepilogoAccontoImp2 + riepilogoAccontoInps2;
 
-        <div class="row g-2">
-          <div class="col-md-4">
-            <label class="form-label mb-0">Contributi INPS già versati (€)</label>
-            <input class="form-control form-control-sm" id="lm-contributi-versati" type="number" step="0.01" value="${numVal(params.contributiVersati)}" ${disAttr}/>
-            <div class="form-text">Usato per stimare il saldo RR (dovuti − versati).</div>
+    const sourceBadge = (hasManual) => hasManual
+        ? '<span class="badge bg-info text-dark ms-1">F24 inserito</span>'
+        : '<span class="badge bg-secondary ms-1">stima FAC</span>';
+
+    const paymentSummaryHtml = yearLocked ? `
+      <div class="mt-3 p-3 border rounded bg-white">
+        <div class="mb-2"><span class="badge bg-warning text-dark">Versamenti stimati FAC</span></div>
+        <div class="alert alert-warning py-2 mb-0">Seleziona un anno specifico per visualizzare il riepilogo operativo dei versamenti stimati.</div>
+      </div>
+    ` : `
+      <div class="mt-3 p-3 border rounded bg-white">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+          <div>
+            <span class="badge bg-warning text-dark">Versamenti stimati FAC</span>
+            <span class="text-muted small ms-1">riepilogo operativo LM + RR/PXX</span>
           </div>
-          <div class="col-md-4">
-            <label class="form-label mb-0">Acconti imposta già versati (€)</label>
-            <input class="form-control form-control-sm" id="lm-acconti-imposta-versati" type="number" step="0.01" value="${numVal(params.accontiImpostaVersati)}" ${disAttr}/>
-            <div class="form-text">Riduce il saldo dell’anno (RX).</div>
+          <span class="text-muted small">Anno redditi: <b>${yearNum}</b> · Acconti: <b>${nextYear}</b></span>
+        </div>
+        <div class="text-muted small mb-2">
+          Il riquadro usa i valori F24/manuali se inseriti; in assenza di dati manuali mostra la stima FAC. Le scadenze sono indicative e non sostituiscono il prospetto del commercialista.
+        </div>
+
+        <div class="row g-3">
+          <div class="col-lg-6">
+            <div class="border rounded p-2 h-100">
+              <div><b>Saldo imposta sostitutiva anno ${yearNum}:</b> € ${money(riepilogoSaldoImposta)} ${sourceBadge(vImp.hasSaldoF24)}</div>
+              <div class="text-muted small">Dovuta € ${money(vImp.dovutaAnno || 0)} — Acconti versati € ${money(vImp.accontiVersatiAnno || 0)} — Crediti € ${money(vImp.creditiDisponibili || 0)}</div>
+            </div>
           </div>
-          <div class="col-md-4">
-            <label class="form-label mb-0">Crediti/compensazioni disponibili (€)</label>
-            <input class="form-control form-control-sm" id="lm-crediti-imposta" type="number" step="0.01" value="${numVal(params.creditiImposta)}" ${disAttr}/>
-            <div class="form-text">Credito compensabile in F24 (RX).</div>
+          <div class="col-lg-6">
+            <div class="border rounded p-2 h-100">
+              <div><b>Saldo RR/PXX anno ${yearNum}:</b> € ${money(riepilogoSaldoInps)} ${sourceBadge(vInps.hasSaldoF24)}</div>
+              <div class="text-muted small">Dovuti € ${money(vInps.dovutiStimati || 0)} — Versati € ${money(vInps.versatiAnno || 0)}</div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="border rounded p-2 h-100">
+              <div><b>Acconti imposta anno ${nextYear}:</b> 1ª € ${money(riepilogoAccontoImp1)} — 2ª € ${money(riepilogoAccontoImp2)} ${sourceBadge(hasManualImpAcconti)}</div>
+              <div class="text-muted small">Stima FAC teorica: ${accontiImpostaStimatiHtml}</div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="border rounded p-2 h-100">
+              <div><b>Acconti RR/PXX anno ${nextYear}:</b> 1ª € ${money(riepilogoAccontoInps1)} — 2ª € ${money(riepilogoAccontoInps2)} ${sourceBadge(hasManualInpsAcconti)}</div>
+              <div class="text-muted small">Metodo FAC teorico: ${escapeXML(String(vInps.accontoMetodoStimato || 'stima'))}</div>
+            </div>
           </div>
         </div>
 
-        <button class="btn btn-sm btn-outline-primary mt-2" id="lm-save-versamenti-btn" type="button" ${yearLocked ? "disabled" : ""}>
-          <i class="fas fa-save"></i> Salva e ricalcola
-        </button>
-
-        <hr class="my-2"/>
-
-        <div><b>Saldo imposta (anno ${escapeXML(String(metaYear))}):</b> € ${money(vImp.saldoNettoDaVersare || 0)}</div>
-        <div class="text-muted" style="font-size:0.9em;">
-          Dovuta € ${money(vImp.dovutaAnno || 0)} — Acconti versati € ${money(vImp.accontiVersatiAnno || 0)} — Crediti € ${money(vImp.creditiDisponibili || 0)}
-          ${((vImp.creditoResiduoDopoSaldo || 0) > 0) ? ` — Credito residuo dopo saldo € ${money(vImp.creditoResiduoDopoSaldo)}` : ``}
+        <div class="mt-3">
+          <b>Scadenze tipiche riepilogative:</b>
+          <ul class="mb-1">
+            <li><b>30/06/${nextYear}</b>: saldo imposta ${yearNum} + 1ª rata imposta ${nextYear} + saldo RR/PXX ${yearNum} + 1ª rata PXX ${nextYear} → € ${money(riepilogoPrimaScadenza)}</li>
+            <li><b>30/11/${nextYear}</b>: 2ª rata imposta ${nextYear} + 2ª rata PXX ${nextYear} → € ${money(riepilogoSecondaScadenza)}</li>
+          </ul>
+          <div class="text-muted small">Se il commercialista applica proroghe, maggiorazioni, rateazioni o compensazioni F24, inserisci i valori effettivi nei campi dichiarativi annuali e usa il prospetto F24 come riferimento finale.</div>
         </div>
-
-        <div class="mt-2"><b>INPS (saldo stimato):</b> € ${money(vInps.saldoNettoDaVersareStimato || 0)}</div>
-        <div class="text-muted" style="font-size:0.9em;">Dovuti € ${money(vInps.dovutiStimati || 0)} — Versati € ${money(vInps.versatiAnno || 0)}</div>
-
-        ${nextYear ? `
-          <div class="mt-2"><b>Acconti imposta stimati (anno ${nextYear}):</b></div>
-          ${accontiHtml}
-
-          <div class="mt-2">
-            <b>Scadenze tipiche (stima):</b>
-            <ul class="mb-0">
-              <li><b>30/06/${nextYear}:</b> saldo imposta (anno ${yearNum}) + 1° acconto (anno ${nextYear}) → € ${money((vImp.saldoNettoDaVersare || 0) + (vImp.acconto1NettoDaVersare || 0))}</li>
-              <li><b>30/11/${nextYear}:</b> 2° acconto (anno ${nextYear}) → € ${money(vImp.acconto2NettoDaVersare || 0)}</li>
-            </ul>
-            <div class="text-muted" style="font-size:0.9em;">Nota: scadenze/percentuali possono variare per annualità e casi particolari; questa è una simulazione didattica.</div>
-          </div>
-        ` : `<div class="mt-2 text-muted" style="font-size:0.9em;">Seleziona un anno specifico (non “Tutti”) per vedere la stima acconti e scadenze.</div>`}
       </div>
     `;
 
+    const declarativeHtml = `
+      <div class="mt-3 p-3 border rounded bg-white">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+          <div>
+            <span class="badge bg-primary">Dati dichiarativi annuali</span>
+            <span class="text-muted small ms-1">Quadro LM + Quadro RR/PXX</span>
+          </div>
+          <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-sm btn-outline-secondary" id="lm-f24-help-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#lm-f24-help" aria-expanded="false" aria-controls="lm-f24-help">
+              <i class="fas fa-circle-question"></i> Help compilazione F24
+            </button>
+            <button class="btn btn-sm btn-outline-primary" id="lm-save-tax-adjustments-btn" type="button" ${yearLocked ? 'disabled' : ''}>
+              <i class="fas fa-save"></i> Salva e ricalcola
+            </button>
+          </div>
+        </div>
+        ${yearLockNote}
+
+        <div class="collapse" id="lm-f24-help">
+          <div class="alert alert-secondary small mb-3">
+            <h6 class="alert-heading mb-2"><i class="fas fa-circle-info"></i> Guida rapida: dove leggere i dati nei documenti del commercialista</h6>
+            <ol class="mb-2 ps-3">
+              <li>Seleziona l’<b>anno redditi</b> nel filtro sopra. Esempio: per la dichiarazione 2026 sui redditi 2025, seleziona <b>2025</b>.</li>
+              <li>Nel prospetto <b>Quadro LM</b>, inserisci in <b>LM35 contributi deducibili versati</b> il valore dei contributi previdenziali effettivamente versati e dedotti dal commercialista.</li>
+              <li>Nell’F24, se trovi il codice <b>1792</b>, riportalo in <b>Saldo F24 imposta 1792</b>. I codici <b>1790</b> e <b>1791</b> sono invece acconti dell’anno successivo e vanno nei campi acconti sotto.</li>
+              <li>Nella sezione INPS dell’F24, usa le righe con causale <b>PXX</b>: il <b>periodo di riferimento</b> indica a quale anno appartiene il dato.</li>
+              <li>Se la riga PXX ha periodo ${yearNum || 'anno redditi'}, è saldo/conguaglio dell’anno redditi; se ha periodo ${nextYear || 'anno successivo'}, è acconto dell’anno successivo.</li>
+            </ol>
+            <div class="mb-1"><b>Regola pratica:</b> i valori di saldo restano sull’anno selezionato; gli acconti 1790/1791/PXX dell’anno successivo vengono salvati sull’anno successivo per non contaminare il 2024, 2025, 2026, ecc.</div>
+            <div class="text-muted">I campi accettano decimali con punto o virgola. Se copi importi F24 con separatore migliaia, il salvataggio normalizza anche formati come <code>1.513,52</code>.</div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-lg-6">
+            <div class="border rounded p-2 h-100">
+              <h6 class="mb-2">Anno redditi ${escapeXML(String(metaYear))} — LM / Imposta sostitutiva</h6>
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <label class="form-label small mb-0">LM35 contributi deducibili versati (€)</label>
+                  <input class="form-control form-control-sm" id="lm-dich-contributi-deducibili" type="text" inputmode="decimal" value="${numVal(params.contributiDeducibiliVersati)}" ${disAttr}/>
+                  <div class="form-text">Se compilato, sostituisce la deduzione teorica INPS.</div>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small mb-0">Acconti imposta già versati (€)</label>
+                  <input class="form-control form-control-sm" id="lm-dich-acconti-imposta" type="text" inputmode="decimal" value="${numVal(params.accontiImpostaVersati)}" ${disAttr}/>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small mb-0">Crediti/compensazioni imposta (€)</label>
+                  <input class="form-control form-control-sm" id="lm-dich-crediti-imposta" type="text" inputmode="decimal" value="${numVal(params.creditiImposta)}" ${disAttr}/>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small mb-0">Saldo F24 imposta 1792 (€)</label>
+                  <input class="form-control form-control-sm" id="lm-dich-saldo-imposta-f24" type="text" inputmode="decimal" value="${numVal(params.saldoImpostaF24)}" ${disAttr}/>
+                  <div class="form-text">Opzionale: solo confronto con commercialista.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="border rounded p-2 h-100">
+              <h6 class="mb-2">Anno redditi ${escapeXML(String(metaYear))} — Quadro RR / INPS-PXX</h6>
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <label class="form-label small mb-0">Contributi RR/PXX già versati per l’anno (€)</label>
+                  <input class="form-control form-control-sm" id="lm-dich-inps-versati-anno" type="text" inputmode="decimal" value="${numVal(params.inpsVersatiAnno)}" ${disAttr}/>
+                  <div class="form-text">Riduce il saldo RR/PXX stimato.</div>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small mb-0">Saldo F24 PXX anno redditi (€)</label>
+                  <input class="form-control form-control-sm" id="lm-dich-inps-saldo-f24" type="text" inputmode="decimal" value="${numVal(params.inpsSaldoF24)}" ${disAttr}/>
+                  <div class="form-text">Opzionale: importo indicato dal commercialista.</div>
+                </div>
+                <div class="col-12">
+                  <label class="form-label small mb-0">Note anno redditi</label>
+                  <input class="form-control form-control-sm" id="lm-dich-income-notes" type="text" value="${escapeXML(incomeNotes)}" ${disAttr}/>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        ${nextYear ? `
+        <div class="border rounded p-2 mt-3">
+          <h6 class="mb-2">Acconti anno successivo ${nextYear} da F24/commercialista</h6>
+          <div class="row g-2">
+            <div class="col-md-3">
+              <label class="form-label small mb-0">1790 acconto imposta 1ª rata (€)</label>
+              <input class="form-control form-control-sm" id="lm-dich-acconto-imposta-next-1" type="text" inputmode="decimal" value="${numVal(params.accontoImpostaAnnoSuccessivo1F24)}" ${disAttr}/>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small mb-0">1791 acconto imposta 2ª rata (€)</label>
+              <input class="form-control form-control-sm" id="lm-dich-acconto-imposta-next-2" type="text" inputmode="decimal" value="${numVal(params.accontoImpostaAnnoSuccessivo2F24)}" ${disAttr}/>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small mb-0">PXX acconto INPS 1ª rata (€)</label>
+              <input class="form-control form-control-sm" id="lm-dich-acconto-inps-next-1" type="text" inputmode="decimal" value="${numVal(params.accontoInpsAnnoSuccessivo1F24)}" ${disAttr}/>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small mb-0">PXX acconto INPS 2ª rata (€)</label>
+              <input class="form-control form-control-sm" id="lm-dich-acconto-inps-next-2" type="text" inputmode="decimal" value="${numVal(params.accontoInpsAnnoSuccessivo2F24)}" ${disAttr}/>
+            </div>
+            <div class="col-12">
+              <label class="form-label small mb-0">Note acconti ${nextYear}</label>
+              <input class="form-control form-control-sm" id="lm-dich-next-notes" type="text" value="${escapeXML(nextNotes)}" ${disAttr}/>
+            </div>
+          </div>
+        </div>
+        ` : ''}
+
+        <div class="table-responsive mt-3">
+          <table class="table table-sm table-bordered align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Area</th>
+                <th>FAC stimato/rettificato</th>
+                <th>Dato F24/manuale</th>
+                <th>Scostamento</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Saldo imposta sostitutiva anno ${escapeXML(String(metaYear))}</td>
+                <td>€ ${money(vImp.saldoNettoDaVersare || 0)}</td>
+                <td>${vImp.hasSaldoF24 ? '€ ' + money(vImp.saldoF24) : '<span class="text-muted">non inserito</span>'}</td>
+                <td>${diffHtml(vImp.saldoNettoDaVersare || 0, vImp.saldoF24 || 0, vImp.hasSaldoF24)}</td>
+              </tr>
+              <tr>
+                <td>Saldo RR/PXX anno ${escapeXML(String(metaYear))}</td>
+                <td>€ ${money(vInps.saldoNettoDaVersareStimato || 0)}</td>
+                <td>${vInps.hasSaldoF24 ? '€ ' + money(vInps.saldoF24) : '<span class="text-muted">non inserito</span>'}</td>
+                <td>${diffHtml(vInps.saldoNettoDaVersareStimato || 0, vInps.saldoF24 || 0, vInps.hasSaldoF24)}</td>
+              </tr>
+              <tr>
+                <td>Acconti imposta anno ${nextYear || 'successivo'}</td>
+                <td>${accontiImpostaStimatiHtml}</td>
+                <td>€ ${money(vImp.accontoAnnoSuccessivo1F24 || 0)} + € ${money(vImp.accontoAnnoSuccessivo2F24 || 0)}</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td>Acconti RR/PXX anno ${nextYear || 'successivo'}</td>
+                <td>1ª rata € ${money(vInps.acconto1Stimato || 0)} — 2ª rata € ${money(vInps.acconto2Stimato || 0)}</td>
+                <td>€ ${money(vInps.accontoAnnoSuccessivo1F24 || 0)} + € ${money(vInps.accontoAnnoSuccessivo2F24 || 0)}</td>
+                <td>—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="form-text mt-2">I valori manuali sono opzionali. Se non compili nulla, resta visibile la simulazione FAC teorica.</div>
+      </div>
+    `;
 
     $out.html(`
         <div class="mb-2"><b>Anno:</b> ${escapeXML(String(summary.meta && summary.meta.year ? summary.meta.year : yearVal))}</div>
@@ -407,20 +575,24 @@ function renderLMPage() {
         <div><b>Coefficiente redditività (LM22 col.2):</b> ${escapeXML(String(s.coefficienteRedditivita || ''))}%</div>
         <div><b>Reddito forfettario (LM22 col.5):</b> € ${money(s.redditoForfettario)}</div>
 
-        
         <div class="mt-3 p-2 border rounded">
-          <div class="mb-1"><span class="badge bg-success">PREVIDENZA</span></div>
+          <div class="mb-1"><span class="badge bg-success">Quadro RR / PXX</span></div>
           <div><b>Contributi INPS stimati:</b> € ${money(s.contributiINPSStimati)} (${escapeXML(String(s.aliquotaContributi || ''))}%)</div>
-          <div class="text-muted" style="font-size:0.9em;">Questa voce è deducibile e riduce la base su cui si calcola l’imposta.</div>
+          <div><b>Contributi RR/PXX già versati anno:</b> € ${money(s.inpsVersatiAnno || 0)}</div>
+          <div><b>Saldo RR/PXX stimato:</b> € ${money(s.contributiDaVersareStimati || 0)}</div>
+          <div class="text-muted small">La parte RR/PXX è una simulazione previdenziale; i valori F24 del commercialista possono essere inseriti nel prospetto dichiarativo sotto.</div>
         </div>
 
         <div class="mt-3 p-2 border rounded">
-          <div class="mb-1"><span class="badge bg-primary">FISCO</span></div>
+          <div class="mb-1"><span class="badge bg-primary">LM / Imposta sostitutiva</span></div>
+          <div><b>Contributi dedotti dal reddito:</b> € ${money(s.contributiDeducibiliPerImposta || 0)} ${s.usaContributiDeducibiliManuali ? '<span class="text-muted small">(LM35 manuale)</span>' : '<span class="text-muted small">(stima teorica INPS)</span>'}</div>
           <div><b>Imponibile imposta:</b> € ${money(s.imponibileImposta)}</div>
           <div><b>Imposta sostitutiva stimata:</b> € ${money(s.impostaSostitutivaStimata)} (${escapeXML(String(s.aliquotaSostitutiva || ''))}%)</div>
+          <div><b>Saldo imposta stimato dopo acconti/crediti:</b> € ${money(vImp.saldoNettoDaVersare || 0)}</div>
         </div>
 
-        ${versamentiHtml}
+        ${paymentSummaryHtml}
+        ${declarativeHtml}
         <hr>
         <h5 class="mt-2">Quadro LM (mappa righi/colonne)</h5>
         <div class="table-responsive">
@@ -467,8 +639,8 @@ function renderLMPage() {
               <tr>
                 <td><b>LM35</b></td>
                 <td>—</td>
-                <td>Contributi previdenziali (stimati)</td>
-                <td>€ ${money(s.contributiINPSStimati)}</td>
+                <td>Contributi previdenziali dedotti</td>
+                <td>€ ${money(s.contributiDeducibiliPerImposta || 0)}</td>
               </tr>
               <tr>
                 <td><b>LM36</b></td>
@@ -479,34 +651,123 @@ function renderLMPage() {
             </tbody>
           </table>
         </div>
-        <div class="text-muted mt-2" style="font-size: 0.9em;">
-          Nota: questa è una <b>mappa didattica</b> basata sui valori calcolati dal gestionale (una sola attività).
+
+        <h5 class="mt-3">Quadro RR / PXX (mappa didattica)</h5>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th style="width:120px;">Area</th>
+                <th>Campo</th>
+                <th style="width:220px;">Valore</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>RR/PXX</b></td>
+                <td>Reddito previdenziale stimato</td>
+                <td>€ ${money(s.redditoForfettario)}</td>
+              </tr>
+              <tr>
+                <td><b>RR/PXX</b></td>
+                <td>Aliquota INPS applicata</td>
+                <td>${escapeXML(String(s.aliquotaContributi || ''))}%</td>
+              </tr>
+              <tr>
+                <td><b>RR/PXX</b></td>
+                <td>Contributi INPS stimati</td>
+                <td>€ ${money(s.contributiINPSStimati)}</td>
+              </tr>
+              <tr>
+                <td><b>RR/PXX</b></td>
+                <td>Contributi/acconti già versati per l’anno redditi</td>
+                <td>€ ${money(s.inpsVersatiAnno || 0)}</td>
+              </tr>
+              <tr>
+                <td><b>RR/PXX</b></td>
+                <td>Saldo RR/PXX stimato</td>
+                <td>€ ${money(s.contributiDaVersareStimati || 0)}</td>
+              </tr>
+              <tr>
+                <td><b>F24 PXX</b></td>
+                <td>Saldo/confronto F24 PXX anno redditi</td>
+                <td>${vInps.hasSaldoF24 ? '€ ' + money(vInps.saldoF24) : '<span class="text-muted">non inserito</span>'}</td>
+              </tr>
+              <tr>
+                <td><b>F24 PXX</b></td>
+                <td>Acconti PXX anno ${nextYear || 'successivo'}</td>
+                <td>€ ${money(vInps.accontoAnnoSuccessivo1F24 || 0)} + € ${money(vInps.accontoAnnoSuccessivo2F24 || 0)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="text-muted mt-2 small">
+          Nota: questa è una <b>mappa didattica</b> basata sui valori calcolati dal gestionale. I campi F24/manuali servono solo per rendere la simulazione più vicina al prospetto del commercialista e non sostituiscono i quadri ufficiali.
         </div>
 
     `);
 
-    // Salva i parametri di versamento (persistenza su companyInfo) e ricalcola
-    $('#lm-save-versamenti-btn').off('click').on('click', async function () {
+    // Salva i dati dichiarativi annuali e ricalcola
+    $('#lm-save-tax-adjustments-btn').off('click').on('click', async function () {
         const c = getData('companyInfo') || {};
-        const inpsV = $('#lm-contributi-versati').val();
-        const accV = $('#lm-acconti-imposta-versati').val();
-        const credV = $('#lm-crediti-imposta').val();
 
-        if (yearNum === null) {
-            alert('Seleziona un anno specifico (non “Tutti”) per salvare i versamenti per-anno.');
+        if (yearNum === null || nextYear === null) {
+            alert('Seleziona un anno specifico (non “Tutti”) per salvare i dati dichiarativi annuali.');
             return;
         }
 
-        const yKey = String(yearNum);
-        const toNum = (x) => {
-            const n = parseFloat(x);
+        const parseMoney = (selector) => {
+            let raw = String($(selector).val() || '').trim();
+            if (!raw) return 0;
+            raw = raw.replace(/\s/g, '');
+            if (raw.indexOf(',') >= 0) {
+                raw = raw.replace(/\./g, '').replace(',', '.');
+            }
+            const n = parseFloat(raw);
             return isNaN(n) ? 0 : n;
         };
 
+        const yKey = String(yearNum);
+        const nextKey = String(nextYear);
+        const previousByYear = (c.taxAdjustmentsByYear && typeof c.taxAdjustmentsByYear === 'object') ? c.taxAdjustmentsByYear : {};
+        const currentYearData = previousByYear[yKey] && typeof previousByYear[yKey] === 'object' ? previousByYear[yKey] : {};
+        const nextYearData = previousByYear[nextKey] && typeof previousByYear[nextKey] === 'object' ? previousByYear[nextKey] : {};
+
         const patch = {
-            contributiVersatiByYear: { ...(c.contributiVersatiByYear || {}), [yKey]: toNum(inpsV) },
-            accontiVersatiByYear: { ...(c.accontiVersatiByYear || {}), [yKey]: toNum(accV) },
-            creditiImpostaByYear: { ...(c.creditiImpostaByYear || {}), [yKey]: toNum(credV) }
+            taxAdjustmentsByYear: {
+                ...previousByYear,
+                [yKey]: {
+                    ...currentYearData,
+                    lm: {
+                        ...(currentYearData.lm || {}),
+                        contributiDeducibiliVersati: parseMoney('#lm-dich-contributi-deducibili'),
+                        accontiImpostaVersati: parseMoney('#lm-dich-acconti-imposta'),
+                        creditiImposta: parseMoney('#lm-dich-crediti-imposta'),
+                        saldoF24: parseMoney('#lm-dich-saldo-imposta-f24')
+                    },
+                    inps: {
+                        ...(currentYearData.inps || {}),
+                        versatiAnno: parseMoney('#lm-dich-inps-versati-anno'),
+                        saldoF24: parseMoney('#lm-dich-inps-saldo-f24')
+                    },
+                    notes: String($('#lm-dich-income-notes').val() || '').trim()
+                },
+                [nextKey]: {
+                    ...nextYearData,
+                    lm: {
+                        ...(nextYearData.lm || {}),
+                        acconto1F24: parseMoney('#lm-dich-acconto-imposta-next-1'),
+                        acconto2F24: parseMoney('#lm-dich-acconto-imposta-next-2')
+                    },
+                    inps: {
+                        ...(nextYearData.inps || {}),
+                        acconto1F24: parseMoney('#lm-dich-acconto-inps-next-1'),
+                        acconto2F24: parseMoney('#lm-dich-acconto-inps-next-2')
+                    },
+                    sourceIncomeYear: yKey,
+                    notes: String($('#lm-dich-next-notes').val() || '').trim()
+                }
+            }
         };
 
         if (typeof saveDataToCloud !== 'function') {
@@ -515,7 +776,6 @@ function renderLMPage() {
         }
 
         await saveDataToCloud('companyInfo', patch);
-        // Rinfresca form azienda e ricalcola LM
         try { if (typeof renderCompanyInfoForm === 'function') renderCompanyInfoForm(); } catch (e) { }
         renderLMPage();
     });

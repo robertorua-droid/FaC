@@ -236,9 +236,41 @@ Da qui puoi:
 - eliminare
 - marcare come pagata
 - marcare come inviata
-- esportare XML
+- esportare il singolo XML dal dettaglio o dalle azioni disponibili
 
-### 2.4.5 Dettaglio documento
+Gli export massivi sono raccolti nella voce separata **Fatture di Vendita → Esportazioni Documenti**, visibile in questo step solo in regime Forfettario. In questo modo l’elenco operativo resta dedicato alla gestione dei documenti. La pagina export mostra solo i comandi operativi necessari, senza badge tecnici di step.
+
+### 2.4.5 Export massivo XML forfettario
+Menu: **Fatture di Vendita → Esportazioni Documenti**
+
+Nel pannello **Export massivo XML** puoi selezionare un intervallo **Da / A** e scegliere se includere fatture e/o note di credito. Il periodo viene precompilato automaticamente quando disponibile, ma resta modificabile manualmente.
+
+La funzione è disponibile in questo step solo in regime **Forfettario**. Ogni documento esportabile viene scaricato come file XML separato, senza generare uno ZIP.
+
+Regole operative:
+- vengono considerati i documenti con data compresa nell’intervallo selezionato;
+- le bozze non vengono esportate;
+- i documenti con dati mancanti o non validi per l’XML vengono saltati;
+- al termine viene mostrato un riepilogo dei file scaricati e degli eventuali documenti saltati;
+- l’export non modifica stato documento, dati salvati, Timesheet o calcoli fiscali.
+
+Per periodi con molti documenti, il browser potrebbe chiedere conferma per consentire download multipli.
+
+### 2.4.6 PDF unico documenti emessi forfettario
+Menu: **Fatture di Vendita → Esportazioni Documenti**
+
+Nel pannello **PDF unico documenti emessi** puoi selezionare un intervallo **Da / A** e scegliere se includere fatture e/o note di credito. Il periodo viene precompilato automaticamente quando disponibile, ma resta modificabile manualmente.
+
+La funzione è disponibile in questo step solo in regime **Forfettario**. Il gestionale prepara un fascicolo unico stampabile con una copertina e un documento per pagina. Per ottenere il file devi usare la finestra di stampa del browser e scegliere **Salva come PDF**.
+
+Regole operative:
+- vengono considerati i documenti con data compresa nell’intervallo selezionato;
+- le bozze non vengono incluse nel fascicolo dei documenti emessi;
+- ogni documento usa una resa di stampa coerente con il dettaglio fattura;
+- il PDF finale è un unico file prodotto dal browser, non una raccolta ZIP e non una serie di download separati;
+- la funzione non modifica stato documento, dati salvati, Timesheet, XML o calcoli fiscali.
+
+### 2.4.7 Dettaglio documento
 Nel dettaglio fattura trovi:
 - riepilogo cliente
 - riepilogo documento
@@ -517,12 +549,46 @@ Disponibile in regime ordinario.
 
 Serve per simulare il comportamento del professionista con IVA, costi e logica fiscale ordinaria.
 
-### LM / Forfettario
+### LM + RR/PXX / Forfettario
 Disponibile in regime forfettario.
 
-Serve per stimare il comportamento del reddito forfettario e dei contributi/imposte.
+Serve per stimare il comportamento del reddito forfettario, dell’imposta sostitutiva e dei contributi previdenziali RR/PXX.
 
 Nei dati azienda i campi percentuali fiscali supportano valori decimali. Per esempio, nel campo **INPS %** del forfettario è possibile indicare `26.07`; i calcoli accettano anche la virgola italiana (`26,07`) normalizzandola internamente.
+
+#### Dati dichiarativi annuali
+Dal ramo **V.13.20** la pagina Fiscalità distingue tra:
+- **parametri globali** dell’azienda, come regime fiscale, codice RF, coefficiente di redditività, aliquota sostitutiva, aliquota INPS e rivalsa;
+- **dati dichiarativi annuali**, cioè versamenti, acconti, crediti e saldi F24 forniti dal commercialista.
+
+I dati dichiarativi si inseriscono direttamente nella pagina **Fiscalità**, dopo aver selezionato un anno specifico nel campo **Anno**. Non vengono più inseriti nella scheda Azienda perché non sono valori globali. I vecchi campi globali di versamenti/acconti, se presenti in backup precedenti, non vengono usati come fonte automatica dei nuovi calcoli annuali: vanno reinseriti una volta nell’anno corretto.
+
+Per ogni anno redditi puoi compilare:
+- **LM / Imposta sostitutiva**: contributi LM35 deducibili versati, acconti imposta già versati, crediti/compensazioni e saldo F24 1792 per confronto;
+- **Quadro RR / INPS-PXX**: contributi/PXX già versati per l’anno, saldo F24 PXX e acconti PXX dell’anno successivo;
+- **Acconti anno successivo**: 1790, 1791 e rate PXX indicate dal commercialista.
+
+Esempio: se stai visualizzando il **2025**, il gestionale salva i saldi del 2025 sull’anno 2025 e gli acconti del 2026 sull’anno 2026. In questo modo, se poi apri il 2024 o il 2026, non vengono riutilizzati per errore dati di un altro anno.
+
+Dal pulsante **Help compilazione F24** puoi aprire una guida rapida direttamente nella pagina Fiscalità. La guida spiega come leggere:
+- codici **1790**, **1791** e **1792** della sezione Erario;
+- causale **PXX** nella sezione INPS;
+- periodo di riferimento PXX per capire se il dato è saldo dell’anno redditi o acconto dell’anno successivo.
+
+Per una guida più completa consulta anche **Documentazione → Guida F24 e dati dichiarativi annuali**.
+
+#### Riquadro Versamenti stimati FAC
+Dal ramo **V.13.20_step 03** la pagina Fiscalità mostra anche il riquadro **Versamenti stimati FAC**.
+
+Il riquadro serve come riepilogo operativo rapido e mostra:
+- saldo imposta sostitutiva dell’anno selezionato;
+- saldo **Quadro RR/PXX** dell’anno selezionato;
+- acconti imposta dell’anno successivo;
+- acconti **RR/PXX** dell’anno successivo;
+- scadenze tipiche riepilogative, normalmente 30/06 e 30/11 dell’anno successivo.
+
+Se hai inserito valori F24/manuali nei dati dichiarativi annuali, il riquadro li usa e li segnala come **F24 inserito**. Se non hai inserito valori manuali, mostra la **stima FAC**.
+
 
 > Le simulazioni sono strumenti didattici: vanno interpretate come supporto allo studio, non come consulenza fiscale ufficiale.
 

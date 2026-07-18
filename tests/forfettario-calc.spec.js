@@ -83,5 +83,98 @@
     h.assertApprox(out.forfettarioSimulation.versamenti.imposta.saldoNettoDaVersare, 415.8, 0.001);
   });
 
+
+  h.test('ForfettarioCalc.computeYearlySummary legge taxAdjustmentsByYear per LM e RR/PXX', function () {
+    const backup = {
+      companyInfo: {
+        coefficienteRedditivita: 67,
+        aliquotaSostitutiva: 15,
+        aliquotaContributi: 26.07,
+        taxAdjustmentsByYear: {
+          '2025': {
+            lm: {
+              contributiDeducibiliVersati: 3267.75,
+              accontiImpostaVersati: 100,
+              creditiImposta: 50,
+              saldoF24: 229
+            },
+            inps: {
+              versatiAnno: 3267.75,
+              saldoF24: 516
+            }
+          },
+          '2026': {
+            lm: { acconto1F24: 229, acconto2F24: 229 },
+            inps: { acconto1F24: 1513.52, acconto2F24: 1513.52 }
+          }
+        }
+      },
+      invoices: [
+        { date: '2025-04-01', type: 'Fattura', status: 'Pagata', totalePrestazioni: 21180, totaleImponibile: 21662.40, importoBollo: 28, total: 21690.40, rivalsa: { importo: 482.40 } }
+      ]
+    };
+    const out = F.computeYearlySummary(backup, { year: 2025, includeBolloInCompensi: false });
+    const sim = out.forfettarioSimulation;
+    h.assertApprox(sim.redditoForfettario, 14513.808, 0.001);
+    h.assertApprox(sim.contributiINPSStimati, 3783.7497456, 0.001);
+    h.assertApprox(sim.contributiDaVersareStimati, 515.9997456, 0.001);
+    h.assertEqual(sim.usaContributiDeducibiliManuali, true);
+    h.assertApprox(sim.contributiDeducibiliPerImposta, 3267.75, 0.001);
+    h.assertApprox(sim.versamenti.inps.saldoF24, 516, 0.001);
+    h.assertApprox(sim.versamenti.inps.accontoAnnoSuccessivo1F24, 1513.52, 0.001);
+    h.assertApprox(sim.versamenti.imposta.accontoAnnoSuccessivo1F24, 229, 0.001);
+  });
+
+
+  h.test('ForfettarioCalc normalizza importi F24 con virgola e separatore migliaia', function () {
+    const backup = {
+      companyInfo: {
+        coefficienteRedditivita: '67',
+        aliquotaSostitutiva: '15',
+        aliquotaContributi: '26,07',
+        taxAdjustmentsByYear: {
+          '2025': {
+            lm: { contributiDeducibiliVersati: '3.267,75' },
+            inps: { versatiAnno: '3.267,75', saldoF24: '516,00' }
+          },
+          '2026': {
+            lm: { acconto1F24: '229,00', acconto2F24: '229,00' },
+            inps: { acconto1F24: '1.513,52', acconto2F24: '1.513,52' }
+          }
+        }
+      },
+      invoices: [
+        { date: '2025-04-01', type: 'Fattura', status: 'Pagata', totalePrestazioni: 21180, totaleImponibile: 21662.40, importoBollo: 28, total: 21690.40, rivalsa: { importo: 482.40 } }
+      ]
+    };
+    const out = F.computeYearlySummary(backup, { year: 2025, includeBolloInCompensi: false });
+    h.assertApprox(out.companyParams.inpsVersatiAnno, 3267.75, 0.001);
+    h.assertApprox(out.companyParams.inpsSaldoF24, 516, 0.001);
+    h.assertApprox(out.companyParams.accontoInpsAnnoSuccessivo1F24, 1513.52, 0.001);
+    h.assertApprox(out.companyParams.accontoImpostaAnnoSuccessivo1F24, 229, 0.001);
+  });
+
+
+  h.test('ForfettarioCalc non applica più i vecchi versamenti globali senza anno', function () {
+    const backup = {
+      companyInfo: {
+        coefficienteRedditivita: 67,
+        aliquotaSostitutiva: 15,
+        aliquotaContributi: 26.07,
+        contributiVersati: 9999,
+        accontiImpostaVersati: 9999,
+        creditiImposta: 9999
+      },
+      invoices: [
+        { date: '2026-01-10', type: 'Fattura', status: 'Pagata', totalePrestazioni: 1000, totaleImponibile: 1000, importoBollo: 0, total: 1000 }
+      ]
+    };
+    const out = F.computeYearlySummary(backup, { year: 2026 });
+    h.assertApprox(out.companyParams.inpsVersatiAnno, 0, 0.001);
+    h.assertApprox(out.companyParams.accontiImpostaVersati, 0, 0.001);
+    h.assertApprox(out.companyParams.creditiImposta, 0, 0.001);
+  });
+
+
   h.run();
 })();

@@ -1,3 +1,78 @@
+## V.13.20_step 03 — Riquadro Versamenti stimati FAC
+- Reintrodotto nella pagina **Fiscalità → Simulazione Fiscale (Quadro LM + Quadro RR/PXX)** un riquadro sintetico **Versamenti stimati FAC**, recuperando la leggibilità operativa della vecchia sezione “VERSAMENTI (stima)”.
+- Il riquadro usa il nuovo modello annuale `companyInfo.taxAdjustmentsByYear`: se sono presenti importi F24/manuali, li evidenzia come **F24 inserito**; altrimenti mostra la **stima FAC**.
+- Mostrati in modo compatto saldo imposta sostitutiva, saldo RR/PXX, acconti imposta anno successivo, acconti RR/PXX anno successivo e scadenze tipiche riepilogative 30/06 e 30/11.
+- Nessuna modifica alle formule fiscali principali, ai campi dichiarativi annuali, a Firestore esistente, fatture, XML, Timesheet, export documenti o regime Ordinario.
+
+## V.13.20_step 02 — Quadro RR/PXX e Help F24 Fiscalità
+- Rinominata la simulazione forfettaria in **Quadro LM + Quadro RR/PXX**, distinguendo meglio imposta sostitutiva e previdenza.
+- Aggiunta nel prospetto Fiscalità una mappa didattica **Quadro RR / PXX** con reddito previdenziale stimato, aliquota INPS, contributi stimati, contributi già versati, saldo stimato, saldo F24 PXX e acconti PXX dell’anno successivo.
+- Aggiunto il pulsante **Help compilazione F24** nel blocco **Dati dichiarativi annuali**, con istruzioni operative su 1790, 1791, 1792 e causale PXX.
+- Aggiunta la nuova guida documentale **12_GUIDA_F24_FISCALITA.md**, inclusa nella documentazione in-app.
+- Migliorata la lettura degli importi manuali in formato italiano, inclusi valori copiati come `1.513,52`.
+- Nessuna modifica a fatture, note di credito, XML, Timesheet, Firestore esistente, export documenti o regime Ordinario.
+
+## V.13.20_step 01 — Dati dichiarativi annuali Fiscalità
+
+Introdotto un modello dati annuale opzionale per rendere la simulazione fiscale forfettaria più confrontabile con il prospetto del commercialista/F24.
+
+### Implementato
+- Separati i parametri fiscali globali stabili dai dati dichiarativi variabili per anno.
+- Rimossi dalla scheda Azienda i campi globali ambigui per versamenti/acconti/crediti.
+- Aggiunto nella pagina **Fiscalità → Simulazione Fiscale (Quadro LM)** il blocco **Dati dichiarativi annuali**.
+- Nuovi campi annuali per **LM / Imposta sostitutiva**:
+  - LM35 contributi deducibili versati;
+  - acconti imposta già versati;
+  - crediti/compensazioni;
+  - saldo F24 imposta 1792, solo per confronto.
+- Nuovi campi annuali per **INPS / PXX**:
+  - contributi/PXX già versati per l’anno redditi;
+  - saldo F24 PXX dell’anno redditi;
+  - acconti PXX dell’anno successivo.
+- Aggiunti i campi per acconti dell’anno successivo:
+  - imposta sostitutiva 1790/1791;
+  - INPS/PXX prima e seconda rata.
+- I dati sono salvati in `companyInfo.taxAdjustmentsByYear`, indicizzati per anno.
+- Se l’utente non inserisce dati annuali, la simulazione teorica resta compatibile con il comportamento precedente; i vecchi campi globali semplici di versamenti/acconti non vengono più applicati automaticamente per evitare contaminazioni tra anni.
+
+### Non modificato
+- Nessuna modifica a fatture, note di credito, XML, Timesheet o Firestore esistente.
+- Nessuna modifica al regime Ordinario.
+- Nessuna modifica ai parametri globali fiscali già presenti: regime, RF, coefficiente redditività, aliquote e rivalsa.
+
+### Controlli
+- Aggiornati test browser-based del motore forfettario per il nuovo schema annuale.
+
+---
+
+## V.13.10_step 34 — Pulizia UI Esportazioni Documenti
+- Rimossi dalla pagina **Esportazioni Documenti** i badge tecnici “Step 31”, “Step 32” e “Step 33”, perché utili solo alla tracciabilità interna e non all’operatività utente.
+- Rimossi i pulsanti **Anno filtro** dai pannelli export XML e PDF unico, evitando un comando poco chiaro nella nuova sezione separata.
+- Mantenuta la precompilazione automatica del periodo **Da/A** all’apertura dei pannelli, senza dipendere da un’azione manuale aggiuntiva.
+- Nessuna modifica alla logica di export XML, alla stampa PDF, alla navigazione, a Firestore, stati documento, Timesheet, calcoli fiscali o regime Ordinario.
+
+## V.13.10_step 33 — Sezione dedicata Esportazioni Documenti
+- Aggiunta nella sidebar, sotto **Fatture di Vendita**, la nuova voce **Esportazioni Documenti**, disponibile solo in regime **Forfettario**.
+- Spostati nella nuova pagina i pannelli **Export massivo XML** e **PDF unico documenti emessi**, alleggerendo la schermata **Elenco Documenti**.
+- Mantenuti invariati ID dei controlli, handler, servizi e logiche introdotte negli step 31–32; la modifica riguarda esclusivamente collocazione UI, navigazione e visibilità per regime.
+- Aggiunto un guard nella navigazione per impedire l’apertura della pagina in regime Ordinario anche tramite richiamo non previsto.
+- Nessuna modifica a Firestore, stato documenti, calcoli fiscali, XML mapper, stampa documenti, Timesheet o regime Ordinario.
+
+## V.13.10_step 32 — PDF unico documenti emessi forfettario
+- Aggiunto in **Documenti Emessi** un pannello **PDF unico documenti emessi** disponibile solo in regime **Forfettario**.
+- L’utente può selezionare un intervallo **Da / A** e includere fatture e/o note di credito; il sistema prepara un fascicolo unico stampabile.
+- La generazione resta browser-based: non crea file PDF separati, non usa ZIP e non introduce nuove librerie PDF. L’utente salva il file dalla finestra di stampa scegliendo **Salva come PDF**.
+- Le bozze sono escluse dal fascicolo dei documenti emessi e vengono riepilogate tra i documenti non inclusi.
+- Nessuna modifica a stato documento, Firestore, Timesheet, calcoli fiscali, XML o regime Ordinario.
+
+## V.13.10_step 31 — Export massivo XML forfettario
+- Aggiunto in **Documenti Emessi** un pannello **Export massivo XML** disponibile solo in regime **Forfettario**.
+- L’utente può scegliere un intervallo **Da / A** e includere fatture e/o note di credito; i documenti vengono filtrati per data documento.
+- L’export riusa `InvoiceExportService.buildXmlPayload()` per ogni documento, quindi mantiene le stesse validazioni e la stessa generazione XML del download singolo.
+- I file vengono scaricati come XML separati, senza creare ZIP e senza introdurre nuove dipendenze esterne.
+- Le bozze e i documenti non esportabili vengono saltati e mostrati nel riepilogo finale; non vengono modificati stato documento, Firestore, calcoli fiscali, Timesheet o XML mapper.
+- Il regime **Ordinario** non è stato alterato: il pannello resta nascosto in questo step.
+
 ## V.13.10_step 30 — Percentuali fiscali decimali
 - Abilitato l’inserimento di valori decimali nei principali campi percentuali fiscali dell’anagrafica azienda, inclusi **INPS %** forfettario, **Coeff. Redditività %**, **Imposta Sostitutiva %** e **Rivalsa INPS %**.
 - Il campo **INPS %** forfettario può ora accettare valori come `26.07`, evitando la validazione HTML che prima consentiva solo interi.

@@ -28,6 +28,8 @@ function renderSalesArea() {
     if (typeof refreshInvoiceStatusFilter === 'function') refreshInvoiceStatusFilter();
     if (typeof bindInvoiceListFiltersOnce === 'function') bindInvoiceListFiltersOnce();
     renderInvoicesTable();
+    if (typeof window.updateBulkXmlExportPanel === 'function') window.updateBulkXmlExportPanel();
+    if (typeof window.updateBulkPdfExportPanel === 'function') window.updateBulkPdfExportPanel();
     populateDropdowns();
 }
 

@@ -16,6 +16,7 @@
       }
       return {
         hasTaxRegime: false,
+        isForfettario: false,
         canUseLmSimulation: false,
         canUseOrdinarioSimulation: false,
         canUseVatRegisters: false,
@@ -92,6 +93,15 @@
 
       if (target === 'avanzate' && typeof window.refreshDeleteDocumentsYearSelect === 'function') window.refreshDeleteDocumentsYearSelect();
       if (target === 'elenco-fatture' && typeof renderInvoicesTable === 'function') renderInvoicesTable();
+
+      if (target === 'esportazioni-documenti') {
+        if (!regimeCapabilities.isForfettario) {
+          alert('Le esportazioni massive dei documenti sono disponibili solo per il regime Forfettario in questo step.');
+          return;
+        }
+        if (typeof window.updateBulkXmlExportPanel === 'function') window.updateBulkXmlExportPanel();
+        if (typeof window.updateBulkPdfExportPanel === 'function') window.updateBulkPdfExportPanel();
+      }
 
       if (target === 'anagrafica-fornitori') {
         if (!regimeCapabilities.canManageSuppliers) { alert('In regime Forfettario la sezione Fornitori non è utilizzata.'); return; }

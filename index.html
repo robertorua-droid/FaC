@@ -15,7 +15,7 @@
   <!-- Font Awesome CSS -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
   <!-- Stile personalizzato -->
-  <link href="css/style.css?v=13.10-step30" rel="stylesheet" />
+  <link href="css/style.css?v=13.20-step03" rel="stylesheet" />
 </head>
 
 <body>
@@ -152,6 +152,8 @@
                 id="menu-nuova-nota-credito"><i class="fas fa-file-contract"></i> Nuova Nota Credito</a></li>
             <li class="nav-item"><a class="nav-link" data-target="elenco-fatture" href="#"><i
                   class="fas fa-list-check"></i> Elenco Documenti</a></li>
+            <li class="nav-item"><a class="nav-link" data-target="esportazioni-documenti" href="#"
+                id="menu-esportazioni-documenti"><i class="fas fa-file-export"></i> Esportazioni Documenti</a></li>
           </div>
         </div>
 
@@ -297,7 +299,7 @@
                 <i class="fas fa-rocket fa-4x"></i>
               </div>
               <div class="col-md-10">
-                <h3 class="mb-1">FAC - V.13.10_step 30</h3>
+                <h3 class="mb-1">FAC - V.13.20_step 03</h3>
                 <p class="text-muted">Versione Stabile Cloud per Professionisti.</p>
                 <p class="small text-muted mb-0"><i class="fas fa-check-circle text-success"></i> Sincronizzazione Cloud
                   Attiva</p>
@@ -543,9 +545,9 @@
         <!-- CLIENTI -->
         <!-- SIMULAZIONE FISCALE (LM) -->
         <div class="content-section d-none" id="simulazione-lm">
-          <h2>Simulazione Fiscale (Quadro LM)</h2>
+          <h2>Simulazione Fiscale (Quadro LM + Quadro RR/PXX)</h2>
           <p class="text-muted">Calcolo indicativo basato sui documenti dell'anno selezionato (fatture e note di
-            credito).
+            credito), con confronto dichiarativo Quadro LM e Quadro RR/PXX.
           </p>
           <div class="row g-3 align-items-end mb-3">
             <div class="col-md-3">
@@ -909,7 +911,7 @@
               </button>
             </div>
           </div>
-          <table class="table table-hover">
+          <table class="table table-hover mt-3">
             <thead>
               <tr>
                 <th>Tipo</th>
@@ -925,6 +927,96 @@
             <tbody id="invoices-table-body"></tbody>
           </table>
         </div>
+        <div class="content-section d-none" id="esportazioni-documenti">
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+            <div>
+              <h2 class="mb-1">Esportazioni Documenti</h2>
+              <p class="text-muted mb-0">Area dedicata agli export massivi dei documenti emessi, separata dall’elenco operativo delle fatture.</p>
+            </div>
+          </div>
+          <div class="alert alert-info py-2" role="alert">
+            Funzioni disponibili in questo step solo in regime <strong>Forfettario</strong>. L’elenco documenti e le relative azioni restano invariati.
+          </div>
+          <div class="card border-primary-subtle bg-light mt-3" id="bulk-xml-export-panel">
+            <div class="card-body py-3">
+              <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+                <div>
+                  <h5 class="mb-1"><i class="fas fa-file-export me-1"></i> Export massivo XML</h5>
+                  <div class="text-muted small">Disponibile in regime Forfettario. Scarica i documenti emessi come file XML separati, senza archivio ZIP.</div>
+                </div>
+              </div>
+              <div class="row g-2 align-items-end">
+                <div class="col-md-2">
+                  <label class="form-label">Da</label>
+                  <input class="form-control" id="bulk-xml-start-date" type="date" />
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">A</label>
+                  <input class="form-control" id="bulk-xml-end-date" type="date" />
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Documenti</label>
+                  <div class="d-flex flex-wrap gap-3 pt-2">
+                    <div class="form-check">
+                      <input class="form-check-input" id="bulk-xml-include-invoices" type="checkbox" checked />
+                      <label class="form-check-label" for="bulk-xml-include-invoices">Fatture</label>
+                    </div>
+                    <div class="form-check">
+                      <input class="form-check-input" id="bulk-xml-include-credit-notes" type="checkbox" checked />
+                      <label class="form-check-label" for="bulk-xml-include-credit-notes">Note di credito</label>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-5">
+                  <button class="btn btn-primary w-100" id="bulk-xml-export-btn" type="button">
+                    <i class="fas fa-download me-1"></i> Esporta XML periodo
+                  </button>
+                </div>
+              </div>
+              <div class="small mt-2" id="bulk-xml-export-status"></div>
+            </div>
+          </div>
+          <div class="card border-success-subtle bg-light mt-3" id="bulk-pdf-export-panel">
+            <div class="card-body py-3">
+              <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+                <div>
+                  <h5 class="mb-1"><i class="fas fa-file-pdf me-1"></i> PDF unico documenti emessi</h5>
+                  <div class="text-muted small">Disponibile in regime Forfettario. Prepara un fascicolo unico stampabile: nella finestra di stampa scegli “Salva come PDF”.</div>
+                </div>
+              </div>
+              <div class="row g-2 align-items-end">
+                <div class="col-md-2">
+                  <label class="form-label">Da</label>
+                  <input class="form-control" id="bulk-pdf-start-date" type="date" />
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">A</label>
+                  <input class="form-control" id="bulk-pdf-end-date" type="date" />
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Documenti</label>
+                  <div class="d-flex flex-wrap gap-3 pt-2">
+                    <div class="form-check">
+                      <input class="form-check-input" id="bulk-pdf-include-invoices" type="checkbox" checked />
+                      <label class="form-check-label" for="bulk-pdf-include-invoices">Fatture</label>
+                    </div>
+                    <div class="form-check">
+                      <input class="form-check-input" id="bulk-pdf-include-credit-notes" type="checkbox" checked />
+                      <label class="form-check-label" for="bulk-pdf-include-credit-notes">Note di credito</label>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-5">
+                  <button class="btn btn-success w-100" id="bulk-pdf-print-btn" type="button">
+                    <i class="fas fa-print me-1"></i> Prepara PDF unico
+                  </button>
+                </div>
+              </div>
+              <div class="small mt-2" id="bulk-pdf-export-status"></div>
+            </div>
+          </div>
+        </div>
+
         <!-- NUOVA FATTURA / NOTA CREDITO -->
         <div class="content-section d-none" id="nuova-fattura-accompagnatoria">
           <h2 id="document-title">Nuovo Documento</h2>
@@ -1231,7 +1323,7 @@
                         <i class="fas fa-rocket fa-4x text-primary"></i>
                       </div>
                       <div class="col-md-10">
-                        <h3 class="mb-1">FAC - V.13.10_step 30</h3>
+                        <h3 class="mb-1">FAC - V.13.20_step 03</h3>
                         <p class="text-muted">Versione Stabile Cloud per Professionisti.</p>
                         <div class="mt-4">
                           <button class="btn btn-primary" id="btn-view-changelog">
@@ -1263,23 +1355,6 @@
               <div class="col-md-6 mb-3">
                 <label class="form-label">PEC (opzionale)</label>
                 <input class="form-control" id="company-pec" placeholder="nomeazienda@pec.it" type="email" />
-              </div>
-            </div>
-            <div class="row">
-              <div class="col-md-4 mb-3 forfettario-only">
-                <label class="form-label">Contributi INPS già versati (€)</label>
-                <input class="form-control" id="company-contributiVersati" type="number" step="0.01" />
-                <div class="form-text">Usato nella simulazione (RR): riduce il saldo INPS stimato.</div>
-              </div>
-              <div class="col-md-4 mb-3 forfettario-only">
-                <label class="form-label">Acconti imposta già versati (€)</label>
-                <input class="form-control" id="company-accontiImpostaVersati" type="number" step="0.01" />
-                <div class="form-text">Riduce il saldo dell’anno (RX).</div>
-              </div>
-              <div class="col-md-4 mb-3 forfettario-only">
-                <label class="form-label">Crediti/compensazioni disponibili (€)</label>
-                <input class="form-control" id="company-creditiImposta" type="number" step="0.01" />
-                <div class="form-text">Credito compensabile in F24 (RX).</div>
               </div>
             </div>
             <hr />
@@ -2291,6 +2366,8 @@
         </div>
       </div>
     </div>
+    <div class="bulk-pdf-print-area d-none" id="bulkPdfPrintArea" aria-hidden="true"></div>
+
     <!-- SCRIPTS -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -2300,69 +2377,71 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <!-- App Script Unico -->
-    <script src="js/core/domain-constants.js?v=13.10-step30"></script>
-    <script src="js/core/tax-regime-policy.js?v=13.10-step30"></script>
-    <script src="js/core/app-store.js?v=13.10-step30"></script>
-    <script src="js/core/domain-normalizers.js?v=13.10-step30"></script>
-    <script src="js/core/utils.js?v=13.10-step30"></script>
-    <script src="js/core/form-helpers.js?v=13.10-step30"></script>
-    <script src="js/services/firebase-cloud.js?v=13.10-step30"></script>
-    <script src="js/ui/ui-regime-helpers.js?v=13.10-step30"></script>
-<script src="js/ui/navigation-visibility.js?v=13.10-step30"></script>
-    <script src="js/ui/company-render.js?v=13.10-step30"></script>
-    <script src="js/ui/masterdata-render.js?v=13.10-step30"></script>
-    <script src="js/ui/scadenziario-render.js?v=13.10-step30"></script>
-    <script src="js/ui/dashboard-render.js?v=13.10-step30"></script>
-    <script src="js/ui/analysis-render.js?v=13.10-step30"></script>
-    <script src="js/ui/tax-render.js?v=13.10-step30"></script>
-    <script src="js/ui/ui-refresh.js?v=13.10-step30"></script>
-    <script src="js/ui/ui-render.js?v=13.10-step30"></script>
+    <script src="js/core/domain-constants.js?v=13.20-step03"></script>
+    <script src="js/core/tax-regime-policy.js?v=13.20-step03"></script>
+    <script src="js/core/app-store.js?v=13.20-step03"></script>
+    <script src="js/core/domain-normalizers.js?v=13.20-step03"></script>
+    <script src="js/core/utils.js?v=13.20-step03"></script>
+    <script src="js/core/form-helpers.js?v=13.20-step03"></script>
+    <script src="js/services/firebase-cloud.js?v=13.20-step03"></script>
+    <script src="js/ui/ui-regime-helpers.js?v=13.20-step03"></script>
+<script src="js/ui/navigation-visibility.js?v=13.20-step03"></script>
+    <script src="js/ui/company-render.js?v=13.20-step03"></script>
+    <script src="js/ui/masterdata-render.js?v=13.20-step03"></script>
+    <script src="js/ui/scadenziario-render.js?v=13.20-step03"></script>
+    <script src="js/ui/dashboard-render.js?v=13.20-step03"></script>
+    <script src="js/ui/analysis-render.js?v=13.20-step03"></script>
+    <script src="js/ui/tax-render.js?v=13.20-step03"></script>
+    <script src="js/ui/ui-refresh.js?v=13.20-step03"></script>
+    <script src="js/ui/ui-render.js?v=13.20-step03"></script>
 
-    <script src="js/features/masterdata/masterdata-helpers.js?v=13.10-step30"></script>
-    <script src="js/features/auth/auth-module.js?v=13.10-step30"></script>
-    <script src="js/features/navigation/docs-content.js?v=13.10-step30"></script>
-    <script src="js/features/navigation/navigation-module.js?v=13.10-step30"></script>
-    <script src="js/features/theme/theme-module.js?v=13.10-step30"></script>
-    <script src="js/features/dashboard/dashboard-module.js?v=13.10-step30"></script>
-    <script src="js/features/commesse/commesse-module.js?v=13.10-step30"></script>
-    <script src="js/features/commesse/projects-module.js?v=13.10-step30"></script>
-    <script src="js/features/commesse/timesheet-module.js?v=13.10-step30"></script>
-    <script src="js/features/commesse/timesheet-export.js?v=13.10-step30"></script>
-    <script src="js/features/registri-iva/registri-iva-module.js?v=13.10-step30"></script>
-    <script src="js/features/masterdata/customers-module.js?v=13.10-step30"></script>
-    <script src="js/features/masterdata/products-module.js?v=13.10-step30"></script>
-    <script src="js/features/masterdata/suppliers-module.js?v=13.10-step30"></script>
-    <script src="js/features/invoices/invoices-common-calc.js?v=13.10-step30"></script>
-    <script src="js/features/invoices/invoice-calculator.js?v=13.10-step30"></script>
-    <script src="js/features/invoices/invoice-service.js?v=13.10-step30"></script>
-    <script src="js/features/invoices/invoice-form-session-service.js?v=13.10-step30"></script>
-    <script src="js/features/invoices/invoice-form-state-service.js?v=13.10-step30"></script>
-    <script src="js/features/invoices/invoice-validation-service.js?v=13.10-step30"></script>
-    <script src="js/features/invoices/invoice-submit-service.js?v=13.10-step30"></script>
-    <script src="js/features/invoices/invoice-line-service.js?v=13.10-step30"></script>
-    <script src="js/features/invoices/invoice-form-ui-service.js?v=13.10-step30"></script>
-    <script src="js/features/invoices/invoice-persistence-service.js?v=13.10-step30"></script>
-    <script src="js/features/invoices/invoice-timesheet-attachment-service.js?v=13.10-step30"></script>
-    <script src="js/features/invoices/invoice-timesheet-pdf-service.js?v=13.10-step30"></script>
-    <script src="js/features/invoices/invoice-export-service.js?v=13.10-step30"></script>
-    <script src="js/features/invoices/invoice-xml-validator.js?v=13.10-step30"></script>
-    <script src="js/features/invoices/invoice-xml-mapper.js?v=13.10-step30"></script>
-    <script src="js/features/invoices/invoices-form-module.js?v=13.10-step30"></script>
-    <script src="js/features/invoices/invoices-timesheet-import-module.js?v=13.10-step30"></script>
-    <script src="js/features/invoices/invoices-list-module.js?v=13.10-step30"></script>
-    <script src="js/features/invoices/invoices-xml-module.js?v=13.10-step30"></script>
-    <script src="js/features/company/company-module.js?v=13.10-step30"></script>
-    <script src="js/features/scadenziario/scadenziario-module.js?v=13.10-step30"></script>
-    <script src="js/features/notes/notes-module.js?v=13.10-step30"></script>
-    <script src="js/features/migration/migration-module.js?v=13.10-step30"></script>
-    <script src="js/features/purchases/purchases-module.js?v=13.10-step30"></script>
-    <script src="js/features/purchases/purchase-xml-import-module.js?v=13.10-step30"></script>
-    <script src="js/features/tax/forfettario-calc.js?v=13.10-step30"></script>
-    <script src="js/features/tax/ordinario-calc.js?v=13.10-step30"></script>
-    <script src="js/features/tax/ordinario-sim-module.js?v=13.10-step30"></script>
+    <script src="js/features/masterdata/masterdata-helpers.js?v=13.20-step03"></script>
+    <script src="js/features/auth/auth-module.js?v=13.20-step03"></script>
+    <script src="js/features/navigation/docs-content.js?v=13.20-step03"></script>
+    <script src="js/features/navigation/navigation-module.js?v=13.20-step03"></script>
+    <script src="js/features/theme/theme-module.js?v=13.20-step03"></script>
+    <script src="js/features/dashboard/dashboard-module.js?v=13.20-step03"></script>
+    <script src="js/features/commesse/commesse-module.js?v=13.20-step03"></script>
+    <script src="js/features/commesse/projects-module.js?v=13.20-step03"></script>
+    <script src="js/features/commesse/timesheet-module.js?v=13.20-step03"></script>
+    <script src="js/features/commesse/timesheet-export.js?v=13.20-step03"></script>
+    <script src="js/features/registri-iva/registri-iva-module.js?v=13.20-step03"></script>
+    <script src="js/features/masterdata/customers-module.js?v=13.20-step03"></script>
+    <script src="js/features/masterdata/products-module.js?v=13.20-step03"></script>
+    <script src="js/features/masterdata/suppliers-module.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoices-common-calc.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoice-calculator.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoice-service.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoice-form-session-service.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoice-form-state-service.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoice-validation-service.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoice-submit-service.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoice-line-service.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoice-form-ui-service.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoice-persistence-service.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoice-timesheet-attachment-service.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoice-timesheet-pdf-service.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoice-print-service.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoice-export-service.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoice-xml-validator.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoice-xml-mapper.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoices-form-module.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoices-timesheet-import-module.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoices-list-module.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoices-xml-module.js?v=13.20-step03"></script>
+    <script src="js/features/invoices/invoices-pdf-module.js?v=13.20-step03"></script>
+    <script src="js/features/company/company-module.js?v=13.20-step03"></script>
+    <script src="js/features/scadenziario/scadenziario-module.js?v=13.20-step03"></script>
+    <script src="js/features/notes/notes-module.js?v=13.20-step03"></script>
+    <script src="js/features/migration/migration-module.js?v=13.20-step03"></script>
+    <script src="js/features/purchases/purchases-module.js?v=13.20-step03"></script>
+    <script src="js/features/purchases/purchase-xml-import-module.js?v=13.20-step03"></script>
+    <script src="js/features/tax/forfettario-calc.js?v=13.20-step03"></script>
+    <script src="js/features/tax/ordinario-calc.js?v=13.20-step03"></script>
+    <script src="js/features/tax/ordinario-sim-module.js?v=13.20-step03"></script>
 
-    <script src="js/app/invoice-xml-migration.js?v=13.10-step30"></script>
-    <script src="js/app/app-bootstrap.js?v=13.10-step30"></script>
+    <script src="js/app/invoice-xml-migration.js?v=13.20-step03"></script>
+    <script src="js/app/app-bootstrap.js?v=13.20-step03"></script>
 </body>
 
 </html>

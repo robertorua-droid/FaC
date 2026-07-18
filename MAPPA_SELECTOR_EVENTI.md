@@ -1,4 +1,4 @@
-# Mappa selector/eventi → modulo/file (v12.25)
+# Mappa selector/eventi → modulo/file (V.13.20_step 03)
 
 Questa mappa elenca **dove** vengono gestiti i principali eventi UI.
 
@@ -20,6 +20,7 @@ Questa mappa elenca **dove** vengono gestiti i principali eventi UI.
 | Selector | Evento | Azione |
 |---|---|---|
 | `.sidebar .nav-link` | `click` | Switch pagina via `data-target` + guard regime |
+| `#menu-esportazioni-documenti` | `click` | apre la sezione dedicata `#esportazioni-documenti` solo in regime Forfettario |
 | `#sidebar-toggle-btn` | `click` | Toggle sidebar (collapsed/expanded) |
 | `.nav-section-header` | `click` | Toggle espansione singola sezione + persistenza |
 | `#btn-expand-all` | `click` | Espande tutte le sezioni del menu |
@@ -28,6 +29,8 @@ Questa mappa elenca **dove** vengono gestiti i principali eventi UI.
 | `#stats-year-filter` | `change` | `renderStatisticsPage()` |
 | `#lm-year-select, #lm-only-paid, #lm-include-bollo` | `change` | `renderLMPage()` (solo forfettario) |
 | `#lm-refresh-btn` | `click` | `renderLMPage()` |
+| `#lm-save-tax-adjustments-btn` | `click` | salva `companyInfo.taxAdjustmentsByYear` per anno redditi e acconti anno successivo, poi ricalcola il prospetto LM/RR/PXX |
+| `#lm-f24-help-toggle` | Bootstrap collapse | apre/chiude la guida rapida per compilare i dati dichiarativi da F24/quadri commercialista |
 
 ---
 
@@ -111,11 +114,20 @@ Questa mappa elenca **dove** vengono gestiti i principali eventi UI.
 | `#invoices-table-body` | `click` su `.btn-view-invoice` | apre modale dettaglio |
 | `#print-invoice-btn` | `click` | stampa |
 
-## Export XML (`js/features/invoices/invoices-xml-module.js`)
+## Export XML — sezione `#esportazioni-documenti` (`js/features/invoices/invoices-xml-module.js`)
 
 | Selector | Evento | Azione |
 |---|---|---|
 | `#export-xml-btn` / `.btn-export-xml-row` | `click` | `generateInvoiceXML(invoiceId)` |
+| `#bulk-xml-export-btn` | `click` | export massivo XML forfettario con download sequenziale dei file separati |
+| `#bulk-xml-start-date,#bulk-xml-end-date,#bulk-xml-include-invoices,#bulk-xml-include-credit-notes` | `change/input` | pulisce il riepilogo export massivo |
+
+## PDF unico documenti emessi — sezione `#esportazioni-documenti` (`js/features/invoices/invoices-pdf-module.js`)
+
+| Selector | Evento | Azione |
+|---|---|---|
+| `#bulk-pdf-print-btn` | `click` | prepara il fascicolo unico e apre la stampa browser per “Salva come PDF” |
+| `#bulk-pdf-start-date,#bulk-pdf-end-date,#bulk-pdf-include-invoices,#bulk-pdf-include-credit-notes` | `change/input` | pulisce il riepilogo stampa massiva |
 
 ---
 
@@ -226,3 +238,7 @@ Questa mappa elenca **dove** vengono gestiti i principali eventi UI.
 | `#restore-btn` | `click` | import JSON |
 | `#delete-documents-form` | `submit` | elimina documenti per anno |
 | `#delete-purchases-form` | `submit` | elimina acquisti per anno (se presente) |
+
+
+### Note UI V.13.20_step 03
+- Il riquadro **Versamenti stimati FAC** non introduce nuovi selector interattivi: viene renderizzato da `renderLMPage()` usando i dati già calcolati dal motore forfettario.

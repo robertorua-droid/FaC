@@ -1,4 +1,4 @@
-# Mappa moduli — chi chiama cosa (v12.25)
+# Mappa moduli — chi chiama cosa (V.13.20_step 03)
 
 Questa mappa descrive flusso, dipendenze e responsabilità principali.
 
@@ -27,7 +27,7 @@ Ordine consigliato:
 - `auth`, `navigation`
 - `registriIva`
 - `customers`, `products`, `suppliers`
-- `invoicesForm`, `invoicesList`, `invoicesXML`
+- `invoicesForm`, `invoicesList`, `invoicesXML`, `invoicesPDF`
 - `company`, `dashboard`
 - `ordinarioSim`, `lmSim`
 - `scadenziario`, `notes`, `migration`, `usage`
@@ -82,12 +82,14 @@ Chiamate tipiche (con logica *conditional* per regime):
 
 ### `features/navigation/*`
 - `docs-content.js`: bundle statico dei contenuti MD (manuale, changelog).
-- `navigation-module.js`: sidebar collapsible, sezioni expand/collapse, persistenza stato, caricamento contenuti da bundle.
+- `navigation-module.js`: sidebar collapsible, sezioni expand/collapse, persistenza stato, caricamento contenuti da bundle e guard della pagina `esportazioni-documenti`.
 
 ### `features/invoices/*`
 - `invoices-form-module.js`: gestione form, righe documento, pagamenti, calcolo totali.
 - `invoices-list-module.js`: elenco documenti, azioni (pagata/inviata).
-- `invoices-xml-module.js`: export XML FatturaPA.
+- `invoices-xml-module.js`: export XML FatturaPA singolo e export massivo XML forfettario senza ZIP; dallo step 33 il pannello massivo è nella sezione dedicata `#esportazioni-documenti`.
+- `invoice-print-service.js`: renderer read-only condiviso per fascicoli/stampe documenti emessi.
+- `invoices-pdf-module.js`: stampa massiva PDF come fascicolo unico browser-based, limitata al Forfettario; dallo step 33 la UI è nella sezione dedicata `#esportazioni-documenti`.
 - `invoices-timesheet-import-module.js`: logica di importazione ore dai worklog collegati (in Forfettario può usare `customer.timesheetPrefix` per personalizzare il prefisso descrizione).
 
 ### `features/commesse/*`
@@ -105,7 +107,7 @@ Chiamate tipiche (con logica *conditional* per regime):
 - filtri + azioni (spunte) con tooltips
 
 ### `features/tax/*`
-- `forfettario-calc.js`: simulazione Quadro LM (didattica)
+- `forfettario-calc.js`: simulazione Quadro LM + Quadro RR/PXX (didattica) con dati dichiarativi annuali `companyInfo.taxAdjustmentsByYear`; il riquadro versamenti dello step 03 usa il suo output senza introdurre nuove formule
 - `ordinario-calc.js` + `ordinario-sim-module.js`: simulazione redditi ordinario (RE/RN/RR; saldo/acconti)
 
 ---
@@ -114,3 +116,9 @@ Chiamate tipiche (con logica *conditional* per regime):
 
 - `bind()` idempotente in ogni modulo
 - dopo operazioni CRUD: `saveDataToCloud(...)` → `renderAll()`
+
+
+### V.13.20_step 03 — Riquadro Versamenti stimati FAC
+- `tax-render.js` reintroduce il riquadro operativo dei versamenti stimati nella pagina Fiscalità.
+- Il riquadro legge `forfettarioSimulation.versamenti`, preferisce i valori F24/manuali se presenti e altrimenti mostra la stima FAC.
+- Nessuna nuova dipendenza e nessuna modifica ai servizi fatture/XML/Timesheet.

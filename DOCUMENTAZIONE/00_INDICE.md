@@ -17,3 +17,4 @@ Questa cartella raccoglie la documentazione aggiornata della versione **stabile*
 9) [FAQ e Troubleshooting](./09_FAQ_TROUBLESHOOTING.md)
 10) [Dashboard (Annuale/Mensile)](./10_DASHBOARD.md)
 11) [Changelog (principali aggiunte)](./11_CHANGELOG.md)
+12) [Guida F24 e dati dichiarativi annuali](./12_GUIDA_F24_FISCALITA.md)

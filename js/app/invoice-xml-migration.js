@@ -57,6 +57,9 @@ function bindEventListeners() {
     if (window.AppModules && window.AppModules.invoicesXML && typeof window.AppModules.invoicesXML.bind === 'function') {
       window.AppModules.invoicesXML.bind();
     }
+    if (window.AppModules && window.AppModules.invoicesPDF && typeof window.AppModules.invoicesPDF.bind === 'function') {
+      window.AppModules.invoicesPDF.bind();
+    }
 
     if (window.AppModules && window.AppModules.company && typeof window.AppModules.company.bind === 'function') {
       window.AppModules.company.bind();

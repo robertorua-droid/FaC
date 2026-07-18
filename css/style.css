@@ -1018,3 +1018,87 @@ html[data-theme="dark"] .google-calendar-card .card-footer {
 .table-commesse .btn {
     margin-left: 0.25rem;
 }
+
+/* Step 32: stampa massiva documenti emessi come fascicolo PDF unico browser-based */
+.bulk-pdf-print-area {
+    display: none;
+}
+
+.bulk-pdf-cover {
+    min-height: 70vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+}
+
+.bulk-pdf-document {
+    background: #fff;
+    color: #212529;
+    padding: 0;
+}
+
+@media print {
+    body.bulk-pdf-print-mode .modal-body,
+    body.bulk-pdf-print-mode .modal-body * {
+        visibility: hidden !important;
+    }
+
+    body.bulk-pdf-print-mode #bulkPdfPrintArea,
+    body.bulk-pdf-print-mode #bulkPdfPrintArea * {
+        visibility: visible !important;
+    }
+
+    body.bulk-pdf-print-mode #bulkPdfPrintArea {
+        display: block !important;
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+        color: #212529 !important;
+    }
+
+    body.bulk-pdf-print-mode .bulk-pdf-cover {
+        page-break-after: always;
+        break-after: page;
+    }
+
+    body.bulk-pdf-print-mode .bulk-pdf-document {
+        page-break-after: always;
+        break-after: page;
+        position: relative;
+    }
+
+    body.bulk-pdf-print-mode .bulk-pdf-document:last-child {
+        page-break-after: auto;
+        break-after: auto;
+    }
+
+    body.bulk-pdf-print-mode .bulk-pdf-document.invoice-print-draft::before {
+        content: "BOZZA";
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-32deg);
+        z-index: 0;
+        visibility: visible !important;
+        pointer-events: none;
+        font-size: 96pt;
+        line-height: 1;
+        font-weight: 900;
+        letter-spacing: 0.18em;
+        color: rgba(108, 117, 125, 0.16);
+        border: 0.08em solid rgba(108, 117, 125, 0.12);
+        border-radius: 0.12em;
+        padding: 0.08em 0.18em;
+        text-transform: uppercase;
+    }
+
+    body.bulk-pdf-print-mode .bulk-pdf-document.invoice-print-draft > * {
+        position: relative;
+        z-index: 1;
+    }
+}

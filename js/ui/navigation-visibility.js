@@ -36,6 +36,7 @@ function updateCompanyUI() {
     const $acqTitleItem = $('#menu-acquisti-title').length ? $('#menu-acquisti-title') : $('.sidebar .nav-section-title').filter(function () { return $(this).text().trim() === 'Acquisti'; }).closest('li');
     const $acqNewLink = $('#menu-nuovo-acquisto').length ? $('#menu-nuovo-acquisto') : $('.sidebar .nav-link[data-target="nuovo-acquisto"]');
     const $acqListLink = $('#menu-elenco-acquisti').length ? $('#menu-elenco-acquisti') : $('.sidebar .nav-link[data-target="elenco-acquisti"]');
+    const $documentExportsLink = $('#menu-esportazioni-documenti').length ? $('#menu-esportazioni-documenti') : $('.sidebar .nav-link[data-target="esportazioni-documenti"]');
 
     _toggleMenuItem($lmLink, regimeUi.showLmMenu);
     _toggleMenuItem($ordLink, regimeUi.showOrdinarioMenu);
@@ -44,6 +45,7 @@ function updateCompanyUI() {
     $acqTitleItem.toggleClass('d-none', !regimeUi.showPurchasesMenu);
     _toggleMenuItem($acqNewLink, regimeUi.showPurchasesMenu);
     _toggleMenuItem($acqListLink, regimeUi.showPurchasesMenu);
+    _toggleMenuItem($documentExportsLink, regimeCapabilities.isForfettario);
 
     $('#section-acquisti').toggleClass('d-none', !regimeCapabilities.canManagePurchases);
     _toggleBlockWithInputs($('#delete-purchases-year-block'), regimeUi.showPurchaseDelete);
