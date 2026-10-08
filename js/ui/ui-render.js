@@ -354,7 +354,10 @@ function renderInvoicesTable() {
             </div>
         `;
 
-        const total = (parseFloat(inv.total) || 0).toFixed(2);
+        const savedNetAmount = parseFloat(inv.nettoDaPagare);
+        const documentTotal = parseFloat(inv.total) || 0;
+        const withholding = parseFloat(inv.ritenutaAcconto) || 0;
+        const total = (Number.isFinite(savedNetAmount) ? savedNetAmount : documentTotal - withholding).toFixed(2);
         table.append(`
             <tr class="${isDraft ? 'table-secondary' : (lockEditDelete ? 'table-light text-muted' : '')}">
                 <td>${badge}</td>
