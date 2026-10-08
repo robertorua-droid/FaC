@@ -103,6 +103,42 @@
     H.assertApprox(totals.totImp, 104, 0.0001);
   });
 
+  H.test('riga manuale con scorporo mantiene i totali corretti anche dopo la modifica', function () {
+    const customer = { rivalsaInps: true, scorporoRivalsaInps: true, sostitutoImposta: true };
+    const company = { taxRegime: 'ordinario', aliquotaIva: 22, aliquotaInps: 4, aliquotaRitenuta: 20 };
+    const created = window.InvoiceFormUiService.buildLineFromProductInputs({
+      description: 'Prestazione professionale',
+      qty: 155,
+      price: 47.25,
+      iva: 22,
+      customer: customer
+    });
+
+    H.assertEqual(created.ok, true);
+    H.assertEqual(created.line.priceType, 'gross');
+
+    const edited = window.InvoiceFormUiService.applyRowEditorChanges({
+      lines: [created.line],
+      idx: 0,
+      qty: 155,
+      price: 47.25,
+      iva: '22',
+      customer: customer
+    });
+
+    H.assertEqual(edited.ok, true);
+    H.assertEqual(edited.line.priceType, 'gross');
+
+    const totals = C.calculateTotals(edited.lines, company, customer, 'Fattura');
+    H.assertApprox(totals.totPrest, 7042.0673077, 0.0001);
+    H.assertApprox(totals.riv, 281.6826923, 0.0001);
+    H.assertApprox(totals.totImp, 7323.75, 0.0001);
+    H.assertApprox(totals.ivaTot, 1611.225, 0.0001);
+    H.assertApprox(totals.totDoc, 8934.975, 0.0001);
+    H.assertApprox(totals.ritenuta, 1464.75, 0.0001);
+    H.assertApprox(totals.nettoDaPagare, 7470.225, 0.0001);
+  });
+
   H.test('calculateTotals può escludere il bollo dal totale documento quando richiesto', function () {
     const totals = C.calculateTotals([
       { qty: 1, price: 100, productName: 'Compenso professionale' }

@@ -14,10 +14,10 @@
   }
 
   function isScorporoEnabledForCustomer(customer) {
-    if (typeof window.isScorporoRivalsaEnabledForCustomer === 'function') {
-      return !!window.isScorporoRivalsaEnabledForCustomer(customer);
-    }
-    return false;
+    if (!customer) return false;
+    const hasRivalsa = customer.rivalsaInps === true || customer.rivalsaInps === 'true';
+    const wantsScorporo = customer.scorporoRivalsaInps === true || customer.scorporoRivalsaInps === 'true';
+    return hasRivalsa && wantsScorporo;
   }
 
   function buildLineFromProductInputs(input) {
