@@ -1,4 +1,5 @@
 ## Versione corrente
+- **Scorporo rivalsa e netto elenco documenti – V.13.20_step 05**: uniformato lo scorporo INPS sulle righe manuali, importate e modificate; nell’elenco documenti viene mostrato il netto da incassare.
 - **Riporto assistito acconti F24 – V.13.20_step 04**: nella pagina Fiscalità, quando l’anno selezionato contiene acconti F24 già registrati, FAC propone di copiarli esplicitamente nei campi “già versati” dell’anno, senza automatismi nascosti e senza rischio di doppio conteggio.
 - **Riquadro Versamenti stimati FAC – V.13.20_step 03**: riepilogo operativo dei versamenti stimati LM + RR/PXX, usando il modello annuale `taxAdjustmentsByYear`; mostra saldi, acconti, fonte stima/F24 e scadenze tipiche.
 - **Quadro RR/PXX e Help F24 – V.13.20_step 02**: la simulazione forfettaria distingue in modo più chiaro **Quadro LM** e **Quadro RR/PXX**, aggiunge una mappa didattica RR/PXX, un pulsante **Help compilazione F24** e la guida in-app per inserire correttamente saldi/acconti anno per anno. Nessuna modifica a fatture, XML, Timesheet o regime Ordinario.
@@ -9,7 +10,7 @@
 - **Percentuali fiscali decimali – V.13.10_step 30**: i campi percentuali fiscali accettano valori decimali, in particolare INPS % forfettario (es. `26.07`), e i calcoli normalizzano anche la virgola italiana nei valori numerici.
 - **Filigrana BOZZA in stampa fattura – V.13.10_step 29**: le fatture salvate con stato **Bozza** mostrano una filigrana “BOZZA” solo in stampa/anteprima stampa; i documenti finalizzati non vengono modificati.
 
-V.13.20_step 04
+V.13.20_step 05
 
 - **Tema sidebar/menu – V.13.10_step 16**: il toggle Chiaro/Scuro ora cambia anche la sidebar di navigazione e la barra menu, non solo l'area contenuto principale; in Light Mode il menu usa sfondi e testi chiari, mentre in Dark Mode mantiene il look blu notte.
 - **Timesheet Ticket e CSV – V.13.10_step 15**: aggiunto campo opzionale **Ticket** nelle righe Timesheet; l’export CSV include ora sia **Ticket** sia **Note** nei formati dettaglio e raggruppati.

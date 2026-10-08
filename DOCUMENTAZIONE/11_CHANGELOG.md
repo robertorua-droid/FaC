@@ -1,3 +1,10 @@
+## V.13.20_step 05 — Scorporo rivalsa e netto da incassare
+- Corretto il rilevamento delle opzioni cliente per lo scorporo Rivalsa INPS nelle righe fattura manuali; lo scorporo resta applicato anche modificando quantità o prezzo.
+- Allineate le righe manuali al comportamento delle righe importate dal Timesheet, mantenendo i prezzi lordi marcati per il calcolo inverso della rivalsa.
+- Aggiunta una regressione sul caso di 155 ore a € 47,25 con rivalsa al 4%, inclusi imponibile, IVA, ritenuta e netto.
+- Nell’elenco dei documenti emessi la colonna mostra ora il **Netto da incassare**; per documenti storici senza il campo persistito usa totale documento meno ritenuta.
+- Il dettaglio documento continua a mostrare separatamente totale documento e netto da incassare.
+
 ## V.13.20_step 04 — Riporto assistito acconti F24
 - Aggiunto nella pagina **Fiscalità → Simulazione Fiscale (Quadro LM + Quadro RR/PXX)** un riquadro di suggerimento quando l’anno selezionato contiene acconti F24 già registrati come anno successivo da una dichiarazione precedente.
 - Il riquadro propone il riporto esplicito di **1790 + 1791** nel campo **Acconti imposta già versati** e degli acconti **PXX** nel campo **Contributi RR/PXX già versati per l’anno**.
